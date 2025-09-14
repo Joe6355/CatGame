@@ -7,8 +7,12 @@ public class Piston : MonoBehaviour
 
     [Header("Логика")]
     [SerializeField] private float cooldown = 2f;
-    [SerializeField] private float launchForce = 15f;
-    [SerializeField] private bool resetYBeforeLaunch = true;
+
+    [Header("Сила пинка")]
+    [SerializeField] private float launchForce = 15f;              // для Top/Bottom (по вертикали)
+    [SerializeField] private float horizontalLaunchForce = 15f;    // для Right/Left (по горизонтали)
+
+    [SerializeField] private bool resetYBeforeLaunch = true; // сбрасываем скорость вдоль оси пинка перед ударом
 
     [Header("Кого подкидывать")]
     [SerializeField] private LayerMask playerMask;
@@ -20,7 +24,7 @@ public class Piston : MonoBehaviour
     [SerializeField] private float detectGap = 0.02f;
 
     [Header("Фильтр «реально стоит» (опц.)")]
-    [SerializeField] private bool requireNearlyZeroVy = true;
+    [SerializeField] private bool requireNearlyZeroVy = true; // проверяем скорость вдоль оси пинка
     [SerializeField] private float vyThreshold = 0.15f;
 
     private BoxCollider2D col;
@@ -47,31 +51,67 @@ public class Piston : MonoBehaviour
         var hits = Physics2D.OverlapBoxAll(center, size, angle, playerMask);
         if (hits == null || hits.Length == 0) return;
 
+        Vector2 dir = GetLaunchDirection();
+        float force = GetLaunchForceForSide(); // <-- берём вертикальную или горизонтальную силу
+
         foreach (var hit in hits)
         {
             var rb = hit.attachedRigidbody;
             if (!rb) continue;
 
-            if (requireNearlyZeroVy && Mathf.Abs(rb.velocity.y) > vyThreshold)
-                continue;
+            if (requireNearlyZeroVy)
+            {
+                float vAlong = Vector2.Dot(rb.velocity, dir);
+                if (Mathf.Abs(vAlong) > vyThreshold) continue;
+            }
 
-            // 🔹 Перед пинком: отменяем заряд прыжка у игрока (если был)
+            // отменяем заряд прыжка
             var pc = rb.GetComponent<PlayerController>() ?? rb.GetComponentInParent<PlayerController>();
             if (pc != null) pc.CancelJumpCharge();
 
-            Launch(rb);
+            // корректный пинок через контроллер (фиксирует X в воздухе и т.п.)
+            if (pc != null) pc.ExternalPistonLaunch(dir, force, resetYBeforeLaunch);
+            else LaunchRaw(rb, dir, force);
         }
 
         nextReadyTime = Time.time + cooldown;
     }
 
-    private void Launch(Rigidbody2D rb)
+    private float GetLaunchForceForSide()
     {
-        if (resetYBeforeLaunch)
-            rb.velocity = new Vector2(rb.velocity.x, 0f);
+        switch (detectSide)
+        {
+            case DetectSide.Right:
+            case DetectSide.Left:
+                return horizontalLaunchForce;
+            case DetectSide.Top:
+            case DetectSide.Bottom:
+            default:
+                return launchForce;
+        }
+    }
 
-        rb.velocity = new Vector2(rb.velocity.x, launchForce);
-        // Альтернатива: rb.AddForce(Vector2.up * launchForce, ForceMode2D.Impulse);
+    private void LaunchRaw(Rigidbody2D rb, Vector2 dir, float force)
+    {
+        Vector2 v = rb.velocity;
+        float vAlong = Vector2.Dot(v, dir);
+        Vector2 vOrtho = v - vAlong * dir;
+
+        if (resetYBeforeLaunch) vAlong = 0f;
+
+        rb.velocity = vOrtho + dir * force;
+    }
+
+    private Vector2 GetLaunchDirection()
+    {
+        switch (detectSide)
+        {
+            case DetectSide.Top: return transform.up.normalized;
+            case DetectSide.Bottom: return (-transform.up).normalized;
+            case DetectSide.Right: return transform.right.normalized;
+            case DetectSide.Left: return (-transform.right).normalized;
+            default: return Vector2.up;
+        }
     }
 
     private void GetDetectionBox(out Vector2 center, out Vector2 size, out float angle)
@@ -126,5 +166,10 @@ public class Piston : MonoBehaviour
         Gizmos.matrix = m;
         Gizmos.DrawWireCube(Vector3.zero, new Vector3(size.x, size.y, 1f));
         Gizmos.matrix = Matrix4x4.identity;
+
+        // стрелка направления пинка
+        Vector2 dir = Application.isPlaying ? GetLaunchDirection() : Vector2.up;
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawRay(center, (Vector3)dir * 0.6f);
     }
 }

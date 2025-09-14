@@ -439,6 +439,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cooldown: 2
   launchForce: 15
+  horizontalLaunchForce: 15
   resetYBeforeLaunch: 1
   playerMask:
     serializedVersion: 2

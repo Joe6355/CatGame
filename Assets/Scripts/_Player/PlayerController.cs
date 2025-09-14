@@ -221,6 +221,43 @@ public class PlayerController : MonoBehaviour
         UpdateJumpBar(normalized);
     }
 
+
+    // Пинок от поршня/пружины/ветра и т.п. по произвольному направлению.
+    // dir — нормализован, force — целевая скорость вдоль dir,
+    // resetAlongBefore — обнулять текущую компоненту скорости вдоль dir (стабильная сила).
+    public void ExternalPistonLaunch(Vector2 dir, float force, bool resetAlongBefore)
+    {
+        if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
+        dir = dir.normalized;
+
+        // Разложим текущую скорость на вдоль/поперёк оси пинка
+        Vector2 v = rb.velocity;
+        float vAlong = Vector2.Dot(v, dir);
+        Vector2 vOrtho = v - vAlong * dir;
+
+        if (resetAlongBefore) vAlong = 0f;
+
+        // Целевая скорость вдоль оси пинка
+        float finalAlong = force;
+        rb.velocity = vOrtho + dir * finalAlong;
+
+        // Переводим в "воздух" и фиксируем горизонталь, чтобы контроллер не стёр удар
+        isGrounded = false;
+        takeoffLockUntil = Time.time + 0.08f;
+        groundCheckDisableUntil = Time.time + 0.08f;
+
+        // Синхронизируем с твоей логикой блокировки X в воздухе
+        airVx = rb.velocity.x;
+
+        // Чтобы рикошет от стен не демпфился сразу
+        lastJumpTime = Time.time;
+
+        // На всякий случай — убираем заряд шкалы
+        isChargingJump = false;
+        UpdateJumpBar(0f);
+    }
+
+
     private void ReleaseJumpChargeAndJump()
     {
 
