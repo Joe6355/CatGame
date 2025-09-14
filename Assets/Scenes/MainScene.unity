@@ -167,11 +167,14 @@ MonoBehaviour:
   leftKey: 97
   rightKey: 100
   jumpKey: 32
-  groundCheck: {fileID: 1035986057}
-  groundCheckRadius: 0.12
   groundMask:
     serializedVersion: 2
     m_Bits: 64
+  useBoxGroundCheck: 1
+  groundBoxSize: {x: 0.87, y: 0.06}
+  groundBoxOffset: {x: 0, y: -0.51}
+  groundCheck: {fileID: 1035986057}
+  groundCheckRadius: 0.12
   jumpBarFill: {fileID: 1103351752}
   jumpBarBG: {fileID: 669947700}
   mainCamera: {fileID: 519420031}
@@ -441,7 +444,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 128
   detectSide: 0
-  detectWidthScale: 0.69
+  detectWidthScale: 0.59
   detectThickness: 0.12
   detectGap: 0.02
   requireNearlyZeroVy: 1
@@ -1418,7 +1421,7 @@ GameObject:
   m_Layer: 7
   m_Name: GroundCheck
   m_TagString: Untagged
-  m_Icon: {fileID: 3443629218296621865, guid: 0000000000000000d000000000000000, type: 0}
+  m_Icon: {fileID: 7250588514170254948, guid: 0000000000000000d000000000000000, type: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1

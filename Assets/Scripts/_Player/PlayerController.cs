@@ -33,10 +33,23 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private KeyCode rightKey = KeyCode.D;
     [SerializeField] private KeyCode jumpKey = KeyCode.Space;
 
+    // ======= НОВЫЙ GroundCheck с размерами =======
     [Header("Ground Check")]
-    [SerializeField] private Transform groundCheck;          // Пустышка под ногами
-    [SerializeField] private float groundCheckRadius = 0.12f;
     [SerializeField] private LayerMask groundMask;
+
+    [Tooltip("Использовать прямоугольный GroundCheck (OverlapBox). Если выкл — используется круг.")]
+    [SerializeField] private bool useBoxGroundCheck = true;
+
+    [Tooltip("Размеры прямоугольника GroundCheck (ширина, высота) в мировых единицах.")]
+    [SerializeField] private Vector2 groundBoxSize = new Vector2(0.6f, 0.12f);
+
+    [Tooltip("Смещение центра прямоугольника относительно Transform игрока (в локальных координатах). Обычно чуть ниже центра спрайта.")]
+    [SerializeField] private Vector2 groundBoxOffset = new Vector2(0f, -0.2f);
+
+    [Tooltip("Если используете круглый GroundCheck: центр")]
+    [SerializeField] private Transform groundCheck;          // Пустышка под ногами (для кругового режима)
+    [Tooltip("Если используете круглый GroundCheck: радиус")]
+    [SerializeField] private float groundCheckRadius = 0.12f;
 
     [Header("UI шкалы прыжка")]
     [SerializeField] private Image jumpBarFill;              // Заполняемая часть (Image.type=Filled)
@@ -69,12 +82,12 @@ public class PlayerController : MonoBehaviour
     private float airVx = 0f;                 // зафиксированная скорость по X на весь полёт
     private float lastJumpTime = -999f;       // время последнего прыжка (для dampingExclusionTime)
 
-    // === ВОЗВРАЩЕНО И ИСПОЛЬЗУЕТСЯ КАК В ПЕРВОЙ ВЕРСИИ ===
+    // === как в первой версии ===
     private float jumpStartSpeed = 0f;        // горизонтальная скорость в момент прыжка (для знака в отскоке)
 
     private float fatigueEndTime = 0f;
 
-    // небольшой "лок" после отрыва, чтобы земля/фиксед не съедали толчок
+    // "лок" после отрыва (защита толчка)
     [SerializeField] private float takeoffLockTime = 0.08f;
     private float takeoffLockUntil = 0f;
     private float groundCheckDisableUntil = 0f;
@@ -90,7 +103,6 @@ public class PlayerController : MonoBehaviour
 
     private void Start()
     {
-        // обработчик удержания для мобильной кнопки
         if (mobileJumpButton != null)
         {
             var hold = mobileJumpButton.gameObject.GetComponent<PointerHoldHandler>();
@@ -211,18 +223,23 @@ public class PlayerController : MonoBehaviour
 
     private void ReleaseJumpChargeAndJump()
     {
+
+        if (!isGrounded)
+        {
+            isChargingJump = false;
+            UpdateJumpBar(0f);
+            return;
+        }
+
         isChargingJump = false;
 
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
-        float verticalForce = CalculateJumpForce(hold); // <= как в твоей версии
+        float verticalForce = CalculateJumpForce(hold);
 
-        // 1-в-1: (±moveSpeed, jumpForce) по направлению взгляда
         float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
         float takeoffVx = (isFacingRight ? 1f : -1f) * moveSpeed * speedMul;
 
-        // === ВАЖНО: сохраняем jumpStartSpeed (как в твоём коде он использовался в BounceOffWall) ===
         jumpStartSpeed = takeoffVx;
-
         PerformJump(takeoffVx, verticalForce);
         UpdateJumpBar(0f);
         StartFatigue();
@@ -237,7 +254,7 @@ public class PlayerController : MonoBehaviour
     {
         lastJumpTime = Time.time;
 
-        airVx = horizontalSpeed; // фиксируем X на полёт (в воздухе нет управления)
+        airVx = horizontalSpeed;
         rb.velocity = new Vector2(horizontalSpeed, verticalForce);
 
         isGrounded = false;
@@ -298,13 +315,30 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        isGrounded = false;
+        bool hit = false;
 
-        if (groundCheck != null)
+        if (useBoxGroundCheck)
         {
-            Collider2D col = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
-            isGrounded = (col != null);
+            // Прямоугольная зона ног
+            Vector2 center = (Vector2)transform.TransformPoint(groundBoxOffset);
+            Vector2 size = new Vector2(
+                groundBoxSize.x * Mathf.Abs(transform.lossyScale.x),
+                groundBoxSize.y * Mathf.Abs(transform.lossyScale.y)
+            );
+
+            // Прямоугольник осево-выравненный: угол = 0 (стабильно при флипе по scale.x)
+            hit = Physics2D.OverlapBox(center, size, 0f, groundMask);
         }
+        else
+        {
+            // Круг как раньше
+            if (groundCheck != null)
+            {
+                hit = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
+            }
+        }
+
+        isGrounded = hit;
 
         if (isGrounded)
         {
@@ -315,7 +349,7 @@ public class PlayerController : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        // === ТОЧНО КАК В ПЕРВОЙ ВЕРСИИ ===
+        // Точно как в первой версии
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = true;
@@ -326,8 +360,8 @@ public class PlayerController : MonoBehaviour
             Vector3 contactNormal = collision.contacts[0].normal;
             if (Mathf.Abs(contactNormal.x) > 0.9f)
             {
-                float jumpForce = CalculateJumpForce(lastJumpTime - jumpStartHoldTime); // lastJumpTime - jumpTime
-                BounceOffWall(jumpForce, jumpStartSpeed); // ← как было
+                float jumpForce = CalculateJumpForce(lastJumpTime - jumpStartHoldTime);
+                BounceOffWall(jumpForce, jumpStartSpeed);
             }
         }
         else if (collision.gameObject.CompareTag("Ceiling"))
@@ -336,26 +370,22 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // === 1-в-1 логика отскока из твоего кода ===
     private void BounceOffWall(float jumpForce, float jumpStartSpeedParam)
     {
         float currentDamping = (Time.time - lastJumpTime < dampingExclusionTime) ? 1f : damping;
         float wallBounceForce = jumpForce * wallBounceFraction * Mathf.Sign(jumpStartSpeedParam) * currentDamping;
 
-        // направление от isFacingRight, как у тебя:
         float newVx = (isFacingRight ? -1f : 1f) * wallBounceForce;
 
         rb.velocity = new Vector2(newVx, rb.velocity.y);
-        airVx = newVx; // фиксируем на оставшийся полёт
+        airVx = newVx;
 
-        // обновим разворот под новое движение
         if (Mathf.Abs(newVx) > 0.01f)
         {
             bool faceRight = newVx > 0f;
             if (faceRight != isFacingRight) Flip();
         }
 
-        // небольшой лок, чтобы «земля» не прибила отскок
         takeoffLockUntil = Time.time + 0.02f;
         groundCheckDisableUntil = Time.time + 0.02f;
     }
@@ -477,12 +507,38 @@ public class PlayerController : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        if (groundCheck != null)
+        Gizmos.color = Color.yellow;
+
+        if (useBoxGroundCheck)
         {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+            // Рисуем прямоугольный GroundCheck
+            Vector2 center = Application.isPlaying
+                ? (Vector2)transform.TransformPoint(groundBoxOffset)
+                : (Vector2)(transform.position + (Vector3)groundBoxOffset);
+
+            Vector2 size = new Vector2(
+                groundBoxSize.x * Mathf.Abs(transform.lossyScale.x),
+                groundBoxSize.y * Mathf.Abs(transform.lossyScale.y)
+            );
+
+            Gizmos.DrawWireCube(center, size);
+        }
+        else
+        {
+            // Круглый GroundCheck
+            if (groundCheck != null)
+                Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
     }
+
+    // Позвать, если внешний объект (поршень и т.п.) подбросил игрока во время зарядки
+    public void CancelJumpCharge()
+    {
+        if (!isChargingJump) return;
+        isChargingJump = false;
+        UpdateJumpBar(0f);
+    }
+
 }
 
 /// <summary>
