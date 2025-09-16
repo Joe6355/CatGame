@@ -27,13 +27,22 @@ public class Piston : MonoBehaviour
     [SerializeField] private bool requireNearlyZeroVy = true; // проверяем скорость вдоль оси пинка
     [SerializeField] private float vyThreshold = 0.15f;
 
+    [Header("Анимация")]
+    [SerializeField] private Animator animator;
+    [SerializeField] private string activateTrigger = "Activate";
+    [SerializeField] private string returnTrigger = "Return";
+
     private BoxCollider2D col;
     private float nextReadyTime;
+    private bool isActivating = false;
 
     private void Awake()
     {
         col = GetComponent<BoxCollider2D>();
         if (!col) Debug.LogWarning("[Piston] Требуется BoxCollider2D на поршне.");
+
+        if (!animator) animator = GetComponent<Animator>();
+        if (!animator) Debug.LogWarning("[Piston] Требуется Animator для анимации поршня.");
     }
 
     private void Start()
@@ -74,7 +83,24 @@ public class Piston : MonoBehaviour
             else LaunchRaw(rb, dir, force);
         }
 
+        // Активируем анимацию
+        if (animator && !isActivating)
+        {
+            animator.SetTrigger(activateTrigger);
+            isActivating = true;
+            Invoke("ReturnToIdle", cooldown * 0.5f); // Возвращаемся к idle через половину времени cooldown
+        }
+
         nextReadyTime = Time.time + cooldown;
+    }
+
+    private void ReturnToIdle()
+    {
+        if (animator)
+        {
+            animator.SetTrigger(returnTrigger);
+        }
+        isActivating = false;
     }
 
     private float GetLaunchForceForSide()
