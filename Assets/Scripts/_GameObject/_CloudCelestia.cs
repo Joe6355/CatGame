@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 
-public class _Mushroom : MonoBehaviour
+public class _CloudCelestia : MonoBehaviour
 {
     [Header("Ссылки")]
     [SerializeField] private Transform platform;  // Движущаяся часть (Collider2D, IsTrigger=OFF)
