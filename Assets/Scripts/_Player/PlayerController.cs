@@ -1,4 +1,5 @@
-﻿using System;
+﻿// PlayerController.cs
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -33,7 +34,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private KeyCode rightKey = KeyCode.D;
     [SerializeField] private KeyCode jumpKey = KeyCode.Space;
 
-    // ======= НОВЫЙ GroundCheck с размерами =======
+    // ======= GroundCheck =======
     [Header("Ground Check")]
     [SerializeField] private LayerMask groundMask;
 
@@ -64,10 +65,19 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Joystick mobileJoystick;        // любой Joystick-скрипт (объект на Canvas)
     [SerializeField] private Button mobileJumpButton;        // кнопка прыжка (удержание)
 
-    // ======= Air-control после внешних пинков (грибы, поршни и т.п.) =======
+    // ======= Air Control после внешних пинков =======
     [Header("Air Control")]
     [SerializeField] private float airControlSpeed = 5f;     // скорость X, когда air-control разрешён
-    private float airControlUnlockUntil = 0f;                // пока этот таймер активен — в воздухе можно рулить
+    private float airControlUnlockUntil = 0f;                // пока активен — можно рулить в воздухе
+
+    // ======= ЛЁД =======
+    [Header("Лёд (скольжение на земле, Tag = \"Ice\")")]
+    [SerializeField] private float iceAccel = 2.5f;          // ускорение на льду (чем меньше — тем «мыльнее»)
+    [SerializeField] private float iceBrake = 1.2f;          // торможение на льду (малое = долго катится)
+    [SerializeField] private float iceMaxSpeedMul = 1.15f;   // множитель максимальной скорости на льду
+    [Tooltip("Ускорение/торможение на обычной земле. Большое значение имитирует мгновенную установку скорости.")]
+    [SerializeField] private float normalAccel = 9999f;
+    [SerializeField] private float normalBrake = 9999f;
 
     // ===============================
     //           СЛУЖЕБНЫЕ
@@ -84,21 +94,23 @@ public class PlayerController : MonoBehaviour
     private float jumpStartHoldTime = 0f; // начало удержания кнопки прыжка
     private bool mobileJumpHeld = false;  // удержание мобильной кнопки
 
-    private float airVx = 0f;                 // зафиксированная скорость по X на весь полёт (когда air-control не разрешён)
+    private float airVx = 0f;                 // фиксированный X на полёт (когда air-control не разрешён)
     private float lastJumpTime = -999f;       // время последнего прыжка (для dampingExclusionTime)
-
-    // === как в первой версии ===
     private float jumpStartSpeed = 0f;        // горизонтальная скорость в момент прыжка (для знака в отскоке)
 
     private float fatigueEndTime = 0f;
 
-    // "лок" после отрыва (защита толчка)
+    // защита толчка
     [SerializeField] private float takeoffLockTime = 0.08f;
     private float takeoffLockUntil = 0f;
     private float groundCheckDisableUntil = 0f;
 
     // авто-скрытие UI мобилы
     private bool prevUseMobileControls;
+
+    // лёд: запоминаем, на чём стоим
+    private bool isOnIce = false;
+    private Collider2D lastGroundCol = null;
 
     // ===============================
     //           ЖИЗНЕННЫЙ ЦИКЛ
@@ -119,7 +131,7 @@ public class PlayerController : MonoBehaviour
         UpdateJumpBar(0f);
         SetFatigueImageActive(false, 0f);
 
-        prevUseMobileControls = !useMobileControls; // форсируем
+        prevUseMobileControls = !useMobileControls; // форс
         ApplyMobileUIVisibility();
     }
 
@@ -266,9 +278,7 @@ public class PlayerController : MonoBehaviour
         groundCheckDisableUntil = Time.time + takeoffLockTime;
     }
 
-    // ======== API для внешних пинков (поршни/ветер и т.п.) ========
-    // Пинок по произвольному направлению: dir — направление (нормализуем), force — целевая скорость вдоль dir.
-    // resetAlongBefore — обнулять ли текущую компоненту скорости вдоль dir (чтобы пинок был "чистым").
+    // ======== API для внешних пинков ========
     public void ExternalPistonLaunch(Vector2 dir, float force, bool resetAlongBefore)
     {
         if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
@@ -294,7 +304,6 @@ public class PlayerController : MonoBehaviour
         UpdateJumpBar(0f);
     }
 
-    // Разрешить управление в воздухе на N секунд (используется грибом)
     public void AllowAirControlFor(float seconds)
     {
         airControlUnlockUntil = Mathf.Max(airControlUnlockUntil, Time.time + Mathf.Max(0f, seconds));
@@ -314,7 +323,6 @@ public class PlayerController : MonoBehaviour
 
         if (IsAirborne())
         {
-            // если активен air-control (например, после гриба) — даём рулить по X
             if (Time.time < airControlUnlockUntil)
             {
                 float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
@@ -329,19 +337,27 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                // обычный режим: в полёте X фиксирован
                 rb.velocity = new Vector2(airVx, rb.velocity.y);
             }
         }
-        else
+        else // ======== НА ЗЕМЛЕ: учитываем лёд ========
         {
             float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
-            float vx = inputX * moveSpeed * speedMul;
-            rb.velocity = new Vector2(vx, rb.velocity.y);
+            float target = inputX * moveSpeed * speedMul;
 
-            if (Mathf.Abs(vx) > 0.01f)
+            float maxSpeed = moveSpeed * (isOnIce ? iceMaxSpeedMul : 1f);
+            float accel = isOnIce ? iceAccel : normalAccel;
+            float brake = isOnIce ? iceBrake : normalBrake;
+
+            float cur = rb.velocity.x;
+            float rate = (Mathf.Sign(target) == Mathf.Sign(cur) || Mathf.Approximately(cur, 0f)) ? accel : brake;
+
+            float newVx = Mathf.MoveTowards(cur, Mathf.Clamp(target, -maxSpeed, +maxSpeed), rate * Time.fixedDeltaTime);
+            rb.velocity = new Vector2(newVx, rb.velocity.y);
+
+            if (Mathf.Abs(newVx) > 0.01f && !isChargingJump)
             {
-                bool faceRight = vx > 0f;
+                bool faceRight = newVx > 0f;
                 if (faceRight != isFacingRight) Flip();
             }
         }
@@ -370,43 +386,50 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        bool hit = false;
+        Collider2D groundCol = null;
 
         if (useBoxGroundCheck)
         {
-            // Прямоугольная зона ног
             Vector2 center = (Vector2)transform.TransformPoint(groundBoxOffset);
             Vector2 size = new Vector2(
                 groundBoxSize.x * Mathf.Abs(transform.lossyScale.x),
                 groundBoxSize.y * Mathf.Abs(transform.lossyScale.y)
             );
-
-            // ООС-прямоугольник (без поворота), стабильно при флипе по scale.x
-            hit = Physics2D.OverlapBox(center, size, 0f, groundMask);
+            groundCol = Physics2D.OverlapBox(center, size, 0f, groundMask);
         }
         else
         {
-            // Круг как раньше
             if (groundCheck != null)
-            {
-                hit = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
-            }
+                groundCol = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
         }
 
+        bool hit = groundCol != null;
+
         isGrounded = hit;
+        lastGroundCol = groundCol;
 
         if (isGrounded)
         {
             lastGroundedTime = Time.time;
             airVx = 0f;
-            // как только приземлились — отключаем air-control окно
             airControlUnlockUntil = 0f;
+
+            // лёд по ТЕГУ "Ice"
+            isOnIce = false;
+            if (lastGroundCol != null && lastGroundCol.CompareTag("Ice"))
+                isOnIce = true;
+
+            // как только встали на землю — выключаем шкалу, если не держим заряд
+            if (!Input.GetKey(jumpKey)) UpdateJumpBar(0f);
+        }
+        else
+        {
+            isOnIce = false;
         }
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        // Точно как в первой версии
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = true;
@@ -586,7 +609,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // Позвать, если внешний объект (поршень/гриб и т.п.) подбросил игрока во время зарядки
+    // Внешним объектам (поршень/гриб и т.п.), если подбросили во время зарядки
     public void CancelJumpCharge()
     {
         if (!isChargingJump) return;
@@ -597,7 +620,6 @@ public class PlayerController : MonoBehaviour
 
 /// <summary>
 /// Лёгкий обработчик удержания для UI-кнопки (без EventTrigger).
-/// Просто навесь этот компонент на GameObject кнопки ИЛИ он добавится автоматически из кода.
 /// </summary>
 public class PointerHoldHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {
