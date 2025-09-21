@@ -1,4 +1,5 @@
-﻿using System;
+﻿// PlayerController.cs
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -6,103 +7,82 @@ using UnityEngine.EventSystems;
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerController : MonoBehaviour
 {
-    // ===============================
-    //            ПАРАМЕТРЫ
-    // ===============================
-
     [Header("Движение")]
-    [SerializeField] private float moveSpeed = 5f;                // базовая скорость бега по земле
-    [SerializeField] private float fatigueSpeedMultiplier = 0.6f; // во время усталости скорость умножается на это
+    [SerializeField] private float moveSpeed = 5f;
+    [SerializeField] private float fatigueSpeedMultiplier = 0.6f;
 
     [Header("Прыжок (заряд)")]
-    [SerializeField] private float maxJumpForce = 20f;     // макс. сила прыжка по вертикали
-    [SerializeField] private float jumpTimeLimit = 1f;     // макс. время удержания для заряда
-    [SerializeField] private float coyoteTime = 0.05f;     // небольшой запас после схода с земли
+    [SerializeField] private float maxJumpForce = 20f;
+    [SerializeField] private float jumpTimeLimit = 1f;
+    [SerializeField] private float coyoteTime = 0.05f;
 
-    [Header("Отскок от стен/потолка (как в первой версии)")]
+    [Header("Отскок от стен/потолка")]
     [SerializeField, Range(0f, 1f)] private float wallBounceFraction = 0.33f;
-    [SerializeField] private float damping = 0.5f;               // затухание отскока
-    [SerializeField] private float dampingExclusionTime = 0.2f;  // без затухания сразу после прыжка
+    [SerializeField] private float damping = 0.5f;
+    [SerializeField] private float dampingExclusionTime = 0.2f;
 
     [Header("Усталость (анти-спам)")]
-    [SerializeField] private float fatigueDuration = 0.8f; // сколько длится усталость после прыжка
-    [SerializeField] private Image fatigueImage;           // индикатор усталости (GameObject включается/выключается), альфа гаснет 1→0
+    [SerializeField] private float fatigueDuration = 0.8f;
+    [SerializeField] private Image fatigueImage;
 
     [Header("Назначение клавиш (PC)")]
     [SerializeField] private KeyCode leftKey = KeyCode.A;
     [SerializeField] private KeyCode rightKey = KeyCode.D;
     [SerializeField] private KeyCode jumpKey = KeyCode.Space;
 
-    // ======= НОВЫЙ GroundCheck с размерами =======
     [Header("Ground Check")]
     [SerializeField] private LayerMask groundMask;
-
-    [Tooltip("Использовать прямоугольный GroundCheck (OverlapBox). Если выкл — используется круг.")]
     [SerializeField] private bool useBoxGroundCheck = true;
-
-    [Tooltip("Размеры прямоугольника GroundCheck (ширина, высота) в мировых единицах.")]
     [SerializeField] private Vector2 groundBoxSize = new Vector2(0.6f, 0.12f);
-
-    [Tooltip("Смещение центра прямоугольника относительно Transform игрока.")]
     [SerializeField] private Vector2 groundBoxOffset = new Vector2(0f, -0.2f);
-
-    [Tooltip("Если используете круглый GroundCheck: центр")]
-    [SerializeField] private Transform groundCheck;          // пустышка под ногами (для кругового режима)
-    [Tooltip("Если используете круглый GroundCheck: радиус")]
+    [SerializeField] private Transform groundCheck;
     [SerializeField] private float groundCheckRadius = 0.12f;
 
     [Header("UI шкалы прыжка")]
-    [SerializeField] private Image jumpBarFill;              // заполняемая часть (Image.type=Filled)
-    [SerializeField] private Image jumpBarBG;                // фон
+    [SerializeField] private Image jumpBarFill;
+    [SerializeField] private Image jumpBarBG;
     [SerializeField] private Camera mainCamera;
     [SerializeField] private Canvas uiCanvas;
     [SerializeField] private Vector3 barOffset = new Vector3(0f, 2f, 0f);
 
     [Header("Мобильное управление")]
-    [Tooltip("ВЫКЛ = ПК (клавиатура). ВКЛ = мобильное (джойстик+кнопка).")]
     [SerializeField] private bool useMobileControls = false;
-    [SerializeField] private Joystick mobileJoystick;        // любой Joystick-скрипт (объект на Canvas)
-    [SerializeField] private Button mobileJumpButton;        // кнопка прыжка (удержание)
+    [SerializeField] private Joystick mobileJoystick;
+    [SerializeField] private Button mobileJumpButton;
 
-    // ======= Air-control после внешних пинков (грибы, поршни и т.п.) =======
     [Header("Air Control")]
-    [SerializeField] private float airControlSpeed = 5f;     // скорость X, когда air-control разрешён
-    private float airControlUnlockUntil = 0f;                // пока этот таймер активен — в воздухе можно рулить
+    [SerializeField] private float airControlSpeed = 5f;
+    private float airControlUnlockUntil = 0f;
 
-    // ===============================
-    //           СЛУЖЕБНЫЕ
-    // ===============================
+    [Header("Лёд (Tag = \"Ice\")")]
+    [SerializeField] private float iceAccel = 2.5f;
+    [SerializeField] private float iceBrake = 1.2f;
+    [SerializeField] private float iceMaxSpeedMul = 1.15f;
+    [SerializeField] private float normalAccel = 9999f;
+    [SerializeField] private float normalBrake = 9999f;
 
     private Rigidbody2D rb;
     private bool isFacingRight = true;
-
     private bool isGrounded = false;
-    private float lastGroundedTime = -999f; // для coyote-time
+    private float lastGroundedTime = -999f;
 
-    private float inputX = 0f;            // желаемое направление по X (на земле)
-    private bool isChargingJump = false;  // идёт заряд прыжка
-    private float jumpStartHoldTime = 0f; // начало удержания кнопки прыжка
-    private bool mobileJumpHeld = false;  // удержание мобильной кнопки
+    private float inputX = 0f;
+    private bool isChargingJump = false;
+    private float jumpStartHoldTime = 0f;
+    private bool mobileJumpHeld = false;
 
-    private float airVx = 0f;                 // зафиксированная скорость по X на весь полёт (когда air-control не разрешён)
-    private float lastJumpTime = -999f;       // время последнего прыжка (для dampingExclusionTime)
-
-    // === как в первой версии ===
-    private float jumpStartSpeed = 0f;        // горизонтальная скорость в момент прыжка (для знака в отскоке)
-
+    private float airVx = 0f;
+    private float lastJumpTime = -999f;
+    private float jumpStartSpeed = 0f;
     private float fatigueEndTime = 0f;
 
-    // "лок" после отрыва (защита толчка)
     [SerializeField] private float takeoffLockTime = 0.08f;
     private float takeoffLockUntil = 0f;
     private float groundCheckDisableUntil = 0f;
 
-    // авто-скрытие UI мобилы
     private bool prevUseMobileControls;
-
-    // ===============================
-    //           ЖИЗНЕННЫЙ ЦИКЛ
-    // ===============================
+    private bool isOnIce = false;
+    private Collider2D lastGroundCol = null;
 
     private void Awake() => rb = GetComponent<Rigidbody2D>();
 
@@ -119,7 +99,7 @@ public class PlayerController : MonoBehaviour
         UpdateJumpBar(0f);
         SetFatigueImageActive(false, 0f);
 
-        prevUseMobileControls = !useMobileControls; // форсируем
+        prevUseMobileControls = !useMobileControls;
         ApplyMobileUIVisibility();
     }
 
@@ -142,10 +122,6 @@ public class PlayerController : MonoBehaviour
         CheckGrounded();
         ApplyMovement();
     }
-
-    // ===============================
-    //        ОБРАБОТКА ВВОДА
-    // ===============================
 
     private void HandleDesktopInput()
     {
@@ -197,10 +173,6 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // ===============================
-    //         ЛОГИКА ПРЫЖКА
-    // ===============================
-
     private bool CanStartJumpCharge()
     {
         bool groundedOrCoyote = isGrounded || (Time.time - lastGroundedTime) <= coyoteTime;
@@ -238,7 +210,7 @@ public class PlayerController : MonoBehaviour
         isChargingJump = false;
 
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
-        float verticalForce = CalculateJumpForce(hold);
+        float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce;
 
         float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
         float takeoffVx = (isFacingRight ? 1f : -1f) * moveSpeed * speedMul;
@@ -247,11 +219,6 @@ public class PlayerController : MonoBehaviour
         PerformJump(takeoffVx, verticalForce);
         UpdateJumpBar(0f);
         StartFatigue();
-    }
-
-    private float CalculateJumpForce(float duration)
-    {
-        return Mathf.Clamp01(duration / jumpTimeLimit) * maxJumpForce;
     }
 
     private void PerformJump(float horizontalSpeed, float verticalForce)
@@ -266,9 +233,6 @@ public class PlayerController : MonoBehaviour
         groundCheckDisableUntil = Time.time + takeoffLockTime;
     }
 
-    // ======== API для внешних пинков (поршни/ветер и т.п.) ========
-    // Пинок по произвольному направлению: dir — направление (нормализуем), force — целевая скорость вдоль dir.
-    // resetAlongBefore — обнулять ли текущую компоненту скорости вдоль dir (чтобы пинок был "чистым").
     public void ExternalPistonLaunch(Vector2 dir, float force, bool resetAlongBefore)
     {
         if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
@@ -294,27 +258,28 @@ public class PlayerController : MonoBehaviour
         UpdateJumpBar(0f);
     }
 
-    // Разрешить управление в воздухе на N секунд (используется грибом)
     public void AllowAirControlFor(float seconds)
     {
         airControlUnlockUntil = Mathf.Max(airControlUnlockUntil, Time.time + Mathf.Max(0f, seconds));
     }
 
-    // ===============================
-    //        ДВИЖЕНИЕ ЗЕМЛЯ/ВОЗДУХ
-    // ===============================
-
     private void ApplyMovement()
     {
+        // === ВАЖНО: во время зарядки ===
         if (isChargingJump)
         {
-            rb.velocity = new Vector2(0f, rb.velocity.y);
+            // если стоим на обычной земле — стопим X (как раньше)
+            // если на льду ИЛИ на конвейере (SurfaceEffector2D) — не мешаем тянуть
+            bool onMovingGround = isGrounded && lastGroundCol && lastGroundCol.GetComponent<SurfaceEffector2D>() != null;
+
+            if (isGrounded && !isOnIce && !onMovingGround)
+                rb.velocity = new Vector2(0f, rb.velocity.y);
+
             return;
         }
 
         if (IsAirborne())
         {
-            // если активен air-control (например, после гриба) — даём рулить по X
             if (Time.time < airControlUnlockUntil)
             {
                 float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
@@ -329,19 +294,27 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                // обычный режим: в полёте X фиксирован
                 rb.velocity = new Vector2(airVx, rb.velocity.y);
             }
         }
         else
         {
             float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
-            float vx = inputX * moveSpeed * speedMul;
-            rb.velocity = new Vector2(vx, rb.velocity.y);
+            float target = inputX * moveSpeed * speedMul;
 
-            if (Mathf.Abs(vx) > 0.01f)
+            float maxSpeed = moveSpeed * (isOnIce ? iceMaxSpeedMul : 1f);
+            float accel = isOnIce ? iceAccel : normalAccel;
+            float brake = isOnIce ? iceBrake : normalBrake;
+
+            float cur = rb.velocity.x;
+            float rate = (Mathf.Sign(target) == Mathf.Sign(cur) || Mathf.Approximately(cur, 0f)) ? accel : brake;
+
+            float newVx = Mathf.MoveTowards(cur, Mathf.Clamp(target, -maxSpeed, +maxSpeed), rate * Time.fixedDeltaTime);
+            rb.velocity = new Vector2(newVx, rb.velocity.y);
+
+            if (Mathf.Abs(newVx) > 0.01f)
             {
-                bool faceRight = vx > 0f;
+                bool faceRight = newVx > 0f;
                 if (faceRight != isFacingRight) Flip();
             }
         }
@@ -358,10 +331,6 @@ public class PlayerController : MonoBehaviour
         transform.localScale = s;
     }
 
-    // ===============================
-    //        СТОЛКНОВЕНИЯ/ГРАУНД
-    // ===============================
-
     private void CheckGrounded()
     {
         if (Time.time < groundCheckDisableUntil)
@@ -370,43 +339,48 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        bool hit = false;
+        Collider2D groundCol = null;
 
         if (useBoxGroundCheck)
         {
-            // Прямоугольная зона ног
             Vector2 center = (Vector2)transform.TransformPoint(groundBoxOffset);
             Vector2 size = new Vector2(
                 groundBoxSize.x * Mathf.Abs(transform.lossyScale.x),
                 groundBoxSize.y * Mathf.Abs(transform.lossyScale.y)
             );
-
-            // ООС-прямоугольник (без поворота), стабильно при флипе по scale.x
-            hit = Physics2D.OverlapBox(center, size, 0f, groundMask);
+            groundCol = Physics2D.OverlapBox(center, size, 0f, groundMask);
         }
         else
         {
-            // Круг как раньше
             if (groundCheck != null)
-            {
-                hit = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
-            }
+                groundCol = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
         }
 
+        bool hit = groundCol != null;
+
         isGrounded = hit;
+        lastGroundCol = groundCol;
 
         if (isGrounded)
         {
             lastGroundedTime = Time.time;
             airVx = 0f;
-            // как только приземлились — отключаем air-control окно
             airControlUnlockUntil = 0f;
+
+            isOnIce = false;
+            if (lastGroundCol != null && lastGroundCol.CompareTag("Ice"))
+                isOnIce = true;
+
+            if (!Input.GetKey(jumpKey)) UpdateJumpBar(0f);
+        }
+        else
+        {
+            isOnIce = false;
         }
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        // Точно как в первой версии
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = true;
@@ -417,7 +391,7 @@ public class PlayerController : MonoBehaviour
             Vector3 contactNormal = collision.contacts[0].normal;
             if (Mathf.Abs(contactNormal.x) > 0.9f)
             {
-                float jumpForce = CalculateJumpForce(lastJumpTime - jumpStartHoldTime);
+                float jumpForce = Mathf.Clamp01((Time.time - jumpStartHoldTime) / jumpTimeLimit) * maxJumpForce;
                 BounceOffWall(jumpForce, jumpStartSpeed);
             }
         }
@@ -452,10 +426,6 @@ public class PlayerController : MonoBehaviour
         rb.velocity = new Vector2(rb.velocity.x, -Mathf.Abs(rb.velocity.y));
     }
 
-    // ===============================
-    //               UI
-    // ===============================
-
     private void UpdateJumpBar(float normalized)
     {
         bool show = normalized > 0f;
@@ -465,7 +435,6 @@ public class PlayerController : MonoBehaviour
             jumpBarFill.enabled = show;
             jumpBarFill.fillAmount = Mathf.Clamp01(normalized);
         }
-
         if (jumpBarBG != null)
             jumpBarBG.enabled = show;
     }
@@ -500,7 +469,7 @@ public class PlayerController : MonoBehaviour
         {
             float total = Mathf.Max(fatigueDuration, 0.0001f);
             float timeLeft = Mathf.Clamp(fatigueEndTime - Time.time, 0f, total);
-            float normalized = timeLeft / total; // 1..0
+            float normalized = timeLeft / total;
             SetFatigueImageActive(true, normalized);
         }
         else
@@ -519,10 +488,6 @@ public class PlayerController : MonoBehaviour
         fatigueImage.color = c;
     }
 
-    // ===============================
-    //            УСТАЛОСТЬ
-    // ===============================
-
     private bool IsFatigued() => Time.time < fatigueEndTime;
 
     private void StartFatigue()
@@ -530,10 +495,6 @@ public class PlayerController : MonoBehaviour
         fatigueEndTime = Time.time + fatigueDuration;
         SetFatigueImageActive(true, 1f);
     }
-
-    // ===============================
-    //     МОБИЛЬНАЯ КНОПКА + UI
-    // ===============================
 
     private void OnMobileJumpDown()
     {
@@ -557,10 +518,6 @@ public class PlayerController : MonoBehaviour
         if (mobileJoystick != null) mobileJoystick.gameObject.SetActive(showMobile);
         if (mobileJumpButton != null) mobileJumpButton.gameObject.SetActive(showMobile);
     }
-
-    // ===============================
-    //            ГИЗМОСЫ
-    // ===============================
 
     private void OnDrawGizmosSelected()
     {
@@ -586,7 +543,6 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // Позвать, если внешний объект (поршень/гриб и т.п.) подбросил игрока во время зарядки
     public void CancelJumpCharge()
     {
         if (!isChargingJump) return;
@@ -595,10 +551,6 @@ public class PlayerController : MonoBehaviour
     }
 }
 
-/// <summary>
-/// Лёгкий обработчик удержания для UI-кнопки (без EventTrigger).
-/// Просто навесь этот компонент на GameObject кнопки ИЛИ он добавится автоматически из кода.
-/// </summary>
 public class PointerHoldHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {
     public event Action OnDown;
