@@ -9,6 +9,7 @@ TagManager:
   - Ceiling
   - Ice
   - Box
+  - Pallet
   layers:
   - Default
   - TransparentFX
