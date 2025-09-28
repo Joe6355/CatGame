@@ -8,6 +8,7 @@ TagManager:
   - Wall
   - Ceiling
   - Ice
+  - Box
   layers:
   - Default
   - TransparentFX
