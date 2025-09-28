@@ -84,6 +84,10 @@ public class PlayerController : MonoBehaviour
     private bool isOnIce = false;
     private Collider2D lastGroundCol = null;
 
+    // === Moving Platform carry ===
+    private float platformVX = 0f;
+    private MovingPlatform2D currentPlatform = null;
+
     private void Awake() => rb = GetComponent<Rigidbody2D>();
 
     private void Start()
@@ -213,7 +217,9 @@ public class PlayerController : MonoBehaviour
         float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce;
 
         float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
-        float takeoffVx = (isFacingRight ? 1f : -1f) * moveSpeed * speedMul;
+
+        // === Важно: учитываем скорость платформы
+        float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul;
 
         jumpStartSpeed = takeoffVx;
         PerformJump(takeoffVx, verticalForce);
@@ -265,16 +271,21 @@ public class PlayerController : MonoBehaviour
 
     private void ApplyMovement()
     {
-        // === ВАЖНО: во время зарядки ===
+        // === Во время зарядки прыжка ===
         if (isChargingJump)
         {
-            // если стоим на обычной земле — стопим X (как раньше)
-            // если на льду ИЛИ на конвейере (SurfaceEffector2D) — не мешаем тянуть
-            bool onMovingGround = isGrounded && lastGroundCol && lastGroundCol.GetComponent<SurfaceEffector2D>() != null;
+            bool onMovingGroundByEffector = isGrounded && lastGroundCol && lastGroundCol.GetComponent<SurfaceEffector2D>() != null;
+            bool carriedByPlatform = isGrounded && Mathf.Abs(platformVX) > 0.0001f;
 
-            if (isGrounded && !isOnIce && !onMovingGround)
+            if (isGrounded && !isOnIce && !onMovingGroundByEffector && !carriedByPlatform)
+            {
                 rb.velocity = new Vector2(0f, rb.velocity.y);
-
+            }
+            else if (carriedByPlatform)
+            {
+                // стоим, но едем вместе с платформой
+                rb.velocity = new Vector2(platformVX, rb.velocity.y);
+            }
             return;
         }
 
@@ -310,6 +321,10 @@ public class PlayerController : MonoBehaviour
             float rate = (Mathf.Sign(target) == Mathf.Sign(cur) || Mathf.Approximately(cur, 0f)) ? accel : brake;
 
             float newVx = Mathf.MoveTowards(cur, Mathf.Clamp(target, -maxSpeed, +maxSpeed), rate * Time.fixedDeltaTime);
+
+            // === добавляем перенос платформы по X (если галочка на платформе включена)
+            newVx += platformVX;
+
             rb.velocity = new Vector2(newVx, rb.velocity.y);
 
             if (Mathf.Abs(newVx) > 0.01f)
@@ -336,6 +351,8 @@ public class PlayerController : MonoBehaviour
         if (Time.time < groundCheckDisableUntil)
         {
             isGrounded = false;
+            currentPlatform = null;
+            platformVX = 0f;
             return;
         }
 
@@ -356,9 +373,7 @@ public class PlayerController : MonoBehaviour
                 groundCol = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
         }
 
-        bool hit = groundCol != null;
-
-        isGrounded = hit;
+        isGrounded = groundCol != null;
         lastGroundCol = groundCol;
 
         if (isGrounded)
@@ -371,11 +386,17 @@ public class PlayerController : MonoBehaviour
             if (lastGroundCol != null && lastGroundCol.CompareTag("Ice"))
                 isOnIce = true;
 
+            // === определяем платформу под ногами и её скорость
+            currentPlatform = lastGroundCol ? lastGroundCol.GetComponentInParent<MovingPlatform2D>() : null;
+            platformVX = (currentPlatform != null && currentPlatform.parentRider) ? currentPlatform.FrameVelocity.x : 0f;
+
             if (!Input.GetKey(jumpKey)) UpdateJumpBar(0f);
         }
         else
         {
             isOnIce = false;
+            currentPlatform = null;
+            platformVX = 0f;
         }
     }
 
