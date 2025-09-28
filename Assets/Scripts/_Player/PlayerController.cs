@@ -1,5 +1,6 @@
 ﻿// PlayerController.cs
 using System;
+using System.Collections.Generic; // <= для сугробов
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -87,6 +88,12 @@ public class PlayerController : MonoBehaviour
     // === Moving Platform carry ===
     private float platformVX = 0f;
     private MovingPlatform2D currentPlatform = null;
+
+    // === СУГРОБЫ: суммарные множители и список активных зон ===
+    // Итоговые множители: 1 — без эффекта, 0.5 — вдвое слабее/медленнее и т.д.
+    private float snowMoveMul = 1f;
+    private float snowJumpMul = 1f;
+    private readonly Dictionary<SnowdriftArea2D, (float move, float jump)> activeSnow = new();
 
     private void Awake() => rb = GetComponent<Rigidbody2D>();
 
@@ -214,12 +221,13 @@ public class PlayerController : MonoBehaviour
         isChargingJump = false;
 
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
-        float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce;
+        // ослабляем прыжок в сугробе:
+        float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce * snowJumpMul;
 
         float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
 
-        // === Важно: учитываем скорость платформы
-        float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul;
+        // учитываем скорость платформы
+        float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul * snowMoveMul;
 
         jumpStartSpeed = takeoffVx;
         PerformJump(takeoffVx, verticalForce);
@@ -271,7 +279,7 @@ public class PlayerController : MonoBehaviour
 
     private void ApplyMovement()
     {
-        // === Во время зарядки прыжка ===
+        // Во время зарядки
         if (isChargingJump)
         {
             bool onMovingGroundByEffector = isGrounded && lastGroundCol && lastGroundCol.GetComponent<SurfaceEffector2D>() != null;
@@ -283,7 +291,6 @@ public class PlayerController : MonoBehaviour
             }
             else if (carriedByPlatform)
             {
-                // стоим, но едем вместе с платформой
                 rb.velocity = new Vector2(platformVX, rb.velocity.y);
             }
             return;
@@ -293,7 +300,7 @@ public class PlayerController : MonoBehaviour
         {
             if (Time.time < airControlUnlockUntil)
             {
-                float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
+                float speedMul = (IsFatigued() ? fatigueSpeedMultiplier : 1f) * snowMoveMul;
                 float vx = inputX * airControlSpeed * speedMul;
                 rb.velocity = new Vector2(vx, rb.velocity.y);
 
@@ -310,10 +317,10 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
+            float speedMul = (IsFatigued() ? fatigueSpeedMultiplier : 1f) * snowMoveMul;
             float target = inputX * moveSpeed * speedMul;
 
-            float maxSpeed = moveSpeed * (isOnIce ? iceMaxSpeedMul : 1f);
+            float maxSpeed = moveSpeed * (isOnIce ? iceMaxSpeedMul : 1f) * snowMoveMul;
             float accel = isOnIce ? iceAccel : normalAccel;
             float brake = isOnIce ? iceBrake : normalBrake;
 
@@ -322,7 +329,7 @@ public class PlayerController : MonoBehaviour
 
             float newVx = Mathf.MoveTowards(cur, Mathf.Clamp(target, -maxSpeed, +maxSpeed), rate * Time.fixedDeltaTime);
 
-            // === добавляем перенос платформы по X (если галочка на платформе включена)
+            // перенос платформы
             newVx += platformVX;
 
             rb.velocity = new Vector2(newVx, rb.velocity.y);
@@ -386,7 +393,7 @@ public class PlayerController : MonoBehaviour
             if (lastGroundCol != null && lastGroundCol.CompareTag("Ice"))
                 isOnIce = true;
 
-            // === определяем платформу под ногами и её скорость
+            // платформа
             currentPlatform = lastGroundCol ? lastGroundCol.GetComponentInParent<MovingPlatform2D>() : null;
             platformVX = (currentPlatform != null && currentPlatform.parentRider) ? currentPlatform.FrameVelocity.x : 0f;
 
@@ -570,8 +577,42 @@ public class PlayerController : MonoBehaviour
         isChargingJump = false;
         UpdateJumpBar(0f);
     }
+
+    // ======== API для сугроба ========
+    public void RegisterSnow(SnowdriftArea2D area, float moveMul, float jumpMul)
+    {
+        activeSnow[area] = (Mathf.Clamp01(moveMul), Mathf.Clamp01(jumpMul));
+        RecalcSnow();
+    }
+
+    public void UnregisterSnow(SnowdriftArea2D area)
+    {
+        if (activeSnow.Remove(area))
+            RecalcSnow();
+    }
+
+    private void RecalcSnow()
+    {
+        if (activeSnow.Count == 0)
+        {
+            snowMoveMul = 1f;
+            snowJumpMul = 1f;
+            return;
+        }
+        float m = 1f, j = 1f;
+        foreach (var kv in activeSnow.Values)
+        {
+            m = Mathf.Min(m, kv.move);
+            j = Mathf.Min(j, kv.jump);
+        }
+        snowMoveMul = Mathf.Clamp01(m);
+        snowJumpMul = Mathf.Clamp01(j);
+    }
 }
 
+/// <summary>
+/// Лёгкий обработчик удержания для UI-кнопки (без EventTrigger).
+/// </summary>
 public class PointerHoldHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {
     public event Action OnDown;
