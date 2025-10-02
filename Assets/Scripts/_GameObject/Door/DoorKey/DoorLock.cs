@@ -22,6 +22,10 @@ public class DoorLock : MonoBehaviour
     [Header("Повторное использование")]
     [SerializeField] private bool oneShot = true; // открыть один раз и больше не закрывать
 
+    [Header("Аниматор")]
+    [Tooltip("Animator для проигрывания анимаций двери.")]
+    [SerializeField] private Animator doorAnimator;
+
     private bool opened = false;
     Collider2D triggerCol;
 
@@ -30,6 +34,9 @@ public class DoorLock : MonoBehaviour
         triggerCol = GetComponent<Collider2D>();
         if (triggerCol) triggerCol.isTrigger = true;
         if (!doorRootToDisable) doorRootToDisable = gameObject; // по умолчанию выключаем сам объект двери
+
+        // Если аниматор не назначен, попробуем найти его на этом объекте
+        if (!doorAnimator) doorAnimator = GetComponent<Animator>();
     }
 
     void OnTriggerEnter2D(Collider2D other)
@@ -50,9 +57,16 @@ public class DoorLock : MonoBehaviour
 
     System.Collections.IEnumerator OpenAfterDelay()
     {
-        // // здесь можно дёрнуть анимации:
-        // animator.SetTrigger("Unlock");
+        // 1) Запускаем анимацию открытия
+        if (doorAnimator)
+        {
+            doorAnimator.SetTrigger("OpenDoor");
+        }
+
+        // 2) Ждем указанную задержку перед полным открытием
         if (openDelay > 0f) yield return new WaitForSeconds(openDelay);
+
+        // 3) Завершаем открытие
         OpenDoorInstant();
     }
 
@@ -61,11 +75,12 @@ public class DoorLock : MonoBehaviour
         if (opened && oneShot) return;
         opened = true;
 
-        // // Заглушки под анимации:
-        // // 1) проиграть звук/частицы
-        // // 2) анимация открытия (если есть Animator)
-        // // 3) по окончании — выключить дверь
+        // 1) проиграть звук/частицы (заглушка)
+        // PlaySound(); 
 
+        // 2) анимация открытия уже запущена в OpenAfterDelay
+
+        // 3) по окончании — выключить дверь
         if (doorRootToDisable) doorRootToDisable.SetActive(false);
 
         // если дверь одноразовая — можно выключить триггер

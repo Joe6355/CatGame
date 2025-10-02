@@ -48,7 +48,7 @@ public class KeyPickup : MonoBehaviour
             Vector2 center = (Vector2)carrier.position + orbitOffset;
             Vector2 pos = center + new Vector2(Mathf.Cos(rad), Mathf.Sin(rad)) * orbitRadius;
             transform.position = pos;
-            transform.rotation = Quaternion.Euler(0, 0, angle); // немного живости
+            // Убрана строка с вращением: transform.rotation = Quaternion.Euler(0, 0, angle);
         }
     }
 
