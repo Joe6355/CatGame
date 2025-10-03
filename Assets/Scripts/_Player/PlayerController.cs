@@ -608,6 +608,8 @@ public class PlayerController : MonoBehaviour
         snowMoveMul = Mathf.Clamp01(m);
         snowJumpMul = Mathf.Clamp01(j);
     }
+
+    public void SetInputEnabled(bool enabled) { }
 }
 
 /// <summary>
