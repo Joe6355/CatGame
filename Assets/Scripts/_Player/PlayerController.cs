@@ -1,5 +1,4 @@
-﻿// PlayerController.cs
-using System;
+﻿using System;
 using System.Collections.Generic; // для сугробов
 using UnityEngine;
 using UnityEngine.UI;
@@ -41,10 +40,10 @@ public class PlayerController : MonoBehaviour
 
     [Header("Ground Edge Assist (борьба с краями)")]
     [SerializeField] private bool useEdgeAssist = true;
-    [SerializeField] private float edgeProbeHalfWidth = 0.22f; // половина ширины стоп (влево/вправо от центра)
-    [SerializeField] private float edgeProbeHeight = 0.06f;    // тонкие боксы под краями стоп
-    [SerializeField] private float snapProbeDistance = 0.12f;  // как далеко «нащупываем» землю вниз
-    [SerializeField, Range(0f, 1f)] private float snapMinNormalY = 0.35f; // минимальная вертикальность поверхности для снапа
+    [SerializeField] private float edgeProbeHalfWidth = 0.22f;
+    [SerializeField] private float edgeProbeHeight = 0.06f;
+    [SerializeField] private float snapProbeDistance = 0.12f;
+    [SerializeField, Range(0f, 1f)] private float snapMinNormalY = 0.35f;
 
     [Header("UI шкалы прыжка")]
     [SerializeField] private Image jumpBarFill;
@@ -96,10 +95,15 @@ public class PlayerController : MonoBehaviour
     private float platformVX = 0f;
     private MovingPlatform2D currentPlatform = null;
 
-    // Сугробы (замедление/ослабление прыжка)
+    // Сугробы
     private float snowMoveMul = 1f;
     private float snowJumpMul = 1f;
     private readonly Dictionary<SnowdriftArea2D, (float move, float jump)> activeSnow = new();
+
+    // ==== ВЕТЕР: аддитивная внешняя скорость по X ====
+    private float externalWindVX = 0f; // накапливается за кадр FixedUpdate
+    public void AddExternalWindVX(float vx) { externalWindVX += vx; }
+    // ==================================================
 
     private void Awake() => rb = GetComponent<Rigidbody2D>();
 
@@ -138,6 +142,9 @@ public class PlayerController : MonoBehaviour
     {
         CheckGrounded();
         ApplyMovement();
+
+        // Сбрасываем внешний ветер после применения — зона задаст новый в свой FixedUpdate
+        externalWindVX = 0f;
     }
 
     private void HandleDesktopInput()
@@ -213,7 +220,7 @@ public class PlayerController : MonoBehaviour
         // Если ушли с земли и «койот» закончился — отменяем заряд и скрываем UI
         if (!isGrounded && (Time.time - lastGroundedTime) > coyoteTime)
         {
-            CancelJumpCharge(); // ставит isChargingJump = false и UpdateJumpBar(0)
+            CancelJumpCharge();
             return;
         }
 
@@ -298,12 +305,14 @@ public class PlayerController : MonoBehaviour
 
             if (isGrounded && !isOnIce && !onMovingGroundByEffector && !carriedByPlatform)
             {
-                rb.velocity = new Vector2(0f, rb.velocity.y);
+                // фиксируемся по X, но ветер всё равно дует
+                rb.velocity = new Vector2(externalWindVX, rb.velocity.y);
             }
             else if (carriedByPlatform)
             {
-                rb.velocity = new Vector2(platformVX, rb.velocity.y);
+                rb.velocity = new Vector2(platformVX + externalWindVX, rb.velocity.y);
             }
+            // если на SurfaceEffector2D — оставляем как есть, ветер не вмешивается в заряд
             return;
         }
 
@@ -312,7 +321,7 @@ public class PlayerController : MonoBehaviour
             if (Time.time < airControlUnlockUntil)
             {
                 float speedMul = (IsFatigued() ? fatigueSpeedMultiplier : 1f) * snowMoveMul;
-                float vx = inputX * airControlSpeed * speedMul;
+                float vx = inputX * airControlSpeed * speedMul + externalWindVX;
                 rb.velocity = new Vector2(vx, rb.velocity.y);
 
                 if (Mathf.Abs(vx) > 0.01f)
@@ -323,7 +332,7 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                rb.velocity = new Vector2(airVx, rb.velocity.y);
+                rb.velocity = new Vector2(airVx + externalWindVX, rb.velocity.y);
             }
         }
         else
@@ -340,8 +349,8 @@ public class PlayerController : MonoBehaviour
 
             float newVx = Mathf.MoveTowards(cur, Mathf.Clamp(target, -maxSpeed, +maxSpeed), rate * Time.fixedDeltaTime);
 
-            // перенос от платформы
-            newVx += platformVX;
+            // перенос от платформы + ветер
+            newVx += platformVX + externalWindVX;
 
             rb.velocity = new Vector2(newVx, rb.velocity.y);
 
@@ -421,7 +430,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // 3) Снап-лучи вниз (центр/лево/право) — если совсем чуть-чуть свисли
+        // 3) Снап-лучи вниз (центр/лево/право)
         if (!grounded && useEdgeAssist && snapProbeDistance > 0.001f)
         {
             int hits = 0;
