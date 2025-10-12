@@ -40,9 +40,9 @@ public class PlayerController : MonoBehaviour
 
     [Header("Ground Edge Assist (борьба с краями)")]
     [SerializeField] private bool useEdgeAssist = true;
-    [SerializeField] private float edgeProbeHalfWidth = 0.22f;
-    [SerializeField] private float edgeProbeHeight = 0.06f;
-    [SerializeField] private float snapProbeDistance = 0.12f;
+    [SerializeField] private float edgeProbeHalfWidth = 0.22f; // половина ширины стоп (влево/вправо от центра)
+    [SerializeField] private float edgeProbeHeight = 0.06f;    // тонкие боксы под краями стоп
+    [SerializeField] private float snapProbeDistance = 0.12f;  // как далеко «нащупываем» землю вниз
     [SerializeField, Range(0f, 1f)] private float snapMinNormalY = 0.35f;
 
     [Header("UI шкалы прыжка")]
@@ -95,15 +95,30 @@ public class PlayerController : MonoBehaviour
     private float platformVX = 0f;
     private MovingPlatform2D currentPlatform = null;
 
-    // Сугробы
+    // Сугробы (замедление/ослабление прыжка)
     private float snowMoveMul = 1f;
     private float snowJumpMul = 1f;
     private readonly Dictionary<SnowdriftArea2D, (float move, float jump)> activeSnow = new();
 
-    // ==== ВЕТЕР: аддитивная внешняя скорость по X ====
-    private float externalWindVX = 0f; // накапливается за кадр FixedUpdate
+    // ==== ВЕТЕР: аддитивная внешняя скорость по X (зона ветра добавляет Δv за кадр) ====
+    private float externalWindVX = 0f;
     public void AddExternalWindVX(float vx) { externalWindVX += vx; }
-    // ==================================================
+    // =====================================================================================
+
+    // ==== ПУБЛИЧНЫЙ API ДЛЯ ОТРИСОВКИ ТРАЕКТОРИИ ПРЫЖКА ====
+    public bool IsChargingJumpPublic => isChargingJump;
+    public float GetGravityScale() => rb ? rb.gravityScale : 1f;
+    public Vector2 GetPredictedJumpVelocity()
+    {
+        float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
+        float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce * snowJumpMul;
+
+        float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
+        float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul * snowMoveMul;
+
+        return new Vector2(takeoffVx, verticalForce);
+    }
+    // =====================================================================================
 
     private void Awake() => rb = GetComponent<Rigidbody2D>();
 
@@ -217,7 +232,7 @@ public class PlayerController : MonoBehaviour
 
     private void ContinueJumpCharge()
     {
-        // Если ушли с земли и «койот» закончился — отменяем заряд и скрываем UI
+        // Потеряли землю и «койот» истёк — отменяем заряд и скрываем UI
         if (!isGrounded && (Time.time - lastGroundedTime) > coyoteTime)
         {
             CancelJumpCharge();
@@ -312,7 +327,6 @@ public class PlayerController : MonoBehaviour
             {
                 rb.velocity = new Vector2(platformVX + externalWindVX, rb.velocity.y);
             }
-            // если на SurfaceEffector2D — оставляем как есть, ветер не вмешивается в заряд
             return;
         }
 
