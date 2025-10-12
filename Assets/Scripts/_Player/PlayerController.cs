@@ -210,6 +210,13 @@ public class PlayerController : MonoBehaviour
 
     private void ContinueJumpCharge()
     {
+        // Если ушли с земли и «койот» закончился — отменяем заряд и скрываем UI
+        if (!isGrounded && (Time.time - lastGroundedTime) > coyoteTime)
+        {
+            CancelJumpCharge(); // ставит isChargingJump = false и UpdateJumpBar(0)
+            return;
+        }
+
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
         float normalized = hold / jumpTimeLimit;
         UpdateJumpBar(normalized);
