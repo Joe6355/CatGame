@@ -1,6 +1,5 @@
-﻿// PlayerController.cs
-using System;
-using System.Collections.Generic; // <= для сугробов
+﻿using System;
+using System.Collections.Generic; // для сугробов
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -38,6 +37,13 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Vector2 groundBoxOffset = new Vector2(0f, -0.2f);
     [SerializeField] private Transform groundCheck;
     [SerializeField] private float groundCheckRadius = 0.12f;
+
+    [Header("Ground Edge Assist (борьба с краями)")]
+    [SerializeField] private bool useEdgeAssist = true;
+    [SerializeField] private float edgeProbeHalfWidth = 0.22f; // половина ширины стоп (влево/вправо от центра)
+    [SerializeField] private float edgeProbeHeight = 0.06f;    // тонкие боксы под краями стоп
+    [SerializeField] private float snapProbeDistance = 0.12f;  // как далеко «нащупываем» землю вниз
+    [SerializeField, Range(0f, 1f)] private float snapMinNormalY = 0.35f;
 
     [Header("UI шкалы прыжка")]
     [SerializeField] private Image jumpBarFill;
@@ -85,15 +91,34 @@ public class PlayerController : MonoBehaviour
     private bool isOnIce = false;
     private Collider2D lastGroundCol = null;
 
-    // === Moving Platform carry ===
+    // Moving Platform
     private float platformVX = 0f;
     private MovingPlatform2D currentPlatform = null;
 
-    // === СУГРОБЫ: суммарные множители и список активных зон ===
-    // Итоговые множители: 1 — без эффекта, 0.5 — вдвое слабее/медленнее и т.д.
+    // Сугробы (замедление/ослабление прыжка)
     private float snowMoveMul = 1f;
     private float snowJumpMul = 1f;
     private readonly Dictionary<SnowdriftArea2D, (float move, float jump)> activeSnow = new();
+
+    // ==== ВЕТЕР: аддитивная внешняя скорость по X (зона ветра добавляет Δv за кадр) ====
+    private float externalWindVX = 0f;
+    public void AddExternalWindVX(float vx) { externalWindVX += vx; }
+    // =====================================================================================
+
+    // ==== ПУБЛИЧНЫЙ API ДЛЯ ОТРИСОВКИ ТРАЕКТОРИИ ПРЫЖКА ====
+    public bool IsChargingJumpPublic => isChargingJump;
+    public float GetGravityScale() => rb ? rb.gravityScale : 1f;
+    public Vector2 GetPredictedJumpVelocity()
+    {
+        float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
+        float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce * snowJumpMul;
+
+        float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
+        float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul * snowMoveMul;
+
+        return new Vector2(takeoffVx, verticalForce);
+    }
+    // =====================================================================================
 
     private void Awake() => rb = GetComponent<Rigidbody2D>();
 
@@ -132,6 +157,9 @@ public class PlayerController : MonoBehaviour
     {
         CheckGrounded();
         ApplyMovement();
+
+        // Сбрасываем внешний ветер после применения — зона задаст новый в свой FixedUpdate
+        externalWindVX = 0f;
     }
 
     private void HandleDesktopInput()
@@ -204,6 +232,13 @@ public class PlayerController : MonoBehaviour
 
     private void ContinueJumpCharge()
     {
+        // Потеряли землю и «койот» истёк — отменяем заряд и скрываем UI
+        if (!isGrounded && (Time.time - lastGroundedTime) > coyoteTime)
+        {
+            CancelJumpCharge();
+            return;
+        }
+
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
         float normalized = hold / jumpTimeLimit;
         UpdateJumpBar(normalized);
@@ -221,12 +256,9 @@ public class PlayerController : MonoBehaviour
         isChargingJump = false;
 
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
-        // ослабляем прыжок в сугробе:
         float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce * snowJumpMul;
 
         float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
-
-        // учитываем скорость платформы
         float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul * snowMoveMul;
 
         jumpStartSpeed = takeoffVx;
@@ -247,6 +279,7 @@ public class PlayerController : MonoBehaviour
         groundCheckDisableUntil = Time.time + takeoffLockTime;
     }
 
+    // Внешние пинки (поршни/ветер/пар)
     public void ExternalPistonLaunch(Vector2 dir, float force, bool resetAlongBefore)
     {
         if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
@@ -287,11 +320,12 @@ public class PlayerController : MonoBehaviour
 
             if (isGrounded && !isOnIce && !onMovingGroundByEffector && !carriedByPlatform)
             {
-                rb.velocity = new Vector2(0f, rb.velocity.y);
+                // фиксируемся по X, но ветер всё равно дует
+                rb.velocity = new Vector2(externalWindVX, rb.velocity.y);
             }
             else if (carriedByPlatform)
             {
-                rb.velocity = new Vector2(platformVX, rb.velocity.y);
+                rb.velocity = new Vector2(platformVX + externalWindVX, rb.velocity.y);
             }
             return;
         }
@@ -301,7 +335,7 @@ public class PlayerController : MonoBehaviour
             if (Time.time < airControlUnlockUntil)
             {
                 float speedMul = (IsFatigued() ? fatigueSpeedMultiplier : 1f) * snowMoveMul;
-                float vx = inputX * airControlSpeed * speedMul;
+                float vx = inputX * airControlSpeed * speedMul + externalWindVX;
                 rb.velocity = new Vector2(vx, rb.velocity.y);
 
                 if (Mathf.Abs(vx) > 0.01f)
@@ -312,7 +346,7 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                rb.velocity = new Vector2(airVx, rb.velocity.y);
+                rb.velocity = new Vector2(airVx + externalWindVX, rb.velocity.y);
             }
         }
         else
@@ -329,8 +363,8 @@ public class PlayerController : MonoBehaviour
 
             float newVx = Mathf.MoveTowards(cur, Mathf.Clamp(target, -maxSpeed, +maxSpeed), rate * Time.fixedDeltaTime);
 
-            // перенос платформы
-            newVx += platformVX;
+            // перенос от платформы + ветер
+            newVx += platformVX + externalWindVX;
 
             rb.velocity = new Vector2(newVx, rb.velocity.y);
 
@@ -353,6 +387,7 @@ public class PlayerController : MonoBehaviour
         transform.localScale = s;
     }
 
+    // ==== НОВЫЙ Grounded с Edge-Assist ====
     private void CheckGrounded()
     {
         if (Time.time < groundCheckDisableUntil)
@@ -365,6 +400,7 @@ public class PlayerController : MonoBehaviour
 
         Collider2D groundCol = null;
 
+        // 1) Базовый GroundCheck
         if (useBoxGroundCheck)
         {
             Vector2 center = (Vector2)transform.TransformPoint(groundBoxOffset);
@@ -380,7 +416,66 @@ public class PlayerController : MonoBehaviour
                 groundCol = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
         }
 
-        isGrounded = groundCol != null;
+        bool grounded = groundCol != null;
+
+        // 2) Узкие зонды под краями стоп (если базовый не зацепился)
+        if (!grounded && useEdgeAssist)
+        {
+            Vector2 feetCenter = (useBoxGroundCheck)
+                ? (Vector2)transform.TransformPoint(groundBoxOffset)
+                : (groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position);
+
+            float width = (useBoxGroundCheck ? groundBoxSize.x : groundCheckRadius * 2f) * Mathf.Abs(transform.lossyScale.x);
+
+            float half = Mathf.Max(0.05f, edgeProbeHalfWidth);
+            float y = feetCenter.y - 0.001f;
+            Vector2 leftPos = new Vector2(feetCenter.x - half, y);
+            Vector2 rightPos = new Vector2(feetCenter.x + half, y);
+            Vector2 probeSize = new Vector2(Mathf.Min(half * 0.9f, width * 0.5f), edgeProbeHeight);
+
+            Collider2D edgeCol = Physics2D.OverlapBox(leftPos, probeSize, 0f, groundMask);
+            if (!edgeCol)
+                edgeCol = Physics2D.OverlapBox(rightPos, probeSize, 0f, groundMask);
+
+            if (edgeCol != null)
+            {
+                grounded = true;
+                groundCol = edgeCol;
+            }
+        }
+
+        // 3) Снап-лучи вниз (центр/лево/право)
+        if (!grounded && useEdgeAssist && snapProbeDistance > 0.001f)
+        {
+            int hits = 0;
+            RaycastHit2D hCenter = Physics2D.Raycast(transform.position, Vector2.down, snapProbeDistance, groundMask);
+            if (hCenter && hCenter.normal.y >= snapMinNormalY) { groundCol = hCenter.collider; hits++; }
+
+            if (hits == 0)
+            {
+                Vector2 feetCenter = (useBoxGroundCheck)
+                    ? (Vector2)transform.TransformPoint(groundBoxOffset)
+                    : (groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position);
+
+                float half = Mathf.Max(0.05f, edgeProbeHalfWidth);
+                Vector2 left = new Vector2(feetCenter.x - half, transform.position.y);
+                Vector2 right = new Vector2(feetCenter.x + half, transform.position.y);
+
+                RaycastHit2D hL = Physics2D.Raycast(left, Vector2.down, snapProbeDistance, groundMask);
+                if (hL && hL.normal.y >= snapMinNormalY) { groundCol = hL.collider; hits++; }
+
+                if (hits == 0)
+                {
+                    RaycastHit2D hR = Physics2D.Raycast(right, Vector2.down, snapProbeDistance, groundMask);
+                    if (hR && hR.normal.y >= snapMinNormalY) { groundCol = hR.collider; hits++; }
+                }
+            }
+
+            if (hits > 0) grounded = true;
+        }
+
+        // Финал
+        isGrounded = grounded;
         lastGroundCol = groundCol;
 
         if (isGrounded)
@@ -389,11 +484,8 @@ public class PlayerController : MonoBehaviour
             airVx = 0f;
             airControlUnlockUntil = 0f;
 
-            isOnIce = false;
-            if (lastGroundCol != null && lastGroundCol.CompareTag("Ice"))
-                isOnIce = true;
+            isOnIce = lastGroundCol != null && lastGroundCol.CompareTag("Ice");
 
-            // платформа
             currentPlatform = lastGroundCol ? lastGroundCol.GetComponentInParent<MovingPlatform2D>() : null;
             platformVX = (currentPlatform != null && currentPlatform.parentRider) ? currentPlatform.FrameVelocity.x : 0f;
 
@@ -569,6 +661,31 @@ public class PlayerController : MonoBehaviour
             if (groundCheck != null)
                 Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
+
+        // --- Edge Assist gizmos ---
+        if (useEdgeAssist)
+        {
+            // узкие боксы
+            Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.6f);
+            Vector2 feetCenter = (useBoxGroundCheck)
+                ? (Vector2)transform.TransformPoint(groundBoxOffset)
+                : (groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position);
+
+            float half = Mathf.Max(0.05f, edgeProbeHalfWidth);
+            float y = feetCenter.y - 0.001f;
+            Vector2 probeSize = new Vector2(half * 0.9f, edgeProbeHeight);
+
+            Gizmos.DrawWireCube(new Vector3(feetCenter.x - half, y, 0f), new Vector3(probeSize.x, probeSize.y, 0f));
+            Gizmos.DrawWireCube(new Vector3(feetCenter.x + half, y, 0f), new Vector3(probeSize.x, probeSize.y, 0f));
+
+            // снап-лучи
+            Gizmos.color = new Color(0.2f, 0.6f, 1f, 0.6f);
+            Gizmos.DrawLine(transform.position, transform.position + Vector3.down * snapProbeDistance);
+            Gizmos.DrawLine(new Vector3(feetCenter.x - half, transform.position.y, 0f),
+                            new Vector3(feetCenter.x - half, transform.position.y - snapProbeDistance, 0f));
+            Gizmos.DrawLine(new Vector3(feetCenter.x + half, transform.position.y, 0f),
+                            new Vector3(feetCenter.x + half, transform.position.y - snapProbeDistance, 0f));
+        }
     }
 
     public void CancelJumpCharge()
@@ -578,33 +695,21 @@ public class PlayerController : MonoBehaviour
         UpdateJumpBar(0f);
     }
 
-    // ======== API для сугроба ========
+    // ==== API сугробов ====
     public void RegisterSnow(SnowdriftArea2D area, float moveMul, float jumpMul)
     {
         activeSnow[area] = (Mathf.Clamp01(moveMul), Mathf.Clamp01(jumpMul));
         RecalcSnow();
     }
-
     public void UnregisterSnow(SnowdriftArea2D area)
     {
-        if (activeSnow.Remove(area))
-            RecalcSnow();
+        if (activeSnow.Remove(area)) RecalcSnow();
     }
-
     private void RecalcSnow()
     {
-        if (activeSnow.Count == 0)
-        {
-            snowMoveMul = 1f;
-            snowJumpMul = 1f;
-            return;
-        }
+        if (activeSnow.Count == 0) { snowMoveMul = 1f; snowJumpMul = 1f; return; }
         float m = 1f, j = 1f;
-        foreach (var kv in activeSnow.Values)
-        {
-            m = Mathf.Min(m, kv.move);
-            j = Mathf.Min(j, kv.jump);
-        }
+        foreach (var kv in activeSnow.Values) { m = Mathf.Min(m, kv.move); j = Mathf.Min(j, kv.jump); }
         snowMoveMul = Mathf.Clamp01(m);
         snowJumpMul = Mathf.Clamp01(j);
     }

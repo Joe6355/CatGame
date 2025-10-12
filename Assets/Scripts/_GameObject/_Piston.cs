@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(BoxCollider2D))]
 public class Piston : MonoBehaviour
@@ -9,10 +10,9 @@ public class Piston : MonoBehaviour
     [SerializeField] private float cooldown = 2f;
 
     [Header("Сила пинка")]
-    [SerializeField] private float launchForce = 15f;              // для Top/Bottom (по вертикали)
-    [SerializeField] private float horizontalLaunchForce = 15f;    // для Right/Left (по горизонтали)
-
-    [SerializeField] private bool resetYBeforeLaunch = true; // сбрасываем скорость вдоль оси пинка перед ударом
+    [SerializeField] private float launchForce = 15f;           // для Top/Bottom (по вертикали)
+    [SerializeField] private float horizontalLaunchForce = 15f; // для Right/Left (по горизонтали)
+    [SerializeField] private bool resetYBeforeLaunch = true;    // сбрасывать скорость вдоль оси пинка перед ударом
 
     [Header("Кого подкидывать")]
     [SerializeField] private LayerMask playerMask;
@@ -24,7 +24,7 @@ public class Piston : MonoBehaviour
     [SerializeField] private float detectGap = 0.02f;
 
     [Header("Фильтр «реально стоит» (опц.)")]
-    [SerializeField] private bool requireNearlyZeroVy = true; // проверяем скорость вдоль оси пинка
+    [SerializeField] private bool requireNearlyZeroVy = true; // проверка скорости вдоль направления пинка
     [SerializeField] private float vyThreshold = 0.15f;
 
     [Header("Анимация")]
@@ -36,6 +36,12 @@ public class Piston : MonoBehaviour
     private float nextReadyTime;
     private bool isActivating = false;
 
+    // --- Новое: корректный отбор целей ---
+    private ContactFilter2D contactFilter;                   // фильтр: наш слой + без триггеров
+    private readonly Collider2D[] overlapBuf = new Collider2D[8];
+    private readonly HashSet<Rigidbody2D> processedRBs = new HashSet<Rigidbody2D>();
+    // --------------------------------------
+
     private void Awake()
     {
         col = GetComponent<BoxCollider2D>();
@@ -43,63 +49,92 @@ public class Piston : MonoBehaviour
 
         if (!animator) animator = GetComponent<Animator>();
         if (!animator) Debug.LogWarning("[Piston] Требуется Animator для анимации поршня.");
+
+        // Готовим фильтр: только слой игрока, без триггеров
+        contactFilter = new ContactFilter2D
+        {
+            useLayerMask = true,
+            useTriggers = false
+        };
+        contactFilter.SetLayerMask(playerMask);
     }
 
     private void Start()
     {
-        nextReadyTime = Time.time + cooldown; // если нужно сразу — Time.time
+        // Готов к срабатыванию сразу после старта сцены
+        nextReadyTime = Time.time;
     }
 
     private void FixedUpdate()
     {
-        if (Time.time < nextReadyTime || col == null) return;
+        if (col == null || Time.time < nextReadyTime) return;
 
         Vector2 center, size; float angle;
         GetDetectionBox(out center, out size, out angle);
 
-        var hits = Physics2D.OverlapBoxAll(center, size, angle, playerMask);
-        if (hits == null || hits.Length == 0) return;
+        int count = Physics2D.OverlapBox(center, size, angle, contactFilter, overlapBuf);
+        if (count <= 0) return;
 
         Vector2 dir = GetLaunchDirection();
-        float force = GetLaunchForceForSide(); // <-- берём вертикальную или горизонтальную силу
+        float force = GetLaunchForceForSide();
+        Vector2 requiredSideNormal = GetOutwardNormalForSide();
 
-        foreach (var hit in hits)
+        processedRBs.Clear();
+        bool launchedThisFrame = false;
+
+        for (int i = 0; i < count; i++)
         {
+            var hit = overlapBuf[i];
+            if (!hit || hit.isTrigger) continue;
+
+            // Реальный контакт коллайдеров
+            if (!col.IsTouching(hit)) continue;
+
             var rb = hit.attachedRigidbody;
             if (!rb) continue;
 
+            // Один Rigidbody2D — один пинок за кадр
+            if (!processedRBs.Add(rb)) continue;
+
+            // Игрок должен быть с нужной стороны поршня (над ним для Top, и т.д.)
+            Vector2 toOther = (Vector2)hit.bounds.center - (Vector2)col.bounds.center;
+            if (Vector2.Dot(toOther.normalized, requiredSideNormal) < 0.6f) continue;
+
+            // Фильтр скорости: отбрасываем только когда объект уже улетает ОТ поршня слишком быстро
             if (requireNearlyZeroVy)
             {
-                float vAlong = Vector2.Dot(rb.velocity, dir);
-                if (Mathf.Abs(vAlong) > vyThreshold) continue;
+                float vAlong = Vector2.Dot(rb.velocity, dir); // скорость вдоль направления пинка
+                if (vAlong > vyThreshold) continue; // приземление не режем (vAlong будет отрицательным)
             }
 
-            // отменяем заряд прыжка
+            // Отмена заряда прыжка, если есть свой контроллер
             var pc = rb.GetComponent<PlayerController>() ?? rb.GetComponentInParent<PlayerController>();
             if (pc != null) pc.CancelJumpCharge();
 
-            // корректный пинок через контроллер (фиксирует X в воздухе и т.п.)
+            // Пинок: через контроллер (если есть) или сырым методом
             if (pc != null) pc.ExternalPistonLaunch(dir, force, resetYBeforeLaunch);
             else LaunchRaw(rb, dir, force);
+
+            launchedThisFrame = true;
         }
 
-        // Активируем анимацию
-        if (animator && !isActivating)
+        // Анимация и кулдаун — только если действительно кого-то пнули
+        if (launchedThisFrame)
         {
-            animator.SetTrigger(activateTrigger);
-            isActivating = true;
-            Invoke("ReturnToIdle", cooldown * 0.5f); // Возвращаемся к idle через половину времени cooldown
-        }
+            if (animator && !isActivating)
+            {
+                animator.SetTrigger(activateTrigger);
+                isActivating = true;
+                Invoke(nameof(ReturnToIdle), cooldown * 0.5f);
+            }
 
-        nextReadyTime = Time.time + cooldown;
+            nextReadyTime = Time.time + cooldown;
+        }
     }
 
     private void ReturnToIdle()
     {
-        if (animator)
-        {
-            animator.SetTrigger(returnTrigger);
-        }
+        if (animator) animator.SetTrigger(returnTrigger);
         isActivating = false;
     }
 
@@ -119,16 +154,30 @@ public class Piston : MonoBehaviour
 
     private void LaunchRaw(Rigidbody2D rb, Vector2 dir, float force)
     {
+        // Разлагаем скорость на вдоль-направления и ортогональную составляющие
         Vector2 v = rb.velocity;
         float vAlong = Vector2.Dot(v, dir);
         Vector2 vOrtho = v - vAlong * dir;
 
-        if (resetYBeforeLaunch) vAlong = 0f;
+        if (resetYBeforeLaunch) vAlong = 0f; // обнуляем компонент вдоль направления пинка
 
         rb.velocity = vOrtho + dir * force;
     }
 
     private Vector2 GetLaunchDirection()
+    {
+        switch (detectSide)
+        {
+            case DetectSide.Top: return transform.up.normalized;
+            case DetectSide.Bottom: return (-transform.up).normalized;
+            case DetectSide.Right: return transform.right.normalized;
+            case DetectSide.Left: return (-transform.right).normalized;
+            default: return Vector2.up;
+        }
+    }
+
+    // Наружная нормаль поршня со стороны датчика (для проверки «с нужной стороны»)
+    private Vector2 GetOutwardNormalForSide()
     {
         switch (detectSide)
         {
