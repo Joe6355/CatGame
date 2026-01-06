@@ -172,11 +172,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7322022872734452581, guid: e1707a3f756db1e4085f00ae52fd2e9c, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -9.15
+      value: 5.78
       objectReference: {fileID: 0}
     - target: {fileID: 7322022872734452581, guid: e1707a3f756db1e4085f00ae52fd2e9c, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.71
+      value: -0.64
       objectReference: {fileID: 0}
     - target: {fileID: 7322022872734452581, guid: e1707a3f756db1e4085f00ae52fd2e9c, type: 3}
       propertyPath: m_LocalPosition.z
@@ -2199,11 +2199,26 @@ MonoBehaviour:
   targetDir: {fileID: 1524938441}
   targetDist: 0.127
   smoothSpeed: 0.05
-  maxStretch: 0.2
+  tailBehindDirection: 1
+  useVelocityForDirection: 1
+  velocitySource: {fileID: 44962462}
+  velocityDeadZone: 0.05
+  signHoldTime: 0.06
+  maxStretch: 0.204
   wiggleSpeed: 5
   wiggleMagnitude: 0.15
   wigglePhaseOffset: 0.5
   tailTipMultiplier: 0.419
+  useBodyAvoid: 1
+  bodyCenter: {fileID: 44962464}
+  bodyRadius: 0.7
+  bodyPadding: 0.02
+  bodyAvoidStartIndex: 1
+  clumpWhenBlocked: 1
+  clumpMinDistMul: 0.2
+  blockedWiggleMul: 0.35
+  drawBodyRadiusGizmo: 1
+  drawAlways: 0
   bodyParts:
   - {fileID: 1907635861}
   - {fileID: 836738423}
