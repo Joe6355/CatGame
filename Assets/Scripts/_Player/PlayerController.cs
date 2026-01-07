@@ -8,66 +8,136 @@ using UnityEngine.EventSystems;
 public class PlayerController : MonoBehaviour
 {
     [Header("Движение")]
-    [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float fatigueSpeedMultiplier = 0.6f;
+    [SerializeField, Tooltip("Базовая скорость бега по земле (без льда/снега/усталости).\nРекоменд: 3–8 (часто 4–6).")]
+    private float moveSpeed = 5f;
+
+    [SerializeField, Tooltip("Множитель скорости при усталости (анти-спам прыжка).\n0.6 = скорость падает до 60%.\nРекоменд: 0.5–0.8 (часто 0.6–0.7).")]
+    private float fatigueSpeedMultiplier = 0.6f;
 
     [Header("Прыжок (заряд)")]
-    [SerializeField] private float maxJumpForce = 20f;
-    [SerializeField] private float jumpTimeLimit = 1f;
-    [SerializeField] private float coyoteTime = 0.05f;
+    [SerializeField, Tooltip("Максимальная вертикальная скорость (сила) прыжка при полном заряде.\nРекоменд: 10–25 (часто 16–22).")]
+    private float maxJumpForce = 20f;
+
+    [SerializeField, Tooltip("Время, за которое прыжок заряжается до maxJumpForce.\nРекоменд: 0.25–1.0 сек (часто 0.5–0.8).")]
+    private float jumpTimeLimit = 1f;
+
+    [SerializeField, Tooltip("Койот-тайм: сколько секунд после схода с платформы ещё можно начать заряд прыжка.\nРекоменд: 0.05–0.15 (часто 0.08–0.12).")]
+    private float coyoteTime = 0.05f;
 
     [Header("Отскок от стен/потолка")]
-    [SerializeField, Range(0f, 1f)] private float wallBounceFraction = 0.33f;
-    [SerializeField] private float damping = 0.5f;
-    [SerializeField] private float dampingExclusionTime = 0.2f;
+    [SerializeField, Range(0f, 1f), Tooltip("Доля силы заряда, превращаемая в отскок по X от стены.\n0.33 = 33% от силы заряда.\nРекоменд: 0.2–0.5 (часто 0.3–0.4).")]
+    private float wallBounceFraction = 0.33f;
+
+    [SerializeField, Tooltip("Демпфирование отскока (уменьшение силы), если прошло достаточно времени после прыжка.\n1 = без демпфа, 0.5 = в 2 раза слабее.\nРекоменд: 0.4–0.8 (часто 0.5–0.7).")]
+    private float damping = 0.5f;
+
+    [SerializeField, Tooltip("Окно после прыжка, в которое демпфирование не применяется (чтобы отскок сразу после прыжка был бодрее).\nРекоменд: 0.1–0.3 сек (часто 0.15–0.25).")]
+    private float dampingExclusionTime = 0.2f;
 
     [Header("Усталость (анти-спам)")]
-    [SerializeField] private float fatigueDuration = 0.8f;
-    [SerializeField] private Image fatigueImage;
+    [SerializeField, Tooltip("Сколько длится усталость после прыжка: нельзя начать новый заряд, скорость снижена.\nРекоменд: 0.3–1.2 сек (часто 0.6–0.9).")]
+    private float fatigueDuration = 0.8f;
+
+    [SerializeField, Tooltip("UI-изображение усталости (картинка/иконка), у которого меняется прозрачность.\nРекоменд: назначить Image на Canvas (можно оставить пустым, если не нужно).")]
+    private Image fatigueImage;
 
     [Header("Назначение клавиш (PC)")]
-    [SerializeField] private KeyCode leftKey = KeyCode.A;
-    [SerializeField] private KeyCode rightKey = KeyCode.D;
-    [SerializeField] private KeyCode jumpKey = KeyCode.Space;
+    [SerializeField, Tooltip("Клавиша движения влево (PC).\nРекоменд: A или LeftArrow.")]
+    private KeyCode leftKey = KeyCode.A;
+
+    [SerializeField, Tooltip("Клавиша движения вправо (PC).\nРекоменд: D или RightArrow.")]
+    private KeyCode rightKey = KeyCode.D;
+
+    [SerializeField, Tooltip("Клавиша прыжка (PC).\nРекоменд: Space.")]
+    private KeyCode jumpKey = KeyCode.Space;
 
     [Header("Ground Check")]
-    [SerializeField] private LayerMask groundMask;
-    [SerializeField] private bool useBoxGroundCheck = true;
-    [SerializeField] private Vector2 groundBoxSize = new Vector2(0.6f, 0.12f);
-    [SerializeField] private Vector2 groundBoxOffset = new Vector2(0f, -0.2f);
-    [SerializeField] private Transform groundCheck;
-    [SerializeField] private float groundCheckRadius = 0.12f;
+    [SerializeField, Tooltip("Слои, которые считаются землёй (Ground/Platform и т.п.).\nРекоменд: выделить отдельный слой Ground и выбрать его здесь.")]
+    private LayerMask groundMask;
+
+    [SerializeField, Tooltip("Если ВКЛ — проверяем землю OverlapBox под ногами.\nЕсли ВЫКЛ — проверяем OverlapCircle (groundCheck + radius).\nРекоменд: ВКЛ (true) для платформера.")]
+    private bool useBoxGroundCheck = true;
+
+    [SerializeField, Tooltip("Размер бокса проверки земли (ширина/высота).\nШирина обычно чуть меньше ширины персонажа, высота — тонкая.\nРекоменд: X 0.4–0.9, Y 0.06–0.15.")]
+    private Vector2 groundBoxSize = new Vector2(0.6f, 0.12f);
+
+    [SerializeField, Tooltip("Смещение бокса проверки земли от центра персонажа (локально).\nОбычно немного вниз.\nРекоменд: Y -0.15..-0.30, X чаще 0.")]
+    private Vector2 groundBoxOffset = new Vector2(0f, -0.2f);
+
+    [SerializeField, Tooltip("Точка для OverlapCircle, если useBoxGroundCheck выключен.\nРекоменд: пустышка GroundCheck под ногами.")]
+    private Transform groundCheck;
+
+    [SerializeField, Tooltip("Радиус круга проверки земли, если useBoxGroundCheck выключен.\nРекоменд: 0.08–0.18 (часто 0.10–0.14).")]
+    private float groundCheckRadius = 0.12f;
 
     [Header("Ground Edge Assist (борьба с краями)")]
-    [SerializeField] private bool useEdgeAssist = true;
-    [SerializeField] private float edgeProbeHalfWidth = 0.22f; // половина ширины стоп (влево/вправо от центра)
-    [SerializeField] private float edgeProbeHeight = 0.06f;    // тонкие боксы под краями стоп
-    [SerializeField] private float snapProbeDistance = 0.12f;  // как далеко «нащупываем» землю вниз
-    [SerializeField, Range(0f, 1f)] private float snapMinNormalY = 0.35f;
+    [SerializeField, Tooltip("Если ВКЛ — включается помощь на краях платформ: доп. зонды и снап-лучи вниз.\nРекоменд: ВКЛ (true) — сильно улучшает контроль на краях.")]
+    private bool useEdgeAssist = true;
+
+    [SerializeField, Tooltip("Половина ширины 'стоп' для боковых зондов (влево/вправо от центра).\nБольше = легче цепляться за край, но может цепляться 'слишком'.\nРекоменд: 0.12–0.30 (часто 0.18–0.24).")]
+    private float edgeProbeHalfWidth = 0.22f;
+
+    [SerializeField, Tooltip("Высота тонких боксов под краями стоп.\nОчень тонкая, чтобы не ловить стены.\nРекоменд: 0.03–0.08 (часто 0.05–0.07).")]
+    private float edgeProbeHeight = 0.06f;
+
+    [SerializeField, Tooltip("Дистанция снап-лучей вниз: насколько далеко 'нащупываем' землю.\nБольше = легче приземлиться на край.\nРекоменд: 0.06–0.18 (часто 0.10–0.14).")]
+    private float snapProbeDistance = 0.12f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Минимальная вертикальная компонента нормали (normal.y), чтобы считать поверхность землёй.\nЧем больше — тем меньше шанс 'прилипнуть' к стенам.\nРекоменд: 0.3–0.6 (часто 0.35–0.45).")]
+    private float snapMinNormalY = 0.35f;
 
     [Header("UI шкалы прыжка")]
-    [SerializeField] private Image jumpBarFill;
-    [SerializeField] private Image jumpBarBG;
-    [SerializeField] private Camera mainCamera;
-    [SerializeField] private Canvas uiCanvas;
-    [SerializeField] private Vector3 barOffset = new Vector3(0f, 2f, 0f);
+    [SerializeField, Tooltip("Заполняемая часть шкалы заряда прыжка (Image Fill).\nРекоменд: Image с Fill Amount, можно оставить пустым если шкала не нужна.")]
+    private Image jumpBarFill;
+
+    [SerializeField, Tooltip("Фон шкалы заряда прыжка.\nРекоменд: назначить, если нужен фон (можно пусто).")]
+    private Image jumpBarBG;
+
+    [SerializeField, Tooltip("Камера, которая рендерит мир и по которой считаем ScreenPoint.\nРекоменд: Main Camera.")]
+    private Camera mainCamera;
+
+    [SerializeField, Tooltip("Canvas, в котором лежит UI шкалы.\nРекоменд: Canvas в режиме Screen Space Overlay или Camera.")]
+    private Canvas uiCanvas;
+
+    [SerializeField, Tooltip("Смещение шкалы от позиции игрока в мире (в мировых единицах).\nНапр: (0,2,0) — над головой.\nРекоменд: Y 1.0–2.5 (зависит от размера спрайта).")]
+    private Vector3 barOffset = new Vector3(0f, 2f, 0f);
 
     [Header("Мобильное управление")]
-    [SerializeField] private bool useMobileControls = false;
-    [SerializeField] private Joystick mobileJoystick;
-    [SerializeField] private Button mobileJumpButton;
+    [SerializeField, Tooltip("Если ВКЛ — используем мобильное управление (джойстик + кнопка), PC ввод игнорится.\nРекоменд: true для мобилки, false для ПК.")]
+    private bool useMobileControls = false;
+
+    [SerializeField, Tooltip("Ссылka на Joystick (обычно из пакета Joystick).\nРекоменд: назначить, если useMobileControls = true.")]
+    private Joystick mobileJoystick;
+
+    [SerializeField, Tooltip("UI кнопка прыжка для мобилки (нажатие/удержание).\nРекоменд: назначить, если useMobileControls = true.")]
+    private Button mobileJumpButton;
 
     [Header("Air Control")]
-    [SerializeField] private float airControlSpeed = 5f;
+    [SerializeField, Tooltip("Скорость управления в воздухе, когда air-control временно разрешён (AllowAirControlFor).\nРекоменд: 3–10 (часто 4–7).")]
+    private float airControlSpeed = 5f;
+
+    // (в инспекторе не нужен) когда до какого времени разрешён air control
     private float airControlUnlockUntil = 0f;
 
     [Header("Лёд (Tag = \"Ice\")")]
-    [SerializeField] private float iceAccel = 2.5f;
-    [SerializeField] private float iceBrake = 1.2f;
-    [SerializeField] private float iceMaxSpeedMul = 1.15f;
-    [SerializeField] private float normalAccel = 9999f;
-    [SerializeField] private float normalBrake = 9999f;
+    [SerializeField, Tooltip("Ускорение на льду (как быстро набираем скорость к target).\nМеньше = более скользко.\nРекоменд: 1–6 (часто 2–4).")]
+    private float iceAccel = 2.5f;
 
+    [SerializeField, Tooltip("Торможение на льду при смене направления.\nМеньше = более скользко.\nРекоменд: 0.5–4 (часто 1–2).")]
+    private float iceBrake = 1.2f;
+
+    [SerializeField, Tooltip("Максимальная скорость на льду как множитель от moveSpeed.\n1.15 = на льду можно чуть быстрее.\nРекоменд: 1.0–1.4 (часто 1.1–1.25).")]
+    private float iceMaxSpeedMul = 1.15f;
+
+    [SerializeField, Tooltip("Ускорение на обычной земле. Очень большое значение делает движение почти мгновенным.\nРекоменд: 20–200 (для плавности) или 9999 (мгновенно).")]
+    private float normalAccel = 9999f;
+
+    [SerializeField, Tooltip("Торможение/смена направления на обычной земле.\nРекоменд: 20–200 (плавно) или 9999 (мгновенно).")]
+    private float normalBrake = 9999f;
+
+    // =========================
+    // INTERNAL STATE (не в инспекторе)
+    // =========================
     private Rigidbody2D rb;
     private bool isFacingRight = true;
     private bool isGrounded = false;
@@ -83,7 +153,10 @@ public class PlayerController : MonoBehaviour
     private float jumpStartSpeed = 0f;
     private float fatigueEndTime = 0f;
 
-    [SerializeField] private float takeoffLockTime = 0.08f;
+    [Header("Takeoff / GroundCheck Locks")]
+    [SerializeField, Tooltip("Время после прыжка, когда считаем персонажа 'в воздухе' и ограничиваем приземление/переворот логики.\nУбирает залипание к земле в момент старта прыжка.\nРекоменд: 0.05–0.12 (часто 0.06–0.10).")]
+    private float takeoffLockTime = 0.08f;
+
     private float takeoffLockUntil = 0f;
     private float groundCheckDisableUntil = 0f;
 
@@ -103,11 +176,12 @@ public class PlayerController : MonoBehaviour
     // ==== ВЕТЕР: аддитивная внешняя скорость по X (зона ветра добавляет Δv за кадр) ====
     private float externalWindVX = 0f;
     public void AddExternalWindVX(float vx) { externalWindVX += vx; }
-    // =====================================================================================
+    // ================================================================================
 
     // ==== ПУБЛИЧНЫЙ API ДЛЯ ОТРИСОВКИ ТРАЕКТОРИИ ПРЫЖКА ====
     public bool IsChargingJumpPublic => isChargingJump;
     public float GetGravityScale() => rb ? rb.gravityScale : 1f;
+
     public Vector2 GetPredictedJumpVelocity()
     {
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
@@ -118,7 +192,7 @@ public class PlayerController : MonoBehaviour
 
         return new Vector2(takeoffVx, verticalForce);
     }
-    // =====================================================================================
+    // ================================================================================
 
     private void Awake() => rb = GetComponent<Rigidbody2D>();
 
@@ -387,7 +461,7 @@ public class PlayerController : MonoBehaviour
         transform.localScale = s;
     }
 
-    // ==== НОВЫЙ Grounded с Edge-Assist ====
+    // ==== Grounded с Edge-Assist ====
     private void CheckGrounded()
     {
         if (Time.time < groundCheckDisableUntil)
@@ -418,7 +492,7 @@ public class PlayerController : MonoBehaviour
 
         bool grounded = groundCol != null;
 
-        // 2) Узкие зонды под краями стоп (если базовый не зацепился)
+        // 2) Узкие зонды под краями стоп
         if (!grounded && useEdgeAssist)
         {
             Vector2 feetCenter = (useBoxGroundCheck)
@@ -474,7 +548,6 @@ public class PlayerController : MonoBehaviour
             if (hits > 0) grounded = true;
         }
 
-        // Финал
         isGrounded = grounded;
         lastGroundCol = groundCol;
 
@@ -662,10 +735,8 @@ public class PlayerController : MonoBehaviour
                 Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
 
-        // --- Edge Assist gizmos ---
         if (useEdgeAssist)
         {
-            // узкие боксы
             Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.6f);
             Vector2 feetCenter = (useBoxGroundCheck)
                 ? (Vector2)transform.TransformPoint(groundBoxOffset)
@@ -678,7 +749,6 @@ public class PlayerController : MonoBehaviour
             Gizmos.DrawWireCube(new Vector3(feetCenter.x - half, y, 0f), new Vector3(probeSize.x, probeSize.y, 0f));
             Gizmos.DrawWireCube(new Vector3(feetCenter.x + half, y, 0f), new Vector3(probeSize.x, probeSize.y, 0f));
 
-            // снап-лучи
             Gizmos.color = new Color(0.2f, 0.6f, 1f, 0.6f);
             Gizmos.DrawLine(transform.position, transform.position + Vector3.down * snapProbeDistance);
             Gizmos.DrawLine(new Vector3(feetCenter.x - half, transform.position.y, 0f),
@@ -701,10 +771,12 @@ public class PlayerController : MonoBehaviour
         activeSnow[area] = (Mathf.Clamp01(moveMul), Mathf.Clamp01(jumpMul));
         RecalcSnow();
     }
+
     public void UnregisterSnow(SnowdriftArea2D area)
     {
         if (activeSnow.Remove(area)) RecalcSnow();
     }
+
     private void RecalcSnow()
     {
         if (activeSnow.Count == 0) { snowMoveMul = 1f; snowJumpMul = 1f; return; }
@@ -719,6 +791,7 @@ public class PlayerController : MonoBehaviour
 
 /// <summary>
 /// Лёгкий обработчик удержания для UI-кнопки (без EventTrigger).
+/// В инспекторе почти не настраивается — просто добавляется на кнопку прыжка автоматически.
 /// </summary>
 public class PointerHoldHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {
