@@ -71,8 +71,8 @@ Material:
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1
-    - _OutlineEnd: 0.001
-    - _OutlineSide: 0.28
+    - _OutlineEnd: 0.0000001
+    - _OutlineSide: 0.264
     - _OutlineSize: 0.119
     - _Parallax: 0.02
     - _SmoothnessTextureChannel: 0
