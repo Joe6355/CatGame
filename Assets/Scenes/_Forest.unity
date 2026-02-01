@@ -122,6 +122,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+<<<<<<< HEAD
 --- !u!1 &128792731
 GameObject:
   m_ObjectHideFlags: 0
@@ -3385,3 +3386,9 @@ SceneRoots:
   - {fileID: 1492770872}
   - {fileID: 1910808664}
   - {fileID: 209637481}
+=======
+--- !u!1660057539 &9223372036854775807
+SceneRoots:
+  m_ObjectHideFlags: 0
+  m_Roots: []
+>>>>>>> remotes/origin/artNao
