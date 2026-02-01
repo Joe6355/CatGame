@@ -295,11 +295,13 @@ MonoBehaviour:
   fatigueSpeedMultiplier: 0.6
   maxJumpForce: 20
   jumpTimeLimit: 1
+  shortJumpForce: 8
+  chargeEnterDelay: 0.3
   coyoteTime: 0.05
   wallBounceFraction: 1
   damping: 0.5
   dampingExclusionTime: 0.2
-  fatigueDuration: 0.8
+  fatigueDuration: 0.5
   fatigueImage: {fileID: 1932933045}
   leftKey: 97
   rightKey: 100
@@ -313,7 +315,7 @@ MonoBehaviour:
   groundCheck: {fileID: 1035986057}
   groundCheckRadius: 0.12
   useEdgeAssist: 1
-  edgeProbeHalfWidth: 0.4
+  edgeProbeHalfWidth: 0.34
   edgeProbeHeight: 0.06
   snapProbeDistance: 0.54
   snapMinNormalY: 0.5
@@ -3563,7 +3565,7 @@ Transform:
   m_GameObject: {fileID: 1658079565}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.02, y: 3.44, z: 0}
+  m_LocalPosition: {x: -27.16, y: 4.25, z: 0}
   m_LocalScale: {x: 1.7533, y: 1.4765, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

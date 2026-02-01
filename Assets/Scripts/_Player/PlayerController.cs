@@ -21,6 +21,12 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Tooltip("Время, за которое прыжок заряжается до maxJumpForce.\nРекоменд: 0.25–1.0 сек (часто 0.5–0.8).")]
     private float jumpTimeLimit = 1f;
 
+    [SerializeField, Tooltip("Сила слабого прыжка, если отпустили кнопку ДО входа в режим заряда.\nРекоменд: 4–12 (зависит от gravityScale).")]
+    private float shortJumpForce = 8f;
+
+    [SerializeField, Tooltip("Задержка (сек) чтобы ВОЙТИ в режим заряда.\nЕсли отпустить раньше — будет слабый прыжок.\nРекоменд: 0.3–1.5 (по задаче поставим 1.0).")]
+    private float chargeEnterDelay = 1f;
+
     [SerializeField, Tooltip("Койот-тайм: сколько секунд после схода с платформы ещё можно начать заряд прыжка.\nРекоменд: 0.05–0.15 (часто 0.08–0.12).")]
     private float coyoteTime = 0.05f;
 
@@ -116,7 +122,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Tooltip("Скорость управления в воздухе, когда air-control временно разрешён (AllowAirControlFor).\nРекоменд: 3–10 (часто 4–7).")]
     private float airControlSpeed = 5f;
 
-    // (в инспекторе не нужен) когда до какого времени разрешён air control
     private float airControlUnlockUntil = 0f;
 
     [Header("Лёд (Tag = \"Ice\")")]
@@ -144,14 +149,28 @@ public class PlayerController : MonoBehaviour
     private float lastGroundedTime = -999f;
 
     private float inputX = 0f;
+
+    // Режимы прыжка:
+    // isJumpHoldActive = кнопку держим (но ещё может быть не заряд)
+    // isChargingJump   = мы уже в режиме заряда (после задержки chargeEnterDelay)
+    private bool isJumpHoldActive = false;
     private bool isChargingJump = false;
+
+    // Время, когда нажали кнопку (для задержки входа в заряд)
+    private float jumpButtonDownTime = 0f;
+
+    // Время старта ЗАРЯДА (не нажатия!), чтобы расчёт заряда был как раньше
     private float jumpStartHoldTime = 0f;
+
     private bool mobileJumpHeld = false;
 
     private float airVx = 0f;
     private float lastJumpTime = -999f;
     private float jumpStartSpeed = 0f;
     private float fatigueEndTime = 0f;
+
+    // Для отскока — хранить реальную силу последнего прыжка
+    private float lastJumpVerticalForce = 0f;
 
     [Header("Takeoff / GroundCheck Locks")]
     [SerializeField, Tooltip("Время после прыжка, когда считаем персонажа 'в воздухе' и ограничиваем приземление/переворот логики.\nУбирает залипание к земле в момент старта прыжка.\nРекоменд: 0.05–0.12 (часто 0.06–0.10).")]
@@ -179,11 +198,14 @@ public class PlayerController : MonoBehaviour
     // ================================================================================
 
     // ==== ПУБЛИЧНЫЙ API ДЛЯ ОТРИСОВКИ ТРАЕКТОРИИ ПРЫЖКА ====
-    public bool IsChargingJumpPublic => isChargingJump;
+    // ВАЖНО: true только когда мы реально в режиме заряда (после задержки)
+    public bool IsChargingJumpPublic => isChargingJump && (Time.time - jumpStartHoldTime) > 0.01f;
     public float GetGravityScale() => rb ? rb.gravityScale : 1f;
 
     public Vector2 GetPredictedJumpVelocity()
     {
+        // Траектория будет запрашиваться только при IsChargingJumpPublic == true,
+        // поэтому считаем заряд от jumpStartHoldTime.
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
         float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce * snowJumpMul;
 
@@ -249,16 +271,19 @@ public class PlayerController : MonoBehaviour
             if (faceRight != isFacingRight) Flip();
         }
 
-        bool canStartCharge = CanStartJumpCharge();
+        bool canStartHold = CanStartJumpCharge();
 
-        if (Input.GetKeyDown(jumpKey) && canStartCharge)
-            BeginJumpCharge();
+        // Нажали — начинаем "ожидание заряда" (1 сек). В этот момент НЕТ полоски и НЕТ траектории.
+        if (Input.GetKeyDown(jumpKey) && canStartHold)
+            BeginJumpHold();
 
-        if (Input.GetKey(jumpKey) && isChargingJump)
-            ContinueJumpCharge();
+        // Держим — обновляем: либо всё ещё ждём 1 сек, либо уже заряжаем
+        if (Input.GetKey(jumpKey) && isJumpHoldActive)
+            UpdateJumpHold();
 
-        if (Input.GetKeyUp(jumpKey) && isChargingJump)
-            ReleaseJumpChargeAndJump();
+        // Отпустили — если заряд не начался, будет слабый прыжок
+        if (Input.GetKeyUp(jumpKey) && isJumpHoldActive)
+            ReleaseJumpHoldAndJump();
     }
 
     private void HandleMobileInput()
@@ -273,16 +298,16 @@ public class PlayerController : MonoBehaviour
 
         if (mobileJumpHeld)
         {
-            if (!isChargingJump && CanStartJumpCharge())
-                BeginJumpCharge();
+            if (!isJumpHoldActive && CanStartJumpCharge())
+                BeginJumpHold();
 
-            if (isChargingJump)
-                ContinueJumpCharge();
+            if (isJumpHoldActive)
+                UpdateJumpHold();
         }
         else
         {
-            if (isChargingJump)
-                ReleaseJumpChargeAndJump();
+            if (isJumpHoldActive)
+                ReleaseJumpHoldAndJump();
         }
     }
 
@@ -292,10 +317,13 @@ public class PlayerController : MonoBehaviour
         return groundedOrCoyote && !IsFatigued();
     }
 
-    private void BeginJumpCharge()
+    private void BeginJumpHold()
     {
-        isChargingJump = true;
-        jumpStartHoldTime = Time.time;
+        isJumpHoldActive = true;
+        isChargingJump = false;
+
+        jumpButtonDownTime = Time.time;
+        UpdateJumpBar(0f); // гарантированно скрыть
 
         if (Mathf.Abs(inputX) > 0.01f && IsGroundMovementAllowed())
         {
@@ -304,39 +332,70 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    private void ContinueJumpCharge()
+    private void UpdateJumpHold()
     {
-        // Потеряли землю и «койот» истёк — отменяем заряд и скрываем UI
+        // Потеряли землю и «койот» истёк — отменяем вообще весь режим
         if (!isGrounded && (Time.time - lastGroundedTime) > coyoteTime)
         {
             CancelJumpCharge();
             return;
         }
 
+        // Ещё не заряд? ждём задержку
+        if (!isChargingJump)
+        {
+            float held = Time.time - jumpButtonDownTime;
+
+            // пока ждём — никаких UI/траекторий
+            if (held < chargeEnterDelay)
+            {
+                UpdateJumpBar(0f);
+                return;
+            }
+
+            // Входим в режим заряда
+            isChargingJump = true;
+            jumpStartHoldTime = Time.time; // теперь заряд считается с этого момента
+        }
+
+        // Заряд идёт — обновляем шкалу
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
         float normalized = hold / jumpTimeLimit;
         UpdateJumpBar(normalized);
     }
 
-    private void ReleaseJumpChargeAndJump()
+    private void ReleaseJumpHoldAndJump()
     {
         if (!isGrounded)
         {
+            isJumpHoldActive = false;
             isChargingJump = false;
             UpdateJumpBar(0f);
             return;
         }
 
-        isChargingJump = false;
+        float verticalForce;
 
-        float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
-        float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce * snowJumpMul;
+        // Если заряд НЕ включился (отпустили раньше 1 сек) — слабый прыжок
+        if (!isChargingJump)
+        {
+            verticalForce = shortJumpForce * snowJumpMul;
+        }
+        else
+        {
+            float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
+            verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce * snowJumpMul;
+        }
+
+        isJumpHoldActive = false;
+        isChargingJump = false;
 
         float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
         float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul * snowMoveMul;
 
         jumpStartSpeed = takeoffVx;
         PerformJump(takeoffVx, verticalForce);
+
         UpdateJumpBar(0f);
         StartFatigue();
     }
@@ -347,6 +406,8 @@ public class PlayerController : MonoBehaviour
 
         airVx = horizontalSpeed;
         rb.velocity = new Vector2(horizontalSpeed, verticalForce);
+
+        lastJumpVerticalForce = Mathf.Abs(verticalForce);
 
         isGrounded = false;
         takeoffLockUntil = Time.time + takeoffLockTime;
@@ -373,8 +434,12 @@ public class PlayerController : MonoBehaviour
         groundCheckDisableUntil = Time.time + 0.08f;
 
         airVx = rb.velocity.x;
+        jumpStartSpeed = rb.velocity.x;              // чтобы отскок от стены был адекватнее
+        lastJumpVerticalForce = Mathf.Abs(rb.velocity.y);
+
         lastJumpTime = Time.time;
 
+        isJumpHoldActive = false;
         isChargingJump = false;
         UpdateJumpBar(0f);
     }
@@ -386,7 +451,7 @@ public class PlayerController : MonoBehaviour
 
     private void ApplyMovement()
     {
-        // Во время зарядки
+        // Во время ЗАРЯДА (после задержки) — поведение как у тебя было
         if (isChargingJump)
         {
             bool onMovingGroundByEffector = isGrounded && lastGroundCol && lastGroundCol.GetComponent<SurfaceEffector2D>() != null;
@@ -459,6 +524,11 @@ public class PlayerController : MonoBehaviour
         var s = transform.localScale;
         s.x *= -1f;
         transform.localScale = s;
+    }
+
+    private bool IsJumpButtonHeldNow()
+    {
+        return useMobileControls ? mobileJumpHeld : Input.GetKey(jumpKey);
     }
 
     // ==== Grounded с Edge-Assist ====
@@ -562,7 +632,8 @@ public class PlayerController : MonoBehaviour
             currentPlatform = lastGroundCol ? lastGroundCol.GetComponentInParent<MovingPlatform2D>() : null;
             platformVX = (currentPlatform != null && currentPlatform.parentRider) ? currentPlatform.FrameVelocity.x : 0f;
 
-            if (!Input.GetKey(jumpKey)) UpdateJumpBar(0f);
+            // если кнопку не держим — скрываем шкалу
+            if (!IsJumpButtonHeldNow()) UpdateJumpBar(0f);
         }
         else
         {
@@ -578,13 +649,15 @@ public class PlayerController : MonoBehaviour
         {
             isGrounded = true;
             isChargingJump = false;
+            isJumpHoldActive = false;
         }
         else if (collision.gameObject.CompareTag("Wall") && !isGrounded)
         {
             Vector3 contactNormal = collision.contacts[0].normal;
             if (Mathf.Abs(contactNormal.x) > 0.9f)
             {
-                float jumpForce = Mathf.Clamp01((Time.time - jumpStartHoldTime) / jumpTimeLimit) * maxJumpForce;
+                // ИЗМЕНЕНО: используем реальную силу последнего прыжка (и короткого тоже)
+                float jumpForce = lastJumpVerticalForce;
                 BounceOffWall(jumpForce, jumpStartSpeed);
             }
         }
@@ -692,15 +765,15 @@ public class PlayerController : MonoBehaviour
     private void OnMobileJumpDown()
     {
         mobileJumpHeld = true;
-        if (!isChargingJump && CanStartJumpCharge())
-            BeginJumpCharge();
+        if (!isJumpHoldActive && CanStartJumpCharge())
+            BeginJumpHold();
     }
 
     private void OnMobileJumpUp()
     {
         mobileJumpHeld = false;
-        if (isChargingJump)
-            ReleaseJumpChargeAndJump();
+        if (isJumpHoldActive)
+            ReleaseJumpHoldAndJump();
     }
 
     private void ApplyMobileUIVisibility()
@@ -760,7 +833,8 @@ public class PlayerController : MonoBehaviour
 
     public void CancelJumpCharge()
     {
-        if (!isChargingJump) return;
+        if (!isJumpHoldActive && !isChargingJump) return;
+        isJumpHoldActive = false;
         isChargingJump = false;
         UpdateJumpBar(0f);
     }

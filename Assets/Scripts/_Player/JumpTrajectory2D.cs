@@ -75,7 +75,6 @@ public class JumpTrajectory2D : MonoBehaviour
     private LineRenderer lr;
     private readonly List<Vector3> buf = new List<Vector3>(128);
 
-    // Буфер под результаты кастов без аллокаций
     private readonly RaycastHit2D[] hitBuf = new RaycastHit2D[16];
     private ContactFilter2D filter;
 
@@ -96,12 +95,10 @@ public class JumpTrajectory2D : MonoBehaviour
         if (!rb) rb = GetComponent<Rigidbody2D>();
         if (!playerCollider) playerCollider = GetComponent<Collider2D>();
 
-        // Настраиваем фильтр столкновений
         filter = new ContactFilter2D();
         filter.useLayerMask = true;
         filter.layerMask = hitMask;
-
-        filter.useTriggers = !ignoreTriggers; // если ignoreTriggers=true, то useTriggers=false
+        filter.useTriggers = !ignoreTriggers;
     }
 
     private void Update()
@@ -163,7 +160,6 @@ public class JumpTrajectory2D : MonoBehaviour
 
         dir /= dist;
 
-        // Если коллайдера игрока нет — fallback на Linecast
         if (playerCollider == null)
         {
             RaycastHit2D h = Physics2D.Raycast((Vector2)prev, dir, dist, hitMask);
@@ -175,10 +171,8 @@ public class JumpTrajectory2D : MonoBehaviour
             return false;
         }
 
-        // Делаем Cast формы игрока по траектории (как "предсказание столкновения")
         int hitCount = 0;
 
-        // Временно подстрахуем: если layerMask в инспекторе поменяли — обновим фильтр
         filter.layerMask = hitMask;
         filter.useTriggers = !ignoreTriggers;
 
@@ -220,7 +214,6 @@ public class JumpTrajectory2D : MonoBehaviour
         }
         else
         {
-            // Нестандартный collider — fallback
             RaycastHit2D h = Physics2D.Raycast((Vector2)prev, dir, dist, hitMask);
             if (h.collider != null && !IsSelf(h.collider) && PassOneWayRule(h, dir))
             {
@@ -232,7 +225,6 @@ public class JumpTrajectory2D : MonoBehaviour
 
         if (hitCount <= 0) return false;
 
-        // Выбираем ближайший валидный хит
         float best = float.MaxValue;
         RaycastHit2D bestHit = default;
 
@@ -261,7 +253,6 @@ public class JumpTrajectory2D : MonoBehaviour
 
     private bool IsSelf(Collider2D col)
     {
-        // Игнорируем свои коллайдеры (иногда у игрока их несколько в детях)
         if (playerCollider != null)
         {
             if (col == playerCollider) return true;
@@ -274,14 +265,10 @@ public class JumpTrajectory2D : MonoBehaviour
     {
         if (!respectOneWayPlatforms) return true;
 
-        // Если это one-way платформа (обычно PlatformEffector2D), то блокируем только когда движение "вниз"
         var eff = hit.collider.GetComponent<PlatformEffector2D>() ?? hit.collider.GetComponentInParent<PlatformEffector2D>();
         if (eff == null) return true;
 
-        // Движемся вниз?
         bool movingDown = moveDir.y < -Mathf.Max(0.0001f, oneWayDownThreshold);
-
-        // Если летим вверх/вбок — линию не обрубаем (как будто можем пройти снизу)
         return movingDown;
     }
 
