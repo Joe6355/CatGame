@@ -525,8 +525,8 @@ MonoBehaviour:
   player: {fileID: 44962460}
   rb: {fileID: 44962462}
   playerCollider: {fileID: 44962461}
-  points: 1000
-  step: 0.01
+  points: 5000
+  step: 0.001
   startOffset: {x: 0, y: 0}
   stopOnHit: 1
   hitMask:
