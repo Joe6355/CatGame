@@ -125,34 +125,42 @@ public class JumpTrajectory2D : MonoBehaviour
         buf.Add(p0);
 
         Vector3 prev = p0;
-        float t = 0f;
+        float tPrev = 0f;
 
         for (int i = 1; i < points; i++)
         {
-            t += step;
-            Vector2 p = (Vector2)p0 + v0 * t + 0.5f * g * (t * t);
+            float tCur = tPrev + step;
+
+            Vector2 p = (Vector2)p0 + v0 * tCur + 0.5f * g * (tCur * tCur);
             Vector3 cur = new Vector3(p.x, p.y, 0f);
 
             if (stopOnHit)
             {
-                if (TryCastBetween(prev, cur, out Vector2 hitPoint))
+                if (TryCastBetween(prev, cur, out float hitFrac))
                 {
-                    buf.Add(new Vector3(hitPoint.x, hitPoint.y, 0f));
+                    // ВАЖНО: заканчиваем на ПАРАБОЛЕ в момент удара, а не на hit.point
+                    float tHit = tPrev + step * Mathf.Clamp01(hitFrac);
+
+                    Vector2 pHit = (Vector2)p0 + v0 * tHit + 0.5f * g * (tHit * tHit);
+                    buf.Add(new Vector3(pHit.x, pHit.y, 0f));
+
                     break;
                 }
             }
 
             buf.Add(cur);
             prev = cur;
+            tPrev = tCur;
         }
 
         lr.positionCount = buf.Count;
         lr.SetPositions(buf.ToArray());
     }
 
-    private bool TryCastBetween(Vector3 prev, Vector3 cur, out Vector2 hitPoint)
+
+    private bool TryCastBetween(Vector3 prev, Vector3 cur, out float hitFraction)
     {
-        hitPoint = cur;
+        hitFraction = 1f;
 
         Vector2 dir = (Vector2)(cur - prev);
         float dist = dir.magnitude;
@@ -160,64 +168,42 @@ public class JumpTrajectory2D : MonoBehaviour
 
         dir /= dist;
 
+        // fallback: Raycast
         if (playerCollider == null)
         {
             RaycastHit2D h = Physics2D.Raycast((Vector2)prev, dir, dist, hitMask);
             if (h.collider != null && !IsSelf(h.collider) && PassOneWayRule(h, dir))
             {
-                hitPoint = h.point;
+                hitFraction = h.fraction; // 0..1
                 return true;
             }
             return false;
         }
 
-        int hitCount = 0;
-
+        // обновим фильтр
         filter.layerMask = hitMask;
         filter.useTriggers = !ignoreTriggers;
 
+        int hitCount = 0;
+
         if (playerCollider is CapsuleCollider2D cap)
         {
-            hitCount = Physics2D.CapsuleCast(
-                (Vector2)prev,
-                cap.size,
-                cap.direction,
-                0f,
-                dir,
-                filter,
-                hitBuf,
-                dist
-            );
+            hitCount = Physics2D.CapsuleCast((Vector2)prev, cap.size, cap.direction, 0f, dir, filter, hitBuf, dist);
         }
         else if (playerCollider is BoxCollider2D box)
         {
-            hitCount = Physics2D.BoxCast(
-                (Vector2)prev,
-                box.size,
-                0f,
-                dir,
-                filter,
-                hitBuf,
-                dist
-            );
+            hitCount = Physics2D.BoxCast((Vector2)prev, box.size, 0f, dir, filter, hitBuf, dist);
         }
         else if (playerCollider is CircleCollider2D cc)
         {
-            hitCount = Physics2D.CircleCast(
-                (Vector2)prev,
-                cc.radius,
-                dir,
-                filter,
-                hitBuf,
-                dist
-            );
+            hitCount = Physics2D.CircleCast((Vector2)prev, cc.radius, dir, filter, hitBuf, dist);
         }
         else
         {
             RaycastHit2D h = Physics2D.Raycast((Vector2)prev, dir, dist, hitMask);
             if (h.collider != null && !IsSelf(h.collider) && PassOneWayRule(h, dir))
             {
-                hitPoint = h.point;
+                hitFraction = h.fraction;
                 return true;
             }
             return false;
@@ -226,7 +212,6 @@ public class JumpTrajectory2D : MonoBehaviour
         if (hitCount <= 0) return false;
 
         float best = float.MaxValue;
-        RaycastHit2D bestHit = default;
 
         for (int i = 0; i < hitCount; i++)
         {
@@ -236,20 +221,18 @@ public class JumpTrajectory2D : MonoBehaviour
             if (!PassOneWayRule(h, dir)) continue;
 
             if (h.fraction < best)
-            {
                 best = h.fraction;
-                bestHit = h;
-            }
         }
 
         if (best < float.MaxValue)
         {
-            hitPoint = bestHit.point;
+            hitFraction = best; // 0..1
             return true;
         }
 
         return false;
     }
+
 
     private bool IsSelf(Collider2D col)
     {
