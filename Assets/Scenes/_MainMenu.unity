@@ -11520,7 +11520,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   newGameButton: {fileID: 398694769}
-  sceneName: _MainTest
+  sceneName: _Act_1_Garbage
 --- !u!114 &1296520150
 MonoBehaviour:
   m_ObjectHideFlags: 0
