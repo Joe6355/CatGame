@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: LineRendererOutlineBuiltIn
+  m_Name: LineRendererOutlineBuiltIn 1
   m_Shader: {fileID: 4800000, guid: b761917156f607446a72a4bef3270ff3, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -71,8 +71,8 @@ Material:
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1
-    - _OutlineEnd: 0.0000001
-    - _OutlineSide: 0.264
+    - _OutlineEnd: 0.062
+    - _OutlineSide: 0.062
     - _OutlineSize: 0.119
     - _Parallax: 0.02
     - _SmoothnessTextureChannel: 0
