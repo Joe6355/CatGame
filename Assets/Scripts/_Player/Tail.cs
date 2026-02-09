@@ -44,6 +44,13 @@ public class Tail : MonoBehaviour
     [Tooltip("Задержка переключения направления (чтобы в момент разворота/малой скорости хвост не мигал и не пропадал).\nРекоменд: 0.05–0.12 (обычно 0.06–0.08).")]
     public float signHoldTime = 0.06f;
 
+    [Header("Direction Fix (anti-stuck)")]
+    [Tooltip("Если ВКЛ — при смене направления (знака) хвост мгновенно пересобирается от якоря на новую сторону.\nУбирает 'заедание' хвоста при резком развороте/флипе.\nРекоменд: ВКЛ (true).")]
+    public bool resetTailOnSignChange = true;
+
+    [Tooltip("Если ВКЛ — при старте/включении объекта хвост инициализируется прямой линией.\nПолезно, если объект появляется/телепортируется.\nРекоменд: ВКЛ (true).")]
+    public bool resetOnEnable = true;
+
     // =========================
     // STRETCH
     // =========================
@@ -126,13 +133,41 @@ public class Tail : MonoBehaviour
     private float pendingSign = 1f;
     private float pendingSince = 0f;
 
-    void Awake()
+    private float lastAppliedSign = 1f;
+    private int lastLen = -1;
+
+    private void Awake()
     {
         if (velocitySource == null)
             velocitySource = GetComponentInParent<Rigidbody2D>();
     }
 
-    void Start()
+    private void OnEnable()
+    {
+        EnsureInitialized();
+
+        if (resetOnEnable)
+        {
+            // Инициализация хвоста сразу в корректную сторону
+            float desiredSign = GetDesiredSign();
+            currentSign = desiredSign;
+            pendingSign = desiredSign;
+            pendingSince = Time.time;
+
+            Vector3 forward = Vector3.right * currentSign;
+            Vector3 dir = tailBehindDirection ? -forward : forward;
+            ResetTail(dir);
+
+            lastAppliedSign = currentSign;
+        }
+    }
+
+    private void Start()
+    {
+        EnsureInitialized();
+    }
+
+    private void EnsureInitialized()
     {
         if (lineRend == null)
             lineRend = GetComponent<LineRenderer>();
@@ -141,7 +176,6 @@ public class Tail : MonoBehaviour
         {
             // Чтобы отрицательный scale (Flip) не ломал линию
             lineRend.useWorldSpace = true;
-            lineRend.positionCount = Mathf.Max(2, length);
         }
 
         if (bodyCenter == null)
@@ -151,49 +185,86 @@ public class Tail : MonoBehaviour
         }
 
         int len = Mathf.Max(2, length);
+        if (segmentPoses == null || segmentPoses.Length != len)
+        {
+            segmentPoses = new Vector3[len];
+            segmentV = new Vector3[len];
+            lastLen = len;
 
-        segmentPoses = new Vector3[len];
-        segmentV = new Vector3[len];
+            if (lineRend != null)
+                lineRend.positionCount = len;
 
-        Vector3 startPos = (targetDir != null) ? targetDir.position : transform.position;
-        for (int i = 0; i < len; i++)
-            segmentPoses[i] = startPos;
+            Vector3 startPos = (targetDir != null) ? targetDir.position : transform.position;
+            for (int i = 0; i < len; i++)
+            {
+                segmentPoses[i] = startPos;
+                segmentV[i] = Vector3.zero;
+            }
 
-        currentSign = 1f;
-        pendingSign = 1f;
-        pendingSince = Time.time;
+            currentSign = 1f;
+            pendingSign = 1f;
+            pendingSince = Time.time;
+            lastAppliedSign = currentSign;
+        }
+        else
+        {
+            // если len не менялся, но length в инспекторе совпал — всё ок
+            if (lineRend != null && lineRend.positionCount != len)
+                lineRend.positionCount = len;
+        }
     }
 
-    void Update()
+    private void Update()
     {
         if (targetDir == null || lineRend == null) return;
 
         // если length поменяли в инспекторе — пересоздадим массивы
         int len = Mathf.Max(2, length);
-        if (segmentPoses == null || segmentPoses.Length != len)
-        {
-            Start();
-            if (targetDir == null || lineRend == null) return;
-        }
+        if (segmentPoses == null || segmentPoses.Length != len || lastLen != len)
+            EnsureInitialized();
+
+        if (targetDir == null || lineRend == null || segmentPoses == null) return;
 
         segmentPoses[0] = targetDir.position;
 
         float desiredSign = GetDesiredSign();
+
+        float oldSign = currentSign;
         UpdateSignWithHold(desiredSign);
 
-        Vector3 forward = Vector3.right * currentSign;
-        Vector3 direction = tailBehindDirection ? -forward : forward;
+        // ===== FIX: при реальной смене направления сбрасываем хвост =====
+        if (resetTailOnSignChange && !Mathf.Approximately(currentSign, lastAppliedSign))
+        {
+            Vector3 forward = Vector3.right * currentSign;
+            Vector3 dir = tailBehindDirection ? -forward : forward;
+            ResetTail(dir);
+
+            lastAppliedSign = currentSign;
+        }
+        else
+        {
+            // если sign не менялся, всё равно обновим lastAppliedSign (на случай старта)
+            lastAppliedSign = currentSign;
+        }
+
+        Vector3 forwardDir = Vector3.right * currentSign;
+        Vector3 direction = tailBehindDirection ? -forwardDir : forwardDir;
         Vector3 side = Vector3.up;
 
         Vector3 c = (bodyCenter != null) ? bodyCenter.position : transform.position;
         float r = Mathf.Max(0f, bodyRadius);
         float rPad = r + Mathf.Max(0f, bodyPadding);
 
+        float smooth = Mathf.Max(0.0001f, smoothSpeed);
+        float baseDist = Mathf.Max(0.0001f, targetDist);
+
         for (int i = 1; i < segmentPoses.Length; i++)
         {
             // Волна (и ослабление у упора)
             float wave = Mathf.Sin(Time.time * wiggleSpeed - i * wigglePhaseOffset);
-            float tipMul = Mathf.Lerp(0.1f, tailTipMultiplier, i / (float)segmentPoses.Length);
+
+            float tipT = (segmentPoses.Length <= 1) ? 1f : (i / (float)(segmentPoses.Length - 1));
+            float tipMul = Mathf.Lerp(0.1f, tailTipMultiplier, tipT);
 
             float nearBodyMul = 1f;
             if (useBodyAvoid && i >= bodyAvoidStartIndex && r > 0.001f)
@@ -205,17 +276,17 @@ public class Tail : MonoBehaviour
             float strength = wiggleMagnitude * wave * tipMul * nearBodyMul;
             Vector3 wiggleOffset = side * strength;
 
-            Vector3 desiredPos = segmentPoses[i - 1] + direction * targetDist + wiggleOffset;
+            Vector3 desiredPos = segmentPoses[i - 1] + direction * baseDist + wiggleOffset;
 
             segmentPoses[i] = Vector3.SmoothDamp(
                 segmentPoses[i],
                 desiredPos,
                 ref segmentV[i],
-                Mathf.Max(0.0001f, smoothSpeed)
+                smooth
             );
 
             // Сначала ограничим максимум (не рвёмся)
-            EnforceMaxDistance(i);
+            EnforceMaxDistance(i, baseDist);
 
             bool blocked = false;
 
@@ -234,12 +305,12 @@ public class Tail : MonoBehaviour
                     segmentPoses[i] = c + to.normalized * r;
 
                     // снова максимум после выталкивания
-                    EnforceMaxDistance(i);
+                    EnforceMaxDistance(i, baseDist);
 
                     // "комок": разрешаем сильнее сжиматься
                     if (clumpWhenBlocked)
                     {
-                        float minBlocked = targetDist * Mathf.Clamp01(clumpMinDistMul);
+                        float minBlocked = baseDist * Mathf.Clamp01(clumpMinDistMul);
                         if (minBlocked > 0.0001f)
                             EnforceMinDistance(i, minBlocked, direction);
                     }
@@ -249,7 +320,7 @@ public class Tail : MonoBehaviour
             // Обычная минимальная дистанция (если не упёрлись)
             if (!blocked)
             {
-                EnforceMinDistance(i, Mathf.Max(0.0001f, targetDist), direction);
+                EnforceMinDistance(i, baseDist, direction);
             }
 
             if (bodyParts != null && i - 1 < bodyParts.Length && bodyParts[i - 1] != null)
@@ -259,11 +330,42 @@ public class Tail : MonoBehaviour
         lineRend.SetPositions(segmentPoses);
     }
 
+    private void ResetTail(Vector3 direction)
+    {
+        if (targetDir == null || segmentPoses == null || segmentV == null) return;
+
+        Vector3 startPos = targetDir.position;
+        segmentPoses[0] = startPos;
+
+        Vector3 dir = direction.sqrMagnitude < 1e-6f ? Vector3.right : direction.normalized;
+        float dist = Mathf.Max(0.0001f, targetDist);
+
+        // Обнуляем инерцию SmoothDamp и ставим точки сразу в правильную сторону
+        for (int i = 1; i < segmentPoses.Length; i++)
+        {
+            segmentV[i] = Vector3.zero;
+            segmentPoses[i] = segmentPoses[i - 1] + dir * dist;
+        }
+
+        if (lineRend != null)
+        {
+            if (lineRend.positionCount != segmentPoses.Length)
+                lineRend.positionCount = segmentPoses.Length;
+
+            lineRend.SetPositions(segmentPoses);
+        }
+    }
+
     private float GetDesiredSign()
     {
         // По умолчанию — по flip (scale.x)
-        float sign = Mathf.Sign(targetDir.lossyScale.x);
-        if (Mathf.Approximately(sign, 0f)) sign = 1f;
+        float sign = 1f;
+        if (targetDir != null)
+        {
+            float sx = targetDir.lossyScale.x;
+            sign = Mathf.Sign(sx);
+            if (Mathf.Approximately(sign, 0f)) sign = 1f;
+        }
 
         // По скорости — если включено
         if (useVelocityForDirection && velocitySource != null)
@@ -300,12 +402,12 @@ public class Tail : MonoBehaviour
             currentSign = pendingSign;
     }
 
-    private void EnforceMaxDistance(int i)
+    private void EnforceMaxDistance(int i, float baseDist)
     {
         Vector3 delta = segmentPoses[i] - segmentPoses[i - 1];
         float dist = delta.magnitude;
 
-        float maxDist = Mathf.Max(0.0001f, targetDist) * (1f + Mathf.Clamp01(maxStretch));
+        float maxDist = Mathf.Max(0.0001f, baseDist) * (1f + Mathf.Clamp01(maxStretch));
         if (dist > maxDist && dist > 0.000001f)
             segmentPoses[i] = segmentPoses[i - 1] + delta.normalized * maxDist;
     }
