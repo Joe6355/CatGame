@@ -141,6 +141,19 @@ public class PlayerController : MonoBehaviour
     private float normalBrake = 9999f;
 
     // =========================
+    // VISUAL (поворот/анимации)
+    // =========================
+    [Header("Visual (Flip)")]
+    [SerializeField, Tooltip("Корень визуала (обычно дочерний объект PlayerVisual со SpriteRenderer/Animator).\nВАЖНО: флип происходит ТОЛЬКО у visualRoot, чтобы не переворачивать Rigidbody2D/коллайдеры.\nЕсли оставить пустым — скрипт попробует найти автоматически.")]
+    private Transform visualRoot;
+
+    [SerializeField, Tooltip("Если visualRoot не назначен, скрипт попытается найти его сам:\n1) дочерний объект с именем \"PlayerVisual\"\n2) первый найденный SpriteRenderer в детях\nРекоменд: true (удобно, чтобы 'не забыть' назначить).")]
+    private bool autoFindVisualRoot = true;
+
+    [SerializeField, Tooltip("Имя дочернего объекта для авто-поиска visualRoot.\nРекоменд: оставить \"PlayerVisual\".")]
+    private string autoVisualName = "PlayerVisual";
+
+    // =========================
     // INTERNAL STATE (не в инспекторе)
     // =========================
     private Rigidbody2D rb;
@@ -204,8 +217,6 @@ public class PlayerController : MonoBehaviour
 
     public Vector2 GetPredictedJumpVelocity()
     {
-        // Траектория будет запрашиваться только при IsChargingJumpPublic == true,
-        // поэтому считаем заряд от jumpStartHoldTime.
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
         float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce * snowJumpMul;
 
@@ -216,7 +227,12 @@ public class PlayerController : MonoBehaviour
     }
     // ================================================================================
 
-    private void Awake() => rb = GetComponent<Rigidbody2D>();
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        ResolveVisualRoot();
+        SyncFacingFromVisual();
+    }
 
     private void Start()
     {
@@ -233,9 +249,59 @@ public class PlayerController : MonoBehaviour
 
         prevUseMobileControls = !useMobileControls;
         ApplyMobileUIVisibility();
+
+        // ещё раз на старте — на случай, если кто-то назначает визуал поздно
+        ResolveVisualRoot();
+        SyncFacingFromVisual();
     }
 
-    private void OnValidate() => ApplyMobileUIVisibility();
+    private void OnValidate()
+    {
+        ApplyMobileUIVisibility();
+
+        // Чтобы в редакторе тоже не забыть
+        if (!Application.isPlaying)
+        {
+            ResolveVisualRoot();
+            SyncFacingFromVisual();
+        }
+    }
+
+    private void ResolveVisualRoot()
+    {
+        if (visualRoot != null) return;
+        if (!autoFindVisualRoot) return;
+
+        // 1) По имени "PlayerVisual"
+        if (!string.IsNullOrWhiteSpace(autoVisualName))
+        {
+            var t = transform.Find(autoVisualName);
+            if (t != null)
+            {
+                visualRoot = t;
+                return;
+            }
+        }
+
+        // 2) Первый SpriteRenderer в детях
+        var sr = GetComponentInChildren<SpriteRenderer>(true);
+        if (sr != null)
+        {
+            visualRoot = sr.transform;
+            return;
+        }
+
+        // 3) Фолбэк: хотя бы корень (чтобы не "сломать поворот" полностью).
+        // Лучше всё равно создать PlayerVisual и назначить его.
+        visualRoot = transform;
+    }
+
+    private void SyncFacingFromVisual()
+    {
+        if (!visualRoot) return;
+        // Если визуал уже отрицательный по X — значит смотрим влево
+        isFacingRight = visualRoot.localScale.x >= 0f;
+    }
 
     private void Update()
     {
@@ -273,15 +339,12 @@ public class PlayerController : MonoBehaviour
 
         bool canStartHold = CanStartJumpCharge();
 
-        // Нажали — начинаем "ожидание заряда" (1 сек). В этот момент НЕТ полоски и НЕТ траектории.
         if (Input.GetKeyDown(jumpKey) && canStartHold)
             BeginJumpHold();
 
-        // Держим — обновляем: либо всё ещё ждём 1 сек, либо уже заряжаем
         if (Input.GetKey(jumpKey) && isJumpHoldActive)
             UpdateJumpHold();
 
-        // Отпустили — если заряд не начался, будет слабый прыжок
         if (Input.GetKeyUp(jumpKey) && isJumpHoldActive)
             ReleaseJumpHoldAndJump();
     }
@@ -323,7 +386,7 @@ public class PlayerController : MonoBehaviour
         isChargingJump = false;
 
         jumpButtonDownTime = Time.time;
-        UpdateJumpBar(0f); // гарантированно скрыть
+        UpdateJumpBar(0f);
 
         if (Mathf.Abs(inputX) > 0.01f && IsGroundMovementAllowed())
         {
@@ -334,31 +397,26 @@ public class PlayerController : MonoBehaviour
 
     private void UpdateJumpHold()
     {
-        // Потеряли землю и «койот» истёк — отменяем вообще весь режим
         if (!isGrounded && (Time.time - lastGroundedTime) > coyoteTime)
         {
             CancelJumpCharge();
             return;
         }
 
-        // Ещё не заряд? ждём задержку
         if (!isChargingJump)
         {
             float held = Time.time - jumpButtonDownTime;
 
-            // пока ждём — никаких UI/траекторий
             if (held < chargeEnterDelay)
             {
                 UpdateJumpBar(0f);
                 return;
             }
 
-            // Входим в режим заряда
             isChargingJump = true;
-            jumpStartHoldTime = Time.time; // теперь заряд считается с этого момента
+            jumpStartHoldTime = Time.time;
         }
 
-        // Заряд идёт — обновляем шкалу
         float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
         float normalized = hold / jumpTimeLimit;
         UpdateJumpBar(normalized);
@@ -376,7 +434,6 @@ public class PlayerController : MonoBehaviour
 
         float verticalForce;
 
-        // Если заряд НЕ включился (отпустили раньше 1 сек) — слабый прыжок
         if (!isChargingJump)
         {
             verticalForce = shortJumpForce * snowJumpMul;
@@ -434,7 +491,7 @@ public class PlayerController : MonoBehaviour
         groundCheckDisableUntil = Time.time + 0.08f;
 
         airVx = rb.velocity.x;
-        jumpStartSpeed = rb.velocity.x;              // чтобы отскок от стены был адекватнее
+        jumpStartSpeed = rb.velocity.x;
         lastJumpVerticalForce = Mathf.Abs(rb.velocity.y);
 
         lastJumpTime = Time.time;
@@ -451,7 +508,6 @@ public class PlayerController : MonoBehaviour
 
     private void ApplyMovement()
     {
-        // Во время ЗАРЯДА (после задержки) — поведение как у тебя было
         if (isChargingJump)
         {
             bool onMovingGroundByEffector = isGrounded && lastGroundCol && lastGroundCol.GetComponent<SurfaceEffector2D>() != null;
@@ -459,7 +515,6 @@ public class PlayerController : MonoBehaviour
 
             if (isGrounded && !isOnIce && !onMovingGroundByEffector && !carriedByPlatform)
             {
-                // фиксируемся по X, но ветер всё равно дует
                 rb.velocity = new Vector2(externalWindVX, rb.velocity.y);
             }
             else if (carriedByPlatform)
@@ -502,7 +557,6 @@ public class PlayerController : MonoBehaviour
 
             float newVx = Mathf.MoveTowards(cur, Mathf.Clamp(target, -maxSpeed, +maxSpeed), rate * Time.fixedDeltaTime);
 
-            // перенос от платформы + ветер
             newVx += platformVX + externalWindVX;
 
             rb.velocity = new Vector2(newVx, rb.velocity.y);
@@ -521,9 +575,14 @@ public class PlayerController : MonoBehaviour
     private void Flip()
     {
         isFacingRight = !isFacingRight;
-        var s = transform.localScale;
-        s.x *= -1f;
-        transform.localScale = s;
+
+        // ВАЖНО: если visualRoot не назначен — авто-резолв (чтобы не "сломать поворот")
+        if (!visualRoot) ResolveVisualRoot();
+        if (!visualRoot) return;
+
+        var s = visualRoot.localScale;
+        s.x = Mathf.Abs(s.x) * (isFacingRight ? 1f : -1f);
+        visualRoot.localScale = s;
     }
 
     private bool IsJumpButtonHeldNow()
@@ -544,14 +603,17 @@ public class PlayerController : MonoBehaviour
 
         Collider2D groundCol = null;
 
-        // 1) Базовый GroundCheck
         if (useBoxGroundCheck)
         {
             Vector2 center = (Vector2)transform.TransformPoint(groundBoxOffset);
+
+            // Если корень игрока не скейлится (как надо) — lossyScale будет (1,1) и не мешает.
+            // Если корень скейлится — проверки будут плавать, так что лучше корень не скейлить.
             Vector2 size = new Vector2(
                 groundBoxSize.x * Mathf.Abs(transform.lossyScale.x),
                 groundBoxSize.y * Mathf.Abs(transform.lossyScale.y)
             );
+
             groundCol = Physics2D.OverlapBox(center, size, 0f, groundMask);
         }
         else
@@ -562,7 +624,6 @@ public class PlayerController : MonoBehaviour
 
         bool grounded = groundCol != null;
 
-        // 2) Узкие зонды под краями стоп
         if (!grounded && useEdgeAssist)
         {
             Vector2 feetCenter = (useBoxGroundCheck)
@@ -588,7 +649,6 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // 3) Снап-лучи вниз (центр/лево/право)
         if (!grounded && useEdgeAssist && snapProbeDistance > 0.001f)
         {
             int hits = 0;
@@ -632,7 +692,6 @@ public class PlayerController : MonoBehaviour
             currentPlatform = lastGroundCol ? lastGroundCol.GetComponentInParent<MovingPlatform2D>() : null;
             platformVX = (currentPlatform != null && currentPlatform.parentRider) ? currentPlatform.FrameVelocity.x : 0f;
 
-            // если кнопку не держим — скрываем шкалу
             if (!IsJumpButtonHeldNow()) UpdateJumpBar(0f);
         }
         else
@@ -656,7 +715,6 @@ public class PlayerController : MonoBehaviour
             Vector3 contactNormal = collision.contacts[0].normal;
             if (Mathf.Abs(contactNormal.x) > 0.9f)
             {
-                // ИЗМЕНЕНО: используем реальную силу последнего прыжка (и короткого тоже)
                 float jumpForce = lastJumpVerticalForce;
                 BounceOffWall(jumpForce, jumpStartSpeed);
             }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class VisionManipulater : MonoBehaviour
@@ -8,15 +9,42 @@ public class VisionManipulater : MonoBehaviour
     [Header("Размер камеры если вышли влево")]
     [SerializeField] private float leftCameraSize = 6f;
 
-    private void OnTriggerExit2D(Collider2D other)
+    // считаем, сколько коллайдеров конкретного игрока сейчас внутри триггера
+    private readonly Dictionary<Transform, int> _insideCounts = new Dictionary<Transform, int>();
+
+    private void OnTriggerEnter2D(Collider2D other)
     {
-        // Ищем PlayerController на объекте или в родителях (работает даже если коллайдер на child)
         var player = other.GetComponentInParent<PlayerController>();
         if (player == null) return;
 
-        Transform t = player.transform; // корень игрока
+        Transform t = player.transform;
 
-        float size = (t.position.x > transform.position.x) ? rightCameraSize : leftCameraSize;
+        _insideCounts.TryGetValue(t, out int c);
+        _insideCounts[t] = c + 1;
+    }
+
+    private void OnTriggerExit2D(Collider2D other)
+    {
+        var player = other.GetComponentInParent<PlayerController>();
+        if (player == null) return;
+
+        Transform t = player.transform;
+
+        if (!_insideCounts.TryGetValue(t, out int c)) return;
+
+        c -= 1;
+        if (c > 0)
+        {
+            _insideCounts[t] = c;
+            return; // ещё не все коллайдеры вышли
+        }
+
+        _insideCounts.Remove(t); // игрок окончательно вышел
+
+        // лучше брать центр вышедшего коллайдера, чем pivot игрока
+        float x = other.bounds.center.x;
+
+        float size = (x > transform.position.x) ? rightCameraSize : leftCameraSize;
         CamController.ChangeCameraSizeEvent?.Invoke(size);
     }
 }
