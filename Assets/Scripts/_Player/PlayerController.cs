@@ -40,6 +40,15 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Tooltip("Окно после прыжка, в которое демпфирование не применяется (чтобы отскок сразу после прыжка был бодрее).\nРекоменд: 0.1–0.3 сек (часто 0.15–0.25).")]
     private float dampingExclusionTime = 0.2f;
 
+    [SerializeField, Tooltip("Минимальная |скорость по Y| чтобы считать, что мы в воздухе для отскока от стены.\nЕсли меньше — отскок всё равно разрешается в течение wallBounceApexWindow после прыжка (вершина дуги).\nРекоменд: 0.03–0.10 (часто 0.05).")]
+    private float wallBounceMinAbsY = 0.05f;
+
+    [SerializeField, Tooltip("Окно после прыжка/пинка, когда отскок от стены разрешён даже если скорость по Y почти 0 (вершина дуги).\nРекоменд: 0.3–0.9 сек (часто 0.6).")]
+    private float wallBounceApexWindow = 0.6f;
+
+    [SerializeField, Tooltip("Порог 'боковости' стены по нормали (|normal.x|). На углах нормаль бывает неидеальной.\nМеньше = чаще срабатывает отскок на углах.\nРекоменд: 0.40–0.60 (часто 0.45–0.55).")]
+    private float wallNormalMinAbsX = 0.45f;
+
     [Header("Усталость (анти-спам)")]
     [SerializeField, Tooltip("Сколько длится усталость после прыжка: нельзя начать новый заряд, скорость снижена.\nРекоменд: 0.3–1.2 сек (часто 0.6–0.9).")]
     private float fatigueDuration = 0.8f;
@@ -88,6 +97,12 @@ public class PlayerController : MonoBehaviour
 
     [SerializeField, Tooltip("Дистанция снап-лучей вниз: насколько далеко 'нащупываем' землю.\nБольше = легче приземлиться на край.\nРекоменд: 0.06–0.18 (часто 0.10–0.14).")]
     private float snapProbeDistance = 0.12f;
+
+    [SerializeField, Tooltip("Максимальная эффективная дистанция снап-лучей. Даже если snapProbeDistance больше, будет использовано не больше этого значения.\nНужен, чтобы Edge Assist не считал игрока 'на земле' слишком высоко и не ломал отскоки.\nРекоменд: 0.12–0.22 (часто 0.18).")]
+    private float snapProbeDistanceMax = 0.18f;
+
+    [SerializeField, Tooltip("Снап-лучи вниз срабатывают только когда игрок НЕ летит вверх.\nЕсли rb.velocity.y выше этого порога — снап-лучи игнорируются, чтобы не ломать прыжки/отскоки.\nРекоменд: 0.0–0.05 (часто 0.02).")]
+    private float snapOnlyWhenFallingY = 0.02f;
 
     [SerializeField, Range(0f, 1f), Tooltip("Минимальная вертикальная компонента нормали (normal.y), чтобы считать поверхность землёй.\nЧем больше — тем меньше шанс 'прилипнуть' к стенам.\nРекоменд: 0.3–0.6 (часто 0.35–0.45).")]
     private float snapMinNormalY = 0.35f;
@@ -141,19 +156,6 @@ public class PlayerController : MonoBehaviour
     private float normalBrake = 9999f;
 
     // =========================
-    // VISUAL (поворот/анимации)
-    // =========================
-    [Header("Visual (Flip)")]
-    [SerializeField, Tooltip("Корень визуала (обычно дочерний объект PlayerVisual со SpriteRenderer/Animator).\nВАЖНО: флип происходит ТОЛЬКО у visualRoot, чтобы не переворачивать Rigidbody2D/коллайдеры.\nЕсли оставить пустым — скрипт попробует найти автоматически.")]
-    private Transform visualRoot;
-
-    [SerializeField, Tooltip("Если visualRoot не назначен, скрипт попытается найти его сам:\n1) дочерний объект с именем \"PlayerVisual\"\n2) первый найденный SpriteRenderer в детях\nРекоменд: true (удобно, чтобы 'не забыть' назначить).")]
-    private bool autoFindVisualRoot = true;
-
-    [SerializeField, Tooltip("Имя дочернего объекта для авто-поиска visualRoot.\nРекоменд: оставить \"PlayerVisual\".")]
-    private string autoVisualName = "PlayerVisual";
-
-    // =========================
     // INTERNAL STATE (не в инспекторе)
     // =========================
     private Rigidbody2D rb;
@@ -184,6 +186,12 @@ public class PlayerController : MonoBehaviour
 
     // Для отскока — хранить реальную силу последнего прыжка
     private float lastJumpVerticalForce = 0f;
+
+    [SerializeField, Tooltip("Корень визуала (спрайт/хвост). Флип (разворот) делаем на нём, а НЕ на физике игрока.\nРекоменд: создать child PlayerVisual и закинуть туда голову/хвост/рендеры.")]
+    private Transform visualRoot; // назначь PlayerVisual
+
+    [SerializeField, Tooltip("Мёртвая зона скорости для разворота. Убирает случайные флипы от микроскоростей после коллизий.\nРекоменд: 0.05–0.15 (часто 0.08).")]
+    private float flipDeadZone = 0.08f;
 
     [Header("Takeoff / GroundCheck Locks")]
     [SerializeField, Tooltip("Время после прыжка, когда считаем персонажа 'в воздухе' и ограничиваем приземление/переворот логики.\nУбирает залипание к земле в момент старта прыжка.\nРекоменд: 0.05–0.12 (часто 0.06–0.10).")]
@@ -227,12 +235,7 @@ public class PlayerController : MonoBehaviour
     }
     // ================================================================================
 
-    private void Awake()
-    {
-        rb = GetComponent<Rigidbody2D>();
-        ResolveVisualRoot();
-        SyncFacingFromVisual();
-    }
+    private void Awake() => rb = GetComponent<Rigidbody2D>();
 
     private void Start()
     {
@@ -249,59 +252,9 @@ public class PlayerController : MonoBehaviour
 
         prevUseMobileControls = !useMobileControls;
         ApplyMobileUIVisibility();
-
-        // ещё раз на старте — на случай, если кто-то назначает визуал поздно
-        ResolveVisualRoot();
-        SyncFacingFromVisual();
     }
 
-    private void OnValidate()
-    {
-        ApplyMobileUIVisibility();
-
-        // Чтобы в редакторе тоже не забыть
-        if (!Application.isPlaying)
-        {
-            ResolveVisualRoot();
-            SyncFacingFromVisual();
-        }
-    }
-
-    private void ResolveVisualRoot()
-    {
-        if (visualRoot != null) return;
-        if (!autoFindVisualRoot) return;
-
-        // 1) По имени "PlayerVisual"
-        if (!string.IsNullOrWhiteSpace(autoVisualName))
-        {
-            var t = transform.Find(autoVisualName);
-            if (t != null)
-            {
-                visualRoot = t;
-                return;
-            }
-        }
-
-        // 2) Первый SpriteRenderer в детях
-        var sr = GetComponentInChildren<SpriteRenderer>(true);
-        if (sr != null)
-        {
-            visualRoot = sr.transform;
-            return;
-        }
-
-        // 3) Фолбэк: хотя бы корень (чтобы не "сломать поворот" полностью).
-        // Лучше всё равно создать PlayerVisual и назначить его.
-        visualRoot = transform;
-    }
-
-    private void SyncFacingFromVisual()
-    {
-        if (!visualRoot) return;
-        // Если визуал уже отрицательный по X — значит смотрим влево
-        isFacingRight = visualRoot.localScale.x >= 0f;
-    }
+    private void OnValidate() => ApplyMobileUIVisibility();
 
     private void Update()
     {
@@ -319,8 +272,6 @@ public class PlayerController : MonoBehaviour
     {
         CheckGrounded();
         ApplyMovement();
-
-        // Сбрасываем внешний ветер после применения — зона задаст новый в свой FixedUpdate
         externalWindVX = 0f;
     }
 
@@ -532,7 +483,7 @@ public class PlayerController : MonoBehaviour
                 float vx = inputX * airControlSpeed * speedMul + externalWindVX;
                 rb.velocity = new Vector2(vx, rb.velocity.y);
 
-                if (Mathf.Abs(vx) > 0.01f)
+                if (Mathf.Abs(vx) > flipDeadZone)
                 {
                     bool faceRight = vx > 0f;
                     if (faceRight != isFacingRight) Flip();
@@ -541,6 +492,13 @@ public class PlayerController : MonoBehaviour
             else
             {
                 rb.velocity = new Vector2(airVx + externalWindVX, rb.velocity.y);
+
+                float vx = rb.velocity.x;
+                if (Mathf.Abs(vx) > flipDeadZone)
+                {
+                    bool faceRight = vx > 0f;
+                    if (faceRight != isFacingRight) Flip();
+                }
             }
         }
         else
@@ -561,7 +519,7 @@ public class PlayerController : MonoBehaviour
 
             rb.velocity = new Vector2(newVx, rb.velocity.y);
 
-            if (Mathf.Abs(newVx) > 0.01f)
+            if (Mathf.Abs(newVx) > flipDeadZone)
             {
                 bool faceRight = newVx > 0f;
                 if (faceRight != isFacingRight) Flip();
@@ -575,9 +533,6 @@ public class PlayerController : MonoBehaviour
     private void Flip()
     {
         isFacingRight = !isFacingRight;
-
-        // ВАЖНО: если visualRoot не назначен — авто-резолв (чтобы не "сломать поворот")
-        if (!visualRoot) ResolveVisualRoot();
         if (!visualRoot) return;
 
         var s = visualRoot.localScale;
@@ -603,17 +558,14 @@ public class PlayerController : MonoBehaviour
 
         Collider2D groundCol = null;
 
+        // 1) Базовый GroundCheck
         if (useBoxGroundCheck)
         {
             Vector2 center = (Vector2)transform.TransformPoint(groundBoxOffset);
-
-            // Если корень игрока не скейлится (как надо) — lossyScale будет (1,1) и не мешает.
-            // Если корень скейлится — проверки будут плавать, так что лучше корень не скейлить.
             Vector2 size = new Vector2(
                 groundBoxSize.x * Mathf.Abs(transform.lossyScale.x),
                 groundBoxSize.y * Mathf.Abs(transform.lossyScale.y)
             );
-
             groundCol = Physics2D.OverlapBox(center, size, 0f, groundMask);
         }
         else
@@ -624,6 +576,7 @@ public class PlayerController : MonoBehaviour
 
         bool grounded = groundCol != null;
 
+        // 2) Узкие зонды под краями стоп
         if (!grounded && useEdgeAssist)
         {
             Vector2 feetCenter = (useBoxGroundCheck)
@@ -649,10 +602,14 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        if (!grounded && useEdgeAssist && snapProbeDistance > 0.001f)
+        // 3) Снап-лучи вниз (центр/лево/право)
+        float effSnap = Mathf.Min(Mathf.Max(0f, snapProbeDistance), Mathf.Max(0.001f, snapProbeDistanceMax));
+
+        if (!grounded && useEdgeAssist && effSnap > 0.001f && rb != null && rb.velocity.y <= snapOnlyWhenFallingY)
         {
             int hits = 0;
-            RaycastHit2D hCenter = Physics2D.Raycast(transform.position, Vector2.down, snapProbeDistance, groundMask);
+
+            RaycastHit2D hCenter = Physics2D.Raycast(transform.position, Vector2.down, effSnap, groundMask);
             if (hCenter && hCenter.normal.y >= snapMinNormalY) { groundCol = hCenter.collider; hits++; }
 
             if (hits == 0)
@@ -665,12 +622,12 @@ public class PlayerController : MonoBehaviour
                 Vector2 left = new Vector2(feetCenter.x - half, transform.position.y);
                 Vector2 right = new Vector2(feetCenter.x + half, transform.position.y);
 
-                RaycastHit2D hL = Physics2D.Raycast(left, Vector2.down, snapProbeDistance, groundMask);
+                RaycastHit2D hL = Physics2D.Raycast(left, Vector2.down, effSnap, groundMask);
                 if (hL && hL.normal.y >= snapMinNormalY) { groundCol = hL.collider; hits++; }
 
                 if (hits == 0)
                 {
-                    RaycastHit2D hR = Physics2D.Raycast(right, Vector2.down, snapProbeDistance, groundMask);
+                    RaycastHit2D hR = Physics2D.Raycast(right, Vector2.down, effSnap, groundMask);
                     if (hR && hR.normal.y >= snapMinNormalY) { groundCol = hR.collider; hits++; }
                 }
             }
@@ -710,13 +667,31 @@ public class PlayerController : MonoBehaviour
             isChargingJump = false;
             isJumpHoldActive = false;
         }
-        else if (collision.gameObject.CompareTag("Wall") && !isGrounded)
+        else if (collision.gameObject.CompareTag("Wall"))
         {
-            Vector3 contactNormal = collision.contacts[0].normal;
-            if (Mathf.Abs(contactNormal.x) > 0.9f)
+            if (!CanWallBounceNow()) return;
+            if (collision.contactCount <= 0) return;
+
+            // ===== FIX: берём самый "боковой" контакт (на углах contacts[0] часто плохой) =====
+            Vector2 bestNormal = collision.contacts[0].normal;
+            float bestAbsX = Mathf.Abs(bestNormal.x);
+
+            for (int i = 1; i < collision.contactCount; i++)
             {
-                float jumpForce = lastJumpVerticalForce;
-                BounceOffWall(jumpForce, jumpStartSpeed);
+                Vector2 n = collision.contacts[i].normal;
+                float ax = Mathf.Abs(n.x);
+                if (ax > bestAbsX)
+                {
+                    bestAbsX = ax;
+                    bestNormal = n;
+                }
+            }
+            // ===============================================================================
+
+            if (bestAbsX >= Mathf.Clamp01(wallNormalMinAbsX))
+            {
+                float jumpForce = Mathf.Max(lastJumpVerticalForce, Mathf.Abs(rb.velocity.y));
+                BounceOffWall(jumpForce, bestNormal);
             }
         }
         else if (collision.gameObject.CompareTag("Ceiling"))
@@ -725,17 +700,43 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    private void BounceOffWall(float jumpForce, float jumpStartSpeedParam)
+    private bool CanWallBounceNow()
+    {
+        if (rb == null) return false;
+
+        if (isChargingJump) return false;
+
+        if (isGrounded && Mathf.Abs(rb.velocity.y) < wallBounceMinAbsY)
+            return false;
+
+        if (Mathf.Abs(rb.velocity.y) >= wallBounceMinAbsY)
+            return true;
+
+        if ((Time.time - lastJumpTime) <= wallBounceApexWindow)
+            return true;
+
+        if ((Time.time - lastGroundedTime) > 0.05f)
+            return true;
+
+        return false;
+    }
+
+    private void BounceOffWall(float jumpForce, Vector2 wallNormal)
     {
         float currentDamping = (Time.time - lastJumpTime < dampingExclusionTime) ? 1f : damping;
-        float wallBounceForce = jumpForce * wallBounceFraction * Mathf.Sign(jumpStartSpeedParam) * currentDamping;
 
-        float newVx = (isFacingRight ? -1f : 1f) * wallBounceForce;
+        float wallBounceForce = Mathf.Max(0f, jumpForce) * wallBounceFraction * currentDamping;
+
+        float dir = Mathf.Sign(wallNormal.x);
+        if (Mathf.Approximately(dir, 0f))
+            dir = isFacingRight ? -1f : 1f;
+
+        float newVx = dir * wallBounceForce;
 
         rb.velocity = new Vector2(newVx, rb.velocity.y);
         airVx = newVx;
 
-        if (Mathf.Abs(newVx) > 0.01f)
+        if (Mathf.Abs(newVx) > flipDeadZone)
         {
             bool faceRight = newVx > 0f;
             if (faceRight != isFacingRight) Flip();
@@ -881,11 +882,12 @@ public class PlayerController : MonoBehaviour
             Gizmos.DrawWireCube(new Vector3(feetCenter.x + half, y, 0f), new Vector3(probeSize.x, probeSize.y, 0f));
 
             Gizmos.color = new Color(0.2f, 0.6f, 1f, 0.6f);
-            Gizmos.DrawLine(transform.position, transform.position + Vector3.down * snapProbeDistance);
+            float gizSnap = Mathf.Min(snapProbeDistance, snapProbeDistanceMax);
+            Gizmos.DrawLine(transform.position, transform.position + Vector3.down * gizSnap);
             Gizmos.DrawLine(new Vector3(feetCenter.x - half, transform.position.y, 0f),
-                            new Vector3(feetCenter.x - half, transform.position.y - snapProbeDistance, 0f));
+                            new Vector3(feetCenter.x - half, transform.position.y - gizSnap, 0f));
             Gizmos.DrawLine(new Vector3(feetCenter.x + half, transform.position.y, 0f),
-                            new Vector3(feetCenter.x + half, transform.position.y - snapProbeDistance, 0f));
+                            new Vector3(feetCenter.x + half, transform.position.y - gizSnap, 0f));
         }
     }
 
@@ -921,10 +923,6 @@ public class PlayerController : MonoBehaviour
     public void SetInputEnabled(bool enabled) { }
 }
 
-/// <summary>
-/// Лёгкий обработчик удержания для UI-кнопки (без EventTrigger).
-/// В инспекторе почти не настраивается — просто добавляется на кнопку прыжка автоматически.
-/// </summary>
 public class PointerHoldHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {
     public event Action OnDown;
