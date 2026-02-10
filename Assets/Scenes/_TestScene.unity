@@ -285,7 +285,7 @@ GameObject:
   - component: {fileID: 210374108}
   m_Layer: 6
   m_Name: Ground (1)
-  m_TagString: Ground
+  m_TagString: Wall
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -299,7 +299,7 @@ Transform:
   m_GameObject: {fileID: 210374106}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 24.77, y: -2.5251, z: -0.031925585}
+  m_LocalPosition: {x: -6.13, y: -2.5251, z: -0.031925585}
   m_LocalScale: {x: 1, y: 7.4903, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1520,7 +1520,7 @@ MonoBehaviour:
   leftOffset: 0.7
   rightOffset: 0.3
   enableADTest: 1
-  screenXBlendTime: 1
+  screenXBlendTime: 1.5
   centerOffset: 0.3
   useUnscaledTime: 0
   transposer: {fileID: 0}
@@ -2244,6 +2244,9 @@ MonoBehaviour:
   wallBounceFraction: 1
   damping: 0.5
   dampingExclusionTime: 0.2
+  wallBounceMinAbsY: 0.05
+  wallBounceApexWindow: 0.6
+  wallNormalMinAbsX: 0.45
   fatigueDuration: 0.5
   fatigueImage: {fileID: 1127009665}
   leftKey: 97
@@ -2261,6 +2264,8 @@ MonoBehaviour:
   edgeProbeHalfWidth: 0.34
   edgeProbeHeight: 0.06
   snapProbeDistance: 0.54
+  snapProbeDistanceMax: 0.18
+  snapOnlyWhenFallingY: 0.02
   snapMinNormalY: 0.5
   jumpBarFill: {fileID: 996478416}
   jumpBarBG: {fileID: 1016314045}
@@ -2277,8 +2282,7 @@ MonoBehaviour:
   normalAccel: 9999
   normalBrake: 9999
   visualRoot: {fileID: 1734643368}
-  autoFindVisualRoot: 1
-  autoVisualName: PlayerVisual
+  flipDeadZone: 0.08
   takeoffLockTime: 0.08
 --- !u!61 &1471706301
 BoxCollider2D:
@@ -2451,7 +2455,7 @@ Canvas:
   m_Enabled: 1
   serializedVersion: 3
   m_RenderMode: 1
-  m_Camera: {fileID: 0}
+  m_Camera: {fileID: 616883575}
   m_PlaneDistance: 100
   m_PixelPerfect: 0
   m_ReceivesEvents: 1
@@ -2934,7 +2938,7 @@ Canvas:
   m_Enabled: 1
   serializedVersion: 3
   m_RenderMode: 1
-  m_Camera: {fileID: 0}
+  m_Camera: {fileID: 616883575}
   m_PlaneDistance: 100
   m_PixelPerfect: 0
   m_ReceivesEvents: 1
