@@ -7,25 +7,26 @@ using Cinemachine;
 [RequireComponent(typeof(CinemachineVirtualCamera))]
 public class CamController : MonoBehaviour
 {
-    public static Action<float, float, float> CameraShake;     // strength, time, fadeTime
-    public static Action<float> ChangeCameraSizeEvent;         // new ortho size
-    public static Action<Transform> ChangeFollowTargetEvent;   // new follow target
+    // Глобальные события (можно вызывать из любых скриптов)
+    public static Action<float, float, float> CameraShake;         // strength, time, fadeTime
+    public static Action<float> ChangeCameraSizeEvent;             // new orthographic size
+    public static Action<Transform> ChangeFollowTargetEvent;       // new follow target
+    public static Action<float> ChangeCameraYOffsetEvent;          // new Y offset (TrackedObjectOffset.y)
 
     [Header("ScreenX offsets (A/D)")]
-    [SerializeField] private float leftOffset = 0.35f;
-    [SerializeField] private float rightOffset = 0.65f;
+    [SerializeField] private float leftOffset = 0.35f;   // 0..1
+    [SerializeField] private float rightOffset = 0.65f;  // 0..1
+    [SerializeField] private bool enableADTest = false;  // включай только для теста
 
-    [SerializeField, Tooltip("Если ВКЛ — тест: A/D двигают ScreenX.\nВ игре лучше дергать это из кода по направлению движения.")]
-    private bool enableADTest = false;
+    [SerializeField, Tooltip("Плавность смены ScreenX при тесте A/D (сек).")]
+    private float screenXLerpTime = 0.25f;
 
-    [SerializeField, Tooltip("Сколько секунд занимает плавный сдвиг ScreenX.\nРекоменд: 0.08–0.20 (часто 0.12).")]
-    private float screenXBlendTime = 0.12f;
-
-    [SerializeField, Tooltip("Куда возвращаться, когда не жмём A/D.\nОбычно 0.5 (центр).")]
-    private float centerOffset = 0.5f;
+    [Header("Vertical Offset (TrackedObjectOffset)")]
+    [SerializeField, Tooltip("Сколько секунд плавно менять вертикальный сдвиг камеры (TrackedObjectOffset.y).")]
+    private float yOffsetLerpTime = 0.35f;
 
     [Header("Optional")]
-    [SerializeField] private bool useUnscaledTime = false;
+    [SerializeField] private bool useUnscaledTime = false; // если используешь паузу Time.timeScale=0
 
     [HideInInspector] public CinemachineFramingTransposer transposer;
 
@@ -37,17 +38,22 @@ public class CamController : MonoBehaviour
 
     private Coroutine shakeCo;
     private Coroutine sizeCo;
-    private float sizeFrom;
-
+    private Coroutine yOffsetCo;
     private Coroutine screenXCo;
-    private float screenXTarget;
+
+    private float sizeFrom;
 
     private void Awake()
     {
         vcam = GetComponent<CinemachineVirtualCamera>();
+
+        // FramingTransposer нужен для ScreenX и TrackedObjectOffset
         transposer = vcam.GetCinemachineComponent<CinemachineFramingTransposer>();
+
+        // Perlin нужен для тряски (добавь на VirtualCamera компонент Noise!)
         perlin = vcam.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
 
+        // Confiner2D (если есть) — чтобы при зуме/смещении не было глюков границ
         confiner2D = GetComponent<CinemachineConfiner2D>();
         if (confiner2D != null)
         {
@@ -56,11 +62,6 @@ public class CamController : MonoBehaviour
                 t.GetMethod("InvalidateCache", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 ?? t.GetMethod("InvalidatePathCache", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         }
-
-        if (transposer != null)
-            screenXTarget = transposer.m_ScreenX;
-        else
-            screenXTarget = centerOffset;
     }
 
     private void OnEnable()
@@ -68,6 +69,7 @@ public class CamController : MonoBehaviour
         CameraShake += Shake;
         ChangeCameraSizeEvent += ChangeCameraSize;
         ChangeFollowTargetEvent += ChangeFollowTarget;
+        ChangeCameraYOffsetEvent += ChangeCameraYOffset;
     }
 
     private void OnDisable()
@@ -75,6 +77,7 @@ public class CamController : MonoBehaviour
         CameraShake -= Shake;
         ChangeCameraSizeEvent -= ChangeCameraSize;
         ChangeFollowTargetEvent -= ChangeFollowTarget;
+        ChangeCameraYOffsetEvent -= ChangeCameraYOffset;
     }
 
     private void Update()
@@ -82,82 +85,13 @@ public class CamController : MonoBehaviour
         if (!enableADTest) return;
         if (transposer == null) return;
 
-        // Вариант 1 (рекоменд): плавно реагируем на удержание A/D и возвращаемся в центр
-        float target = centerOffset;
-
-        if (Input.GetKey(KeyCode.A)) target = leftOffset;
-        else if (Input.GetKey(KeyCode.D)) target = rightOffset;
-
-        SetScreenX(target);
-
-        // Вариант 2 (если хочешь только по нажатию — раскомментируй и убери вариант 1)
-        /*
-        if (Input.GetKeyDown(KeyCode.A)) SetScreenX(leftOffset);
-        if (Input.GetKeyDown(KeyCode.D)) SetScreenX(rightOffset);
-        */
+        if (Input.GetKeyDown(KeyCode.A)) SetScreenX(leftOffset, screenXLerpTime);
+        if (Input.GetKeyDown(KeyCode.D)) SetScreenX(rightOffset, screenXLerpTime);
     }
 
-    // Можно дергать из PlayerController: -1 = влево, +1 = вправо, 0 = центр
-    public void SetLookSide(int dir)
-    {
-        if (transposer == null) return;
-
-        float target = centerOffset;
-        if (dir < 0) target = leftOffset;
-        else if (dir > 0) target = rightOffset;
-
-        SetScreenX(target);
-    }
-
-    private void SetScreenX(float target)
-    {
-        target = Mathf.Clamp01(target);
-        if (Mathf.Approximately(screenXTarget, target)) return;
-
-        screenXTarget = target;
-
-        if (screenXCo != null) StopCoroutine(screenXCo);
-        screenXCo = StartCoroutine(ScreenXBlendRoutine(screenXTarget, Mathf.Max(0.0001f, screenXBlendTime)));
-    }
-
-    private IEnumerator ScreenXBlendRoutine(float target, float duration)
-    {
-        if (transposer == null)
-        {
-            screenXCo = null;
-            yield break;
-        }
-
-        float start = transposer.m_ScreenX;
-        if (Mathf.Approximately(start, target))
-        {
-            screenXCo = null;
-            yield break;
-        }
-
-        float t = 0f;
-        while (t < duration)
-        {
-            float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
-            t += dt;
-
-            float a = Mathf.Clamp01(t / duration);
-            float eased = EaseInOut(a);
-
-            transposer.m_ScreenX = Mathf.Lerp(start, target, eased);
-            yield return null;
-        }
-
-        transposer.m_ScreenX = target;
-        screenXCo = null;
-    }
-
-    private void InvalidateConfiner()
-    {
-        if (confiner2D == null) return;
-        if (confinerInvalidateMethod == null) return;
-        confinerInvalidateMethod.Invoke(confiner2D, null);
-    }
+    // =========================
+    // Public API (через события)
+    // =========================
 
     private void Shake(float strength, float time, float fadeTime)
     {
@@ -171,6 +105,7 @@ public class CamController : MonoBehaviour
     {
         if (vcam == null) return;
 
+        // Заставляет Cinemachine пересчитать позицию и "прилипнуть" к цели
         vcam.PreviousStateIsValid = false;
         InvalidateConfiner();
 
@@ -183,18 +118,88 @@ public class CamController : MonoBehaviour
     private void ChangeFollowTarget(Transform followObject)
     {
         if (vcam == null || followObject == null) return;
+
         vcam.m_Follow = followObject;
         vcam.PreviousStateIsValid = false;
+        InvalidateConfiner();
     }
+
+    private void ChangeCameraYOffset(float newYOffsetY)
+    {
+        if (transposer == null) return;
+
+        if (vcam != null) vcam.PreviousStateIsValid = false;
+        InvalidateConfiner();
+
+        if (yOffsetCo != null) StopCoroutine(yOffsetCo);
+        yOffsetCo = StartCoroutine(ChangeYOffsetRoutine(newYOffsetY, yOffsetLerpTime));
+    }
+
+    // =========================
+    // Helpers for ScreenX test
+    // =========================
+
+    private void SetScreenX(float x, float duration)
+    {
+        if (transposer == null) return;
+
+        if (screenXCo != null) StopCoroutine(screenXCo);
+        screenXCo = StartCoroutine(ChangeScreenXRoutine(x, duration));
+    }
+
+    private IEnumerator ChangeScreenXRoutine(float targetX, float duration)
+    {
+        float from = transposer.m_ScreenX;
+        float to = Mathf.Clamp01(targetX);
+
+        if (Mathf.Approximately(from, to))
+        {
+            screenXCo = null;
+            yield break;
+        }
+
+        float t = 0f;
+        float dur = Mathf.Max(0.0001f, duration);
+
+        while (t < dur)
+        {
+            float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+            t += dt;
+
+            float a = Mathf.Clamp01(t / dur);
+            float eased = EaseInOut(a);
+
+            transposer.m_ScreenX = Mathf.Lerp(from, to, eased);
+            yield return null;
+        }
+
+        transposer.m_ScreenX = to;
+        screenXCo = null;
+    }
+
+    private void InvalidateConfiner()
+    {
+        if (confiner2D == null) return;
+        if (confinerInvalidateMethod == null) return;
+        confinerInvalidateMethod.Invoke(confiner2D, null);
+    }
+
+    // =========================
+    // Coroutines
+    // =========================
 
     private IEnumerator ShakeRoutine(float strength, float time, float fadeTime)
     {
         float origin = Mathf.Max(0f, strength);
-        perlin.m_AmplitudeGain = origin;
+        float cur = origin;
 
+        perlin.m_AmplitudeGain = cur;
+
+        // Hold time
         if (time > 0f)
             yield return useUnscaledTime ? new WaitForSecondsRealtime(time) : new WaitForSeconds(time);
 
+        // Fade out
         float t = 0f;
         float dur = Mathf.Max(0.0001f, fadeTime);
 
@@ -204,8 +209,9 @@ public class CamController : MonoBehaviour
             t += dt;
 
             float k = 1f - Mathf.Clamp01(t / dur);
-            perlin.m_AmplitudeGain = origin * k;
+            cur = origin * k;
 
+            perlin.m_AmplitudeGain = cur;
             yield return null;
         }
 
@@ -236,8 +242,6 @@ public class CamController : MonoBehaviour
             float eased = EaseInOut(a);
 
             vcam.m_Lens.OrthographicSize = Mathf.Lerp(from, to, eased);
-
-            // важно при зуме, если включен Confiner2D
             InvalidateConfiner();
 
             yield return null;
@@ -249,9 +253,55 @@ public class CamController : MonoBehaviour
         sizeCo = null;
     }
 
+    private IEnumerator ChangeYOffsetRoutine(float newY, float duration)
+    {
+        Vector3 from = transposer.m_TrackedObjectOffset;
+        Vector3 to = new Vector3(from.x, newY, from.z);
+
+        if (Mathf.Approximately(from.y, to.y))
+        {
+            yOffsetCo = null;
+            yield break;
+        }
+
+        float t = 0f;
+        float dur = Mathf.Max(0.0001f, duration);
+
+        while (t < dur)
+        {
+            float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+            t += dt;
+
+            float a = Mathf.Clamp01(t / dur);
+            float eased = EaseInOut(a);
+
+            transposer.m_TrackedObjectOffset = Vector3.Lerp(from, to, eased);
+            InvalidateConfiner();
+
+            yield return null;
+        }
+
+        transposer.m_TrackedObjectOffset = to;
+        InvalidateConfiner();
+
+        yOffsetCo = null;
+    }
+
+    // =========================
+    // Helpers
+    // =========================
+
     private float EaseInOut(float x)
     {
         x = Mathf.Clamp01(x);
         return x < 0.5f ? x * x * 2f : (1f - (1f - x) * (1f - x) * 2f);
     }
+
+    // =========================
+    // Примеры вызова (если нужно)
+    // =========================
+    // CamController.CameraShake?.Invoke(1.2f, 0.1f, 0.25f);
+    // CamController.ChangeCameraSizeEvent?.Invoke(6.5f);
+    // CamController.ChangeCameraYOffsetEvent?.Invoke(1.5f);
+    // CamController.ChangeFollowTargetEvent?.Invoke(bossTransform);
 }
