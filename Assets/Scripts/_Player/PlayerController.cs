@@ -30,6 +30,11 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Tooltip("Койот-тайм: сколько секунд после схода с платформы ещё можно начать заряд прыжка.\nРекоменд: 0.05–0.15 (часто 0.08–0.12).")]
     private float coyoteTime = 0.05f;
 
+    [Header("Буферизация прыжка")]
+    [SerializeField, Tooltip("Буфер прыжка: если нажать кнопку ДО приземления, прыжок сработает автоматически.\nРекоменд: 0.08–0.15 (часто 0.1).")]
+    private float jumpBufferTime = 0.1f;
+    private float lastJumpPressedTime = -999f;
+
     [Header("Отскок от стен/потолка")]
     [SerializeField, Range(0f, 1f), Tooltip("Доля силы заряда, превращаемая в отскок по X от стены.\n0.33 = 33% от силы заряда.\nРекоменд: 0.2–0.5 (часто 0.3–0.4).")]
     private float wallBounceFraction = 0.33f;
@@ -290,8 +295,14 @@ public class PlayerController : MonoBehaviour
 
         bool canStartHold = CanStartJumpCharge();
 
-        if (Input.GetKeyDown(jumpKey) && canStartHold)
-            BeginJumpHold();
+        // JUMP BUFFER SAVE
+        if (Input.GetKeyDown(jumpKey))
+        {
+            lastJumpPressedTime = Time.time;
+
+            if (canStartHold)
+                BeginJumpHold();
+        }
 
         if (Input.GetKey(jumpKey) && isJumpHoldActive)
             UpdateJumpHold();
@@ -299,6 +310,7 @@ public class PlayerController : MonoBehaviour
         if (Input.GetKeyUp(jumpKey) && isJumpHoldActive)
             ReleaseJumpHoldAndJump();
     }
+
 
     private void HandleMobileInput()
     {
@@ -309,6 +321,10 @@ public class PlayerController : MonoBehaviour
             bool faceRight = inputX > 0f;
             if (faceRight != isFacingRight) Flip();
         }
+
+        // JUMP BUFFER SAVE
+        if (mobileJumpHeld)
+            lastJumpPressedTime = Time.time;
 
         if (mobileJumpHeld)
         {
@@ -641,8 +657,18 @@ public class PlayerController : MonoBehaviour
         if (isGrounded)
         {
             lastGroundedTime = Time.time;
+
+            //JUMP BUFFER CHECK
+            if (!isJumpHoldActive &&
+                (Time.time - lastJumpPressedTime) <= jumpBufferTime &&
+                !IsFatigued())
+            {
+                BeginJumpHold();
+            }
+
             airVx = 0f;
             airControlUnlockUntil = 0f;
+
 
             isOnIce = lastGroundCol != null && lastGroundCol.CompareTag("Ice");
 
