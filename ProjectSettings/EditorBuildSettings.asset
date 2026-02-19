@@ -11,4 +11,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/_Act_1_Garbage.unity
     guid: 949568ab7670ee34daeee8f09cfac2e7
+  - enabled: 1
+    path: Assets/Scenes/_TestScene.unity
+    guid: 865ed83b45af64a44aee53733ef9f2a3
   m_configObjects: {}

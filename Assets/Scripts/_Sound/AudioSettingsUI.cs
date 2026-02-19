@@ -7,17 +7,41 @@ public class AudioSettingsUI : MonoBehaviour
     [SerializeField] private Slider musicSlider;
     [SerializeField] private Slider sfxSlider;
 
+    // чтобы не плодить слушателей при повторных включениях панели
+    private bool _wired;
+
+    private void Awake()
+    {
+        Wire();
+    }
+
     private void Start() => Sync();
     private void OnEnable() => Sync();
+
+    private void Wire()
+    {
+        if (_wired) return;
+        _wired = true;
+
+        // На всякий: убираем старые слушатели (если они могли остаться из инспектора/копий)
+        masterSlider.onValueChanged.RemoveAllListeners();
+        musicSlider.onValueChanged.RemoveAllListeners();
+        sfxSlider.onValueChanged.RemoveAllListeners();
+
+        masterSlider.onValueChanged.AddListener(v => SoundMixerManager.Instance?.SetMasterVolume(v));
+        musicSlider.onValueChanged.AddListener(v => SoundMixerManager.Instance?.SetMusicVolume(v));
+        sfxSlider.onValueChanged.AddListener(v => SoundMixerManager.Instance?.SetSoundFXVolume(v));
+    }
 
     private void Sync()
     {
         var m = SoundMixerManager.Instance;
         if (m == null) return;
 
-        // вот это важно: применить реальные сохранённые громкости
+        // применяем сохранённые значения в микшер
         m.LoadAndApply();
 
+        // выставляем UI без триггера событий (чтобы не дергать лишний раз)
         masterSlider.SetValueWithoutNotify(m.Master01);
         musicSlider.SetValueWithoutNotify(m.Music01);
         sfxSlider.SetValueWithoutNotify(m.Sfx01);
