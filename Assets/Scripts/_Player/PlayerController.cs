@@ -35,6 +35,9 @@ public class PlayerController : MonoBehaviour
     private float jumpBufferTime = 0.1f;
     private float lastJumpPressedTime = -999f;
 
+    private enum BufferedJumpKind { None, Hold, Short }
+    private BufferedJumpKind bufferedJumpKind = BufferedJumpKind.None;
+
     [Header("Отскок от стен/потолка")]
     [SerializeField, Range(0f, 1f), Tooltip("Доля силы заряда, превращаемая в отскок по X от стены.\n0.33 = 33% от силы заряда.\nРекоменд: 0.2–0.5 (часто 0.3–0.4).")]
     private float wallBounceFraction = 0.33f;
@@ -70,6 +73,16 @@ public class PlayerController : MonoBehaviour
 
     [SerializeField, Tooltip("Клавиша прыжка (PC).\nРекоменд: Space.")]
     private KeyCode jumpKey = KeyCode.Space;
+
+    [Header("Геймпад (прыжок)")]
+    [SerializeField, Tooltip("Если ВКЛ — в desktop-режиме (useMobileControls = false) можно прыгать с геймпада.\nДвижение у тебя уже работает отдельно, тут только кнопки прыжка.")]
+    private bool useGamepadJump = true;
+
+    [SerializeField, Tooltip("Кнопка геймпада для обычного прыжка:\n- тап = короткий\n- удержание = заряд/долгий\nОбычно это A / Cross (JoystickButton0).")]
+    private KeyCode gamepadChargeJumpKey = KeyCode.JoystickButton0;
+
+    [SerializeField, Tooltip("Отдельная кнопка геймпада для МГНОВЕННОГО короткого прыжка.\nОбычно это B / Circle (JoystickButton1).")]
+    private KeyCode gamepadShortJumpKey = KeyCode.JoystickButton1;
 
     [Header("Ground Check")]
     [SerializeField, Tooltip("Слои, которые считаются землёй (Ground/Platform и т.п.).\nРекоменд: выделить отдельный слой Ground и выбрать его здесь.")]
@@ -280,6 +293,26 @@ public class PlayerController : MonoBehaviour
         externalWindVX = 0f;
     }
 
+    private bool GetDesktopChargeJumpDown()
+    {
+        return Input.GetKeyDown(jumpKey) || (useGamepadJump && Input.GetKeyDown(gamepadChargeJumpKey));
+    }
+
+    private bool GetDesktopChargeJumpHeld()
+    {
+        return Input.GetKey(jumpKey) || (useGamepadJump && Input.GetKey(gamepadChargeJumpKey));
+    }
+
+    private bool GetDesktopChargeJumpUp()
+    {
+        return Input.GetKeyUp(jumpKey) || (useGamepadJump && Input.GetKeyUp(gamepadChargeJumpKey));
+    }
+
+    private bool GetDesktopShortJumpDown()
+    {
+        return useGamepadJump && Input.GetKeyDown(gamepadShortJumpKey);
+    }
+
     private void HandleDesktopInput()
     {
         int dir = 0;
@@ -293,24 +326,34 @@ public class PlayerController : MonoBehaviour
             if (faceRight != isFacingRight) Flip();
         }
 
-        bool canStartHold = CanStartJumpCharge();
-
-        // JUMP BUFFER SAVE
-        if (Input.GetKeyDown(jumpKey))
+        // ===== ОТДЕЛЬНАЯ КНОПКА КОРОТКОГО ПРЫЖКА (геймпад) =====
+        if (GetDesktopShortJumpDown() && !isJumpHoldActive)
         {
             lastJumpPressedTime = Time.time;
+            bufferedJumpKind = BufferedJumpKind.Short;
+
+            // Если можно — прыгаем сразу. Если нет — сработает jump buffer на приземлении.
+            TryPerformDedicatedShortJump();
+        }
+
+        bool canStartHold = CanStartJumpCharge();
+
+        // ===== ОБЫЧНЫЙ/ЗАРЯДНЫЙ ПРЫЖОК (клава + геймпад) =====
+        if (GetDesktopChargeJumpDown())
+        {
+            lastJumpPressedTime = Time.time;
+            bufferedJumpKind = BufferedJumpKind.Hold;
 
             if (canStartHold)
                 BeginJumpHold();
         }
 
-        if (Input.GetKey(jumpKey) && isJumpHoldActive)
+        if (GetDesktopChargeJumpHeld() && isJumpHoldActive)
             UpdateJumpHold();
 
-        if (Input.GetKeyUp(jumpKey) && isJumpHoldActive)
+        if (GetDesktopChargeJumpUp() && isJumpHoldActive)
             ReleaseJumpHoldAndJump();
     }
-
 
     private void HandleMobileInput()
     {
@@ -324,7 +367,10 @@ public class PlayerController : MonoBehaviour
 
         // JUMP BUFFER SAVE
         if (mobileJumpHeld)
+        {
             lastJumpPressedTime = Time.time;
+            bufferedJumpKind = BufferedJumpKind.Hold;
+        }
 
         if (mobileJumpHeld)
         {
@@ -351,6 +397,7 @@ public class PlayerController : MonoBehaviour
     {
         isJumpHoldActive = true;
         isChargingJump = false;
+        bufferedJumpKind = BufferedJumpKind.None;
 
         jumpButtonDownTime = Time.time;
         UpdateJumpBar(0f);
@@ -422,6 +469,29 @@ public class PlayerController : MonoBehaviour
 
         UpdateJumpBar(0f);
         StartFatigue();
+    }
+
+    private bool TryPerformDedicatedShortJump()
+    {
+        if (!CanStartJumpCharge())
+            return false;
+
+        isJumpHoldActive = false;
+        isChargingJump = false;
+
+        float verticalForce = shortJumpForce * snowJumpMul;
+
+        float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
+        float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul * snowMoveMul;
+
+        jumpStartSpeed = takeoffVx;
+        PerformJump(takeoffVx, verticalForce);
+
+        UpdateJumpBar(0f);
+        StartFatigue();
+
+        bufferedJumpKind = BufferedJumpKind.None;
+        return true;
     }
 
     private void PerformJump(float horizontalSpeed, float verticalForce)
@@ -558,7 +628,10 @@ public class PlayerController : MonoBehaviour
 
     private bool IsJumpButtonHeldNow()
     {
-        return useMobileControls ? mobileJumpHeld : Input.GetKey(jumpKey);
+        if (useMobileControls) return mobileJumpHeld;
+
+        return Input.GetKey(jumpKey) ||
+               (useGamepadJump && Input.GetKey(gamepadChargeJumpKey));
     }
 
     // ==== Grounded с Edge-Assist ====
@@ -658,17 +731,26 @@ public class PlayerController : MonoBehaviour
         {
             lastGroundedTime = Time.time;
 
-            //JUMP BUFFER CHECK
+            // JUMP BUFFER CHECK
             if (!isJumpHoldActive &&
                 (Time.time - lastJumpPressedTime) <= jumpBufferTime &&
                 !IsFatigued())
             {
-                BeginJumpHold();
+                if (bufferedJumpKind == BufferedJumpKind.Short)
+                {
+                    // Короткий прыжок по буферу
+                    if (TryPerformDedicatedShortJump())
+                        return; // важно: не перетираем состояние после прыжка ниже
+                }
+                else
+                {
+                    // Обычный буфер: начинаем hold (клава/геймпад заряд/мобилка)
+                    BeginJumpHold();
+                }
             }
 
             airVx = 0f;
             airControlUnlockUntil = 0f;
-
 
             isOnIce = lastGroundCol != null && lastGroundCol.CompareTag("Ice");
 
@@ -850,6 +932,9 @@ public class PlayerController : MonoBehaviour
     private void OnMobileJumpDown()
     {
         mobileJumpHeld = true;
+        lastJumpPressedTime = Time.time;
+        bufferedJumpKind = BufferedJumpKind.Hold;
+
         if (!isJumpHoldActive && CanStartJumpCharge())
             BeginJumpHold();
     }
