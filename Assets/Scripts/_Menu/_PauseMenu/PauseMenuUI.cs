@@ -1,7 +1,10 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
+[DefaultExecutionOrder(10000)]
 public class PauseMenuUI : MonoBehaviour
 {
     [Header("Root panels")]
@@ -36,14 +39,61 @@ public class PauseMenuUI : MonoBehaviour
     [Header("Optional Pause Button (mobile/UI)")]
     [SerializeField] private Button openPauseButton;      // если есть кнопка паузы на экране
 
+    [Header("Navigation (keyboard / gamepad)")]
+    [SerializeField] private bool enableUiNavigation = true;
+
+    [Tooltip("Кнопка 'Назад/Отмена' на геймпаде (обычно B / Circle). Часто это JoystickButton1.")]
+    [SerializeField] private KeyCode gamepadBackKey = KeyCode.JoystickButton1;
+
+    [Tooltip("Какая кнопка/элемент выделяется при открытии главного меню паузы. Если пусто — будет Continue.")]
+    [SerializeField] private Button pauseMenuFirstSelected;
+
+    [Tooltip("Какая кнопка/элемент выделяется при открытии Settings (например Audio tab button).")]
+    [SerializeField] private Button settingsFirstSelected;
+
+    [Tooltip("Какая кнопка/элемент выделяется при открытии Controls (например Back button).")]
+    [SerializeField] private Button controlsFirstSelected;
+
+    [Tooltip("Какая кнопка выделяется в подтверждении выхода (обычно No).")]
+    [SerializeField] private Button exitConfirmFirstSelected;
+
+    [Tooltip("Какая кнопка выделяется в подтверждении рестарта (обычно No).")]
+    [SerializeField] private Button restartConfirmFirstSelected;
+
+    [Tooltip("Если выделение потерялось (клик по пустому месту и т.п.), скрипт восстановит его автоматически.")]
+    [SerializeField] private bool restoreSelectionIfLost = true;
+
+    [Header("Pause input")]
+    [SerializeField] private KeyCode keyboardPauseKey = KeyCode.Escape;
+
+    [Tooltip("Обычно Start / Options / Menu на геймпаде. Часто это JoystickButton7.")]
+    [SerializeField] private KeyCode gamepadPauseKey = KeyCode.JoystickButton7;
+
+    [Tooltip("Дополнительная кнопка паузы (например Back/View), если нужна. Можно оставить None.")]
+    [SerializeField] private KeyCode gamepadPauseAltKey = KeyCode.None;
+
     [Header("Scenes")]
     [SerializeField] private string mainMenuSceneName = "MainMenu";
 
+    [Header("Cursor")]
+    [SerializeField] private bool showCursorWhenPaused = true;
+    [SerializeField] private bool hideCursorWhenPlaying = true;
+    [SerializeField] private CursorLockMode playLockMode = CursorLockMode.None;
+
     private bool _paused;
+    private Coroutine _selectRoutine;
+
+    public bool IsPaused => _paused;
 
     private void Awake()
     {
         WireButtons();
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     private void Start()
@@ -53,40 +103,96 @@ public class PauseMenuUI : MonoBehaviour
 
     private void Update()
     {
-        if (!Input.GetKeyDown(KeyCode.Escape)) return;
-
+        // --- Если игра НЕ на паузе: открыть паузу только кнопкой паузы (Esc / Start) ---
         if (!_paused)
         {
-            PauseGame();
+            if (IsPausePressed())
+                PauseGame();
+
             return;
         }
 
-        // ESC закрывает верхние окна по приоритету
+        // --- Если игра на паузе: Esc / Start / B работают как "назад/отмена" ---
+        if (!IsPausePressed() && !IsBackPressed())
+            return;
+
+        // Закрываем верхние окна по приоритету
         if (exitConfirmPanel && exitConfirmPanel.activeSelf)
         {
-            CancelExitToMainMenu();
+            CancelExitToMainMenu();   // B = "Нет"
             return;
         }
 
         if (restartConfirmPanel && restartConfirmPanel.activeSelf)
         {
-            CancelRestartLevel();
+            CancelRestartLevel();     // B = "Нет"
             return;
         }
 
         if (settingsPanel && settingsPanel.activeSelf)
         {
-            BackToPauseMenu();
+            BackToPauseMenu();        // B = назад из настроек
             return;
         }
 
         if (controlsPanel && controlsPanel.activeSelf)
         {
-            BackToPauseMenu();
+            BackToPauseMenu();        // B = назад из управления
             return;
         }
 
+        // Если мы в главном меню паузы — закрываем паузу
         ResumeGame();
+    }
+
+    private void LateUpdate()
+    {
+        // Держим курсор видимым каждый кадр, пока меню паузы открыто
+        if (_paused && pauseRoot != null && pauseRoot.activeSelf)
+        {
+            ApplyPauseCursorState();
+
+            if (enableUiNavigation && restoreSelectionIfLost)
+                RestoreSelectionIfNeeded();
+        }
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        if (!hasFocus) return;
+
+        if (_paused && pauseRoot != null && pauseRoot.activeSelf) ApplyPauseCursorState();
+        else ApplyPlayCursorState();
+    }
+
+    private void OnApplicationPause(bool pause)
+    {
+        if (pause) return;
+
+        if (_paused && pauseRoot != null && pauseRoot.activeSelf) ApplyPauseCursorState();
+        else ApplyPlayCursorState();
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (_paused && pauseRoot != null && pauseRoot.activeSelf)
+            ApplyPauseCursorState();
+        else
+            ApplyPlayCursorState();
+    }
+
+    private bool IsPausePressed()
+    {
+        if (Input.GetKeyDown(keyboardPauseKey))
+            return true;
+
+        if (Input.GetKeyDown(gamepadPauseKey))
+            return true;
+
+        if (gamepadPauseAltKey != KeyCode.None && Input.GetKeyDown(gamepadPauseAltKey))
+            return true;
+
+        return false;
     }
 
     private void WireButtons()
@@ -117,8 +223,94 @@ public class PauseMenuUI : MonoBehaviour
     private static void Bind(Button btn, UnityEngine.Events.UnityAction action)
     {
         if (!btn) return;
-        btn.onClick.RemoveListener(action); // чтобы не накапливалось при домене/повторах
+        btn.onClick.RemoveListener(action);
         btn.onClick.AddListener(action);
+    }
+
+    // ===== Cursor helpers =====
+
+    private void ApplyPauseCursorState()
+    {
+        if (!showCursorWhenPaused) return;
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+    }
+
+    private void ApplyPlayCursorState()
+    {
+        if (!hideCursorWhenPlaying) return;
+        Cursor.visible = false;
+        Cursor.lockState = playLockMode;
+    }
+
+    // ===== UI Navigation helpers (keyboard / gamepad) =====
+
+    private void RestoreSelectionIfNeeded()
+    {
+        if (EventSystem.current == null) return;
+
+        if (EventSystem.current.currentSelectedGameObject != null) return;
+
+        if (exitConfirmPanel && exitConfirmPanel.activeSelf)
+        {
+            SelectButtonDeferred(exitConfirmFirstSelected ? exitConfirmFirstSelected : exitNoButton);
+            return;
+        }
+
+        if (restartConfirmPanel && restartConfirmPanel.activeSelf)
+        {
+            SelectButtonDeferred(restartConfirmFirstSelected ? restartConfirmFirstSelected : restartNoButton);
+            return;
+        }
+
+        if (settingsPanel && settingsPanel.activeSelf)
+        {
+            SelectButtonDeferred(settingsFirstSelected);
+            return;
+        }
+
+        if (controlsPanel && controlsPanel.activeSelf)
+        {
+            SelectButtonDeferred(controlsFirstSelected);
+            return;
+        }
+
+        if (menuPanel && menuPanel.activeSelf)
+        {
+            SelectPauseMenuDefault();
+        }
+    }
+
+    private void SelectPauseMenuDefault()
+    {
+        SelectButtonDeferred(pauseMenuFirstSelected ? pauseMenuFirstSelected : continueButton);
+    }
+
+    private void SelectButtonDeferred(Button btn)
+    {
+        if (!enableUiNavigation) return;
+        if (!btn) return;
+        if (EventSystem.current == null) return;
+
+        if (_selectRoutine != null)
+            StopCoroutine(_selectRoutine);
+
+        _selectRoutine = StartCoroutine(SelectButtonNextFrame(btn));
+    }
+
+    private IEnumerator SelectButtonNextFrame(Button btn)
+    {
+        yield return null;
+
+        if (!enableUiNavigation) yield break;
+        if (btn == null) yield break;
+        if (EventSystem.current == null) yield break;
+
+        Canvas.ForceUpdateCanvases();
+        EventSystem.current.SetSelectedGameObject(null);
+        EventSystem.current.SetSelectedGameObject(btn.gameObject);
+
+        _selectRoutine = null;
     }
 
     // ===== Public API =====
@@ -143,9 +335,8 @@ public class PauseMenuUI : MonoBehaviour
         if (pauseRoot) pauseRoot.SetActive(true);
 
         ShowMainMenu();
-
-        Cursor.visible = true;
-        Cursor.lockState = CursorLockMode.None;
+        ApplyPauseCursorState();
+        SelectPauseMenuDefault();
     }
 
     public void ResumeGame()
@@ -156,8 +347,16 @@ public class PauseMenuUI : MonoBehaviour
         HideAllSubPanels();
         if (pauseRoot) pauseRoot.SetActive(false);
 
-        Cursor.visible = false; // если курсор в игре не нужен
-        Cursor.lockState = CursorLockMode.None;
+        if (_selectRoutine != null)
+        {
+            StopCoroutine(_selectRoutine);
+            _selectRoutine = null;
+        }
+
+        if (EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(null);
+
+        ApplyPlayCursorState();
     }
 
     // ===== Restart confirm =====
@@ -166,6 +365,8 @@ public class PauseMenuUI : MonoBehaviour
     {
         HideAllSubPanels();
         if (restartConfirmPanel) restartConfirmPanel.SetActive(true);
+
+        SelectButtonDeferred(restartConfirmFirstSelected ? restartConfirmFirstSelected : restartNoButton);
     }
 
     public void ConfirmRestartLevel()
@@ -178,6 +379,7 @@ public class PauseMenuUI : MonoBehaviour
     {
         if (restartConfirmPanel) restartConfirmPanel.SetActive(false);
         ShowMainMenu();
+        SelectPauseMenuDefault();
     }
 
     // ===== Exit confirm =====
@@ -186,6 +388,8 @@ public class PauseMenuUI : MonoBehaviour
     {
         HideAllSubPanels();
         if (exitConfirmPanel) exitConfirmPanel.SetActive(true);
+
+        SelectButtonDeferred(exitConfirmFirstSelected ? exitConfirmFirstSelected : exitNoButton);
     }
 
     public void ConfirmExitToMainMenu()
@@ -198,6 +402,7 @@ public class PauseMenuUI : MonoBehaviour
     {
         if (exitConfirmPanel) exitConfirmPanel.SetActive(false);
         ShowMainMenu();
+        SelectPauseMenuDefault();
     }
 
     // ===== Sub menus =====
@@ -206,12 +411,16 @@ public class PauseMenuUI : MonoBehaviour
     {
         HideAllSubPanels();
         if (settingsPanel) settingsPanel.SetActive(true);
+
+        SelectButtonDeferred(settingsFirstSelected);
     }
 
     public void OpenControls()
     {
         HideAllSubPanels();
         if (controlsPanel) controlsPanel.SetActive(true);
+
+        SelectButtonDeferred(controlsFirstSelected);
     }
 
     public void BackToPauseMenu()
@@ -222,6 +431,7 @@ public class PauseMenuUI : MonoBehaviour
         if (restartConfirmPanel) restartConfirmPanel.SetActive(false);
 
         ShowMainMenu();
+        SelectPauseMenuDefault();
     }
 
     // ===== Helpers =====
@@ -242,5 +452,10 @@ public class PauseMenuUI : MonoBehaviour
         if (controlsPanel) controlsPanel.SetActive(false);
         if (exitConfirmPanel) exitConfirmPanel.SetActive(false);
         if (restartConfirmPanel) restartConfirmPanel.SetActive(false);
+    }
+
+    private bool IsBackPressed()
+    {
+        return Input.GetKeyDown(gamepadBackKey);
     }
 }
