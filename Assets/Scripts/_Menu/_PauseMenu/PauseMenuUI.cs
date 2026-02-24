@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -63,6 +64,13 @@ public class PauseMenuUI : MonoBehaviour
     [Tooltip("Если выделение потерялось (клик по пустому месту и т.п.), скрипт восстановит его автоматически.")]
     [SerializeField] private bool restoreSelectionIfLost = true;
 
+    [Header("Mouse hover sync")]
+    [SerializeField, Tooltip("Если включено — при наведении мышкой кнопка становится текущей selected (убирает двойную подсветку).")]
+    private bool selectHoveredButtonWithMouse = true;
+
+    [SerializeField, Tooltip("Обновлять selected от мыши только когда мышь реально сдвинулась.")]
+    private bool syncMouseOnlyWhenMoved = true;
+
     [Header("Pause input")]
     [SerializeField] private KeyCode keyboardPauseKey = KeyCode.Escape;
 
@@ -83,6 +91,9 @@ public class PauseMenuUI : MonoBehaviour
     private bool _paused;
     private Coroutine _selectRoutine;
 
+    private Vector3 _lastMousePosition;
+    private readonly List<RaycastResult> _mouseRaycastResults = new List<RaycastResult>(16);
+
     public bool IsPaused => _paused;
 
     private void Awake()
@@ -99,6 +110,7 @@ public class PauseMenuUI : MonoBehaviour
     private void Start()
     {
         ResumeGame(); // стартуем без паузы
+        _lastMousePosition = Input.mousePosition;
     }
 
     private void Update()
@@ -152,6 +164,11 @@ public class PauseMenuUI : MonoBehaviour
         {
             ApplyPauseCursorState();
 
+            // 1) Сначала синхронизируем hover мыши -> selected (убирает двойную подсветку)
+            if (enableUiNavigation && selectHoveredButtonWithMouse)
+                SyncMouseHoverSelection();
+
+            // 2) Затем (если надо) восстанавливаем выделение, когда оно потеряно
             if (enableUiNavigation && restoreSelectionIfLost)
                 RestoreSelectionIfNeeded();
         }
@@ -311,6 +328,60 @@ public class PauseMenuUI : MonoBehaviour
         EventSystem.current.SetSelectedGameObject(btn.gameObject);
 
         _selectRoutine = null;
+    }
+
+    // Синхронизация наведения мышью с currentSelectedGameObject,
+    // чтобы не было двойной подсветки (одна кнопка Selected, другая Highlighted).
+    private void SyncMouseHoverSelection()
+    {
+        if (EventSystem.current == null) return;
+        if (!Input.mousePresent) return;
+
+        Vector3 mousePos = Input.mousePosition;
+
+        if (syncMouseOnlyWhenMoved && mousePos == _lastMousePosition)
+            return;
+
+        _lastMousePosition = mousePos;
+
+        PointerEventData pointerData = new PointerEventData(EventSystem.current)
+        {
+            position = mousePos
+        };
+
+        _mouseRaycastResults.Clear();
+        EventSystem.current.RaycastAll(pointerData, _mouseRaycastResults);
+
+        Button hoveredButton = null;
+
+        for (int i = 0; i < _mouseRaycastResults.Count; i++)
+        {
+            GameObject go = _mouseRaycastResults[i].gameObject;
+            if (go == null) continue;
+
+            // Часто рейкаст попадает в Text/Image внутри кнопки — поднимаемся к родителю
+            Button btn = go.GetComponentInParent<Button>();
+            if (btn == null) continue;
+            if (!btn.isActiveAndEnabled || !btn.interactable) continue;
+
+            hoveredButton = btn;
+            break;
+        }
+
+        if (hoveredButton == null) return;
+
+        if (EventSystem.current.currentSelectedGameObject == hoveredButton.gameObject)
+            return;
+
+        // Если есть отложенный выбор кнопки — отменим, чтобы не перетёр выбор мыши
+        if (_selectRoutine != null)
+        {
+            StopCoroutine(_selectRoutine);
+            _selectRoutine = null;
+        }
+
+        EventSystem.current.SetSelectedGameObject(null);
+        EventSystem.current.SetSelectedGameObject(hoveredButton.gameObject);
     }
 
     // ===== Public API =====
