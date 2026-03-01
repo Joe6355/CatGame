@@ -6920,6 +6920,7 @@ MonoBehaviour:
   mobileJoystick: {fileID: 1709982628}
   mobileJumpButton: {fileID: 930437815}
   airControlSpeed: 5
+  enableAirControlInAir: 0
   iceAccel: 2.5
   iceBrake: 1.2
   iceMaxSpeedMul: 1.15
