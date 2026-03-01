@@ -1,200 +1,396 @@
-﻿
-using UnityEngine;
-using System.Collections;
+﻿using UnityEngine;
 
-//设置在编辑模式下也执行该脚本
+// Выполнять скрипт и в редакторе, и во время игры
 [ExecuteInEditMode]
-//添加选项到菜单中
+// Скрипт должен висеть на объекте с камерой
+[RequireComponent(typeof(Camera))]
+// Пункт в меню Add Component
 [AddComponentMenu("Learning Unity Shader/Lecture 15/RapidBlurEffect")]
 public class RapidBlurEffect : MonoBehaviour
 {
-    //-------------------变量声明部分-------------------
-    #region Variables
-    
-    //指定Shader名称
+    [Header("Шейдер")]
+    [SerializeField, Tooltip("Имя шейдера размытия. Если CurShader пустой или не совпадает по имени, шейдер будет найден автоматически.")]
     private string ShaderName = "Learning Unity Shader/Lecture 15/RapidBlurEffect";
 
-    //着色器和材质实例
+    [Tooltip("Ссылка на шейдер размытия. Обычно подставляется автоматически по имени ShaderName.")]
     public Shader CurShader;
+
+    // Внутренний материал, созданный на основе шейдера
     private Material CurMaterial;
 
-    //几个用于调节参数的中间变量
-    public static int ChangeValue;
-    public static float ChangeValue2;
-    public static int ChangeValue3;
-
-    //降采样次数
-    [Range(0, 6), Tooltip("[降采样次数]向下采样的次数。此值越大,则采样间隔越大,需要处理的像素点越少,运行速度越快。")]
+    [Header("Параметры размытия")]
+    [Range(0, 6)]
+    [Tooltip("Степень уменьшения разрешения перед размытием.\n" +
+             "Чем больше значение, тем быстрее работает эффект,\n" +
+             "но тем грубее может выглядеть изображение.")]
     public int DownSampleNum = 2;
-    //模糊扩散度
-    [Range(0.0f, 20.0f), Tooltip("[模糊扩散度]进行高斯模糊时，相邻像素点的间隔。此值越大相邻像素间隔越远，图像越模糊。但过大的值会导致失真。")]
+
+    [Range(0.0f, 20.0f)]
+    [Tooltip("Сила размытия.\n" +
+             "Чем больше значение, тем сильнее размытие,\n" +
+             "но слишком большие значения могут давать искажения.")]
     public float BlurSpreadSize = 3.0f;
-    //迭代次数
-    [Range(0, 8), Tooltip("[迭代次数]此值越大,则模糊操作的迭代次数越多，模糊效果越好，但消耗越大。")]
+
+    [Range(0, 8)]
+    [Tooltip("Количество итераций размытия.\n" +
+             "Чем больше значение, тем мягче и качественнее эффект,\n" +
+             "но тем выше нагрузка на производительность.")]
     public int BlurIterations = 3;
 
-    #endregion
+    [Header("Фикс размера для blur-камеры")]
+    [SerializeField, Tooltip(
+        "Камера-эталон, с которой будет синхронизироваться эта blur-камера.\n" +
+        "Если не задана, будет использована Camera.main.")]
+    private Camera referenceCamera;
 
-    //-------------------------材质的get&set----------------------------
-    #region MaterialGetAndSet
-    Material material
+    [SerializeField, Tooltip(
+        "Если включено, blur-камера будет брать ТОЧНО такую же view/projection матрицу,\n" +
+        "как referenceCamera. Это главный фикс, когда слой blur в Game выглядит больше/меньше.")]
+    private bool forceExactCameraMatch = true;
+
+    [SerializeField, Tooltip(
+        "Дополнительно копировать позицию и поворот referenceCamera.\n" +
+        "Полезно, если blur-камера должна смотреть абсолютно так же.")]
+    private bool syncTransformWithReference = true;
+
+    [SerializeField, Tooltip(
+        "Копировать viewport rect referenceCamera.\n" +
+        "Полезно, если у main camera нестандартный rect.")]
+    private bool syncViewportRect = true;
+
+    [SerializeField, Tooltip(
+        "Копировать near/far clip plane и режим проекции referenceCamera.\n" +
+        "Обычно это лучше оставить включённым.")]
+    private bool syncLensSettings = true;
+
+    private Camera ownCamera;
+
+    // Флаги, чтобы не спамить одинаковыми предупреждениями
+    private bool hasWarnedAboutMissingShader = false;
+    private bool hasWarnedAboutUnsupportedShader = false;
+    private bool hasWarnedAboutMissingReferenceCamera = false;
+
+    // Вызывается при добавлении компонента
+    private void Reset()
     {
-        get
-        {
-            if (CurMaterial == null)
-            {
-                CurMaterial = new Material(CurShader);
-                CurMaterial.hideFlags = HideFlags.HideAndDontSave;
-            }
-            return CurMaterial;
-        }
+        ownCamera = GetComponent<Camera>();
+        ClampSettings();
+        UpdateShaderReference();
+        RebuildMaterial();
+        ResolveReferenceCamera();
+        SyncCameraIfNeeded();
     }
-    #endregion
 
-    #region Functions
-    //-----------------------------------------【Start()函数】---------------------------------------------  
-    // 说明：此函数仅在Update函数第一次被调用前被调用
-    //--------------------------------------------------------------------------------------------------------
-    void Start()
+    // Вызывается при включении компонента
+    private void OnEnable()
     {
-        //依次赋值
-        ChangeValue = DownSampleNum;
-        ChangeValue2 = BlurSpreadSize;
-        ChangeValue3 = BlurIterations;
+        ownCamera = GetComponent<Camera>();
+        ClampSettings();
+        UpdateShaderReference();
+        RebuildMaterial();
+        ResolveReferenceCamera();
+        SyncCameraIfNeeded();
+    }
 
-        //找到当前的Shader文件
-        CurShader = Shader.Find(ShaderName);
+    // Вызывается перед первым кадром
+    private void Start()
+    {
+        ownCamera = GetComponent<Camera>();
+        ClampSettings();
+        UpdateShaderReference();
+        RebuildMaterial();
+        ResolveReferenceCamera();
+        SyncCameraIfNeeded();
+    }
 
-        //判断当前设备是否支持屏幕特效
-        if (!SystemInfo.supportsImageEffects)
+    // Вызывается при изменении значений в инспекторе
+    private void OnValidate()
+    {
+        ownCamera = GetComponent<Camera>();
+        ClampSettings();
+        UpdateShaderReference();
+        RebuildMaterial();
+        ResolveReferenceCamera();
+        SyncCameraIfNeeded();
+    }
+
+    // LateUpdate — на случай, если main camera двигается/меняется в течение кадра
+    private void LateUpdate()
+    {
+        ResolveReferenceCamera();
+        SyncCameraIfNeeded();
+    }
+
+    // Ещё раз синхронизируем перед самим рендером камеры
+    private void OnPreCull()
+    {
+        ResolveReferenceCamera();
+        SyncCameraIfNeeded();
+    }
+
+    // Главная функция постобработки
+    private void OnRenderImage(RenderTexture sourceTexture, RenderTexture destTexture)
+    {
+        ClampSettings();
+        UpdateShaderReference();
+
+        // Если эффект сейчас применить нельзя — просто выводим исходное изображение
+        if (!EnsureMaterialIsReady())
         {
-            enabled = false;
+            Graphics.Blit(sourceTexture, destTexture);
             return;
         }
-    }
 
-    //-------------------------------------【OnRenderImage()函数】------------------------------------  
-    // 说明：此函数在当完成所有渲染图片后被调用，用来渲染图片后期效果
-    //--------------------------------------------------------------------------------------------------------
-    void OnRenderImage(RenderTexture sourceTexture, RenderTexture destTexture)
-    {
-        //着色器实例不为空，就进行参数设置
-        if (CurShader != null)
+        // Если размытие фактически выключено — тоже просто отдаём исходную картинку
+        if (BlurIterations <= 0 || BlurSpreadSize <= 0.0f)
         {
-            //【0】参数准备
-            //根据向下采样的次数确定宽度系数。用于控制降采样后相邻像素的间隔
-            float widthMod = 1.0f / (1.0f * (1 << DownSampleNum));
-            //Shader的降采样参数赋值
-            material.SetFloat("_DownSampleValue", BlurSpreadSize * widthMod);
-            //设置渲染模式：双线性
-            sourceTexture.filterMode = FilterMode.Bilinear;
-            //通过右移，准备长、宽参数值
-            int renderWidth = sourceTexture.width >> DownSampleNum;
-            int renderHeight = sourceTexture.height >> DownSampleNum;
+            Graphics.Blit(sourceTexture, destTexture);
+            return;
+        }
 
-            // 【1】处理Shader的通道0，用于降采样 ||Pass 0,for down sample
-            //准备一个缓存renderBuffer，用于准备存放最终数据
-            RenderTexture renderBuffer = RenderTexture.GetTemporary(renderWidth, renderHeight, 0, sourceTexture.format);
-            //设置渲染模式：双线性
+        // Коэффициент, зависящий от степени уменьшения разрешения
+        float widthMod = 1.0f / (1 << DownSampleNum);
+
+        // Защита от нулевой ширины/высоты после уменьшения
+        int renderWidth = Mathf.Max(1, sourceTexture.width >> DownSampleNum);
+        int renderHeight = Mathf.Max(1, sourceTexture.height >> DownSampleNum);
+
+        // Билинейная фильтрация делает масштабирование мягче
+        sourceTexture.filterMode = FilterMode.Bilinear;
+        sourceTexture.wrapMode = TextureWrapMode.Clamp;
+
+        RenderTexture renderBuffer = null;
+        RenderTexture tempBuffer = null;
+
+        try
+        {
+            // Передаём стартовое значение в шейдер
+            CurMaterial.SetFloat("_DownSampleValue", BlurSpreadSize * widthMod);
+
+            // Первый проход: уменьшение изображения
+            renderBuffer = RenderTexture.GetTemporary(renderWidth, renderHeight, 0, sourceTexture.format);
             renderBuffer.filterMode = FilterMode.Bilinear;
-            //拷贝sourceTexture中的渲染数据到renderBuffer,并仅绘制指定的pass0的纹理数据
-            Graphics.Blit(sourceTexture, renderBuffer, material, 0);
+            renderBuffer.wrapMode = TextureWrapMode.Clamp;
 
-            //【2】根据BlurIterations（迭代次数），来进行指定次数的迭代操作
+            // Pass 0: подготовка уменьшенной версии изображения
+            Graphics.Blit(sourceTexture, renderBuffer, CurMaterial, 0);
+
+            // Несколько итераций вертикального и горизонтального размытия
             for (int i = 0; i < BlurIterations; i++)
             {
-                //【2.1】Shader参数赋值
-                //迭代偏移量参数
-                float iterationOffs = (i * 1.0f);
-                //Shader的降采样参数赋值
-                material.SetFloat("_DownSampleValue", BlurSpreadSize * widthMod + iterationOffs);
+                // Небольшое увеличение смещения на каждой итерации
+                float iterationOffset = i;
+                CurMaterial.SetFloat("_DownSampleValue", BlurSpreadSize * widthMod + iterationOffset);
 
-                // 【2.2】处理Shader的通道1，垂直方向模糊处理 || Pass1,for vertical blur
-                // 定义一个临时渲染的缓存tempBuffer
-                RenderTexture tempBuffer = RenderTexture.GetTemporary(renderWidth, renderHeight, 0, sourceTexture.format);
-                // 拷贝renderBuffer中的渲染数据到tempBuffer,并仅绘制指定的pass1的纹理数据
-                Graphics.Blit(renderBuffer, tempBuffer, material, 1);
-                //  清空renderBuffer
-                RenderTexture.ReleaseTemporary(renderBuffer);
-                // 将tempBuffer赋给renderBuffer，此时renderBuffer里面pass0和pass1的数据已经准备好
-                 renderBuffer = tempBuffer;
-
-                // 【2.3】处理Shader的通道2，竖直方向模糊处理 || Pass2,for horizontal blur
-                // 获取临时渲染纹理
+                // Pass 1: вертикальное размытие
                 tempBuffer = RenderTexture.GetTemporary(renderWidth, renderHeight, 0, sourceTexture.format);
-                // 拷贝renderBuffer中的渲染数据到tempBuffer,并仅绘制指定的pass2的纹理数据
+                tempBuffer.filterMode = FilterMode.Bilinear;
+                tempBuffer.wrapMode = TextureWrapMode.Clamp;
+
+                Graphics.Blit(renderBuffer, tempBuffer, CurMaterial, 1);
+
+                RenderTexture.ReleaseTemporary(renderBuffer);
+                renderBuffer = tempBuffer;
+                tempBuffer = null;
+
+                // Pass 2: горизонтальное размытие
+                tempBuffer = RenderTexture.GetTemporary(renderWidth, renderHeight, 0, sourceTexture.format);
+                tempBuffer.filterMode = FilterMode.Bilinear;
+                tempBuffer.wrapMode = TextureWrapMode.Clamp;
+
                 Graphics.Blit(renderBuffer, tempBuffer, CurMaterial, 2);
 
-                //【2.4】得到pass0、pass1和pass2的数据都已经准备好的renderBuffer
-                // 再次清空renderBuffer
                 RenderTexture.ReleaseTemporary(renderBuffer);
-                // 再次将tempBuffer赋给renderBuffer，此时renderBuffer里面pass0、pass1和pass2的数据都已经准备好
                 renderBuffer = tempBuffer;
+                tempBuffer = null;
             }
 
-            //拷贝最终的renderBuffer到目标纹理，并绘制所有通道的纹理到屏幕
+            // Выводим финальный результат на экран
             Graphics.Blit(renderBuffer, destTexture);
-            //清空renderBuffer
-            RenderTexture.ReleaseTemporary(renderBuffer);
-
         }
-
-        //着色器实例为空，直接拷贝屏幕上的效果。此情况下是没有实现屏幕特效的
-        else
+        finally
         {
-            //直接拷贝源纹理到目标渲染纹理
-            Graphics.Blit(sourceTexture, destTexture);
+            // Гарантированно освобождаем временные текстуры
+            if (tempBuffer != null)
+            {
+                RenderTexture.ReleaseTemporary(tempBuffer);
+                tempBuffer = null;
+            }
+
+            if (renderBuffer != null)
+            {
+                RenderTexture.ReleaseTemporary(renderBuffer);
+                renderBuffer = null;
+            }
         }
     }
 
-
-    //-----------------------------------------【OnValidate()函数】--------------------------------------  
-    // 说明：此函数在编辑器中该脚本的某个值发生了改变后被调用
-    //--------------------------------------------------------------------------------------------------------
-    void OnValidate()
+    // Находим reference camera
+    private void ResolveReferenceCamera()
     {
-        //将编辑器中的值赋值回来，确保在编辑器中值的改变立刻让结果生效
-        ChangeValue = DownSampleNum;
-        ChangeValue2 = BlurSpreadSize;
-        ChangeValue3 = BlurIterations;
+        if (referenceCamera == null && Camera.main != null && Camera.main != ownCamera)
+        {
+            referenceCamera = Camera.main;
+        }
     }
 
-    //-----------------------------------------【Update()函数】--------------------------------------  
-    // 说明：此函数每帧都会被调用
-    //--------------------------------------------------------------------------------------------------------
-    void Update()
+    // Главный фикс: заставляем blur-камеру смотреть ровно так же, как reference camera
+    private void SyncCameraIfNeeded()
     {
-        //若程序在运行，进行赋值
-        if (Application.isPlaying)
+        if (!forceExactCameraMatch)
+            return;
+
+        if (ownCamera == null)
+            ownCamera = GetComponent<Camera>();
+
+        if (referenceCamera == null || ownCamera == null || referenceCamera == ownCamera)
         {
-            //赋值
-            DownSampleNum = ChangeValue;
-            BlurSpreadSize = ChangeValue2;
-            BlurIterations = ChangeValue3;
+            if (!hasWarnedAboutMissingReferenceCamera && ownCamera != null)
+            {
+                Debug.LogWarning("RapidBlurEffect: не найдена reference camera для синхронизации размера blur-слоя.", this);
+                hasWarnedAboutMissingReferenceCamera = true;
+            }
+            return;
         }
-        //若程序没有在运行，去寻找对应的Shader文件
-#if UNITY_EDITOR
-        if (Application.isPlaying != true)
+
+        hasWarnedAboutMissingReferenceCamera = false;
+
+        // При необходимости копируем transform
+        if (syncTransformWithReference)
+        {
+            transform.position = referenceCamera.transform.position;
+            transform.rotation = referenceCamera.transform.rotation;
+        }
+
+        // При необходимости копируем базовые параметры линзы/проекции
+        if (syncLensSettings)
+        {
+            ownCamera.orthographic = referenceCamera.orthographic;
+            ownCamera.nearClipPlane = referenceCamera.nearClipPlane;
+            ownCamera.farClipPlane = referenceCamera.farClipPlane;
+            ownCamera.fieldOfView = referenceCamera.fieldOfView;
+            ownCamera.orthographicSize = referenceCamera.orthographicSize;
+            ownCamera.aspect = referenceCamera.aspect;
+        }
+
+        // Копируем viewport
+        if (syncViewportRect)
+        {
+            ownCamera.rect = referenceCamera.rect;
+        }
+
+        // Самое важное:
+        // 1) одинаковая матрица вида
+        // 2) одинаковая матрица проекции
+        // Тогда blur-слой будет рендериться в ТОЧНО том же масштабе.
+        ownCamera.worldToCameraMatrix = referenceCamera.worldToCameraMatrix;
+        ownCamera.projectionMatrix = referenceCamera.projectionMatrix;
+    }
+
+    // Вызывается при отключении компонента
+    private void OnDisable()
+    {
+        ReleaseMaterial();
+
+        if (ownCamera == null)
+            ownCamera = GetComponent<Camera>();
+
+        if (ownCamera != null)
+        {
+            ownCamera.ResetProjectionMatrix();
+            ownCamera.ResetWorldToCameraMatrix();
+        }
+    }
+
+    // Ограничиваем параметры допустимыми значениями
+    private void ClampSettings()
+    {
+        DownSampleNum = Mathf.Clamp(DownSampleNum, 0, 6);
+        BlurSpreadSize = Mathf.Clamp(BlurSpreadSize, 0.0f, 20.0f);
+        BlurIterations = Mathf.Clamp(BlurIterations, 0, 8);
+    }
+
+    // Обновляем ссылку на шейдер по имени
+    private void UpdateShaderReference()
+    {
+        if (string.IsNullOrEmpty(ShaderName))
+            return;
+
+        // Если шейдер не назначен или имя не совпадает — ищем заново
+        if (CurShader == null || CurShader.name != ShaderName)
         {
             CurShader = Shader.Find(ShaderName);
         }
-#endif
-
     }
 
-    //-----------------------------------------【OnDisable()函数】---------------------------------------  
-    // 说明：当对象变为不可用或非激活状态时此函数便被调用  
-    //--------------------------------------------------------------------------------------------------------
-    void OnDisable()
+    // Проверяем, можно ли использовать текущий шейдер и материал
+    private bool EnsureMaterialIsReady()
     {
-        if (CurMaterial)
+        if (CurShader == null)
         {
-            //立即销毁材质实例
-            DestroyImmediate(CurMaterial);
+            if (!hasWarnedAboutMissingShader)
+            {
+                Debug.LogWarning("RapidBlurEffect: не найден шейдер \"" + ShaderName + "\". Эффект временно отключён.", this);
+                hasWarnedAboutMissingShader = true;
+            }
+
+            hasWarnedAboutUnsupportedShader = false;
+            ReleaseMaterial();
+            return false;
         }
 
+        hasWarnedAboutMissingShader = false;
+
+        // Проверка поддержки шейдера текущим железом/платформой
+        if (!CurShader.isSupported)
+        {
+            if (!hasWarnedAboutUnsupportedShader)
+            {
+                Debug.LogWarning("RapidBlurEffect: шейдер \"" + CurShader.name + "\" не поддерживается на текущем устройстве.", this);
+                hasWarnedAboutUnsupportedShader = true;
+            }
+
+            ReleaseMaterial();
+            return false;
+        }
+
+        hasWarnedAboutUnsupportedShader = false;
+
+        // Если материал уже есть и использует нужный шейдер — всё готово
+        if (CurMaterial != null && CurMaterial.shader == CurShader)
+            return true;
+
+        // Иначе пересоздаём материал
+        RebuildMaterial();
+        return CurMaterial != null;
     }
 
- #endregion
+    // Пересоздаём материал на основе текущего шейдера
+    private void RebuildMaterial()
+    {
+        ReleaseMaterial();
 
+        if (CurShader == null)
+            return;
+
+        if (!CurShader.isSupported)
+            return;
+
+        CurMaterial = new Material(CurShader);
+        CurMaterial.hideFlags = HideFlags.HideAndDontSave;
+    }
+
+    // Корректно удаляем материал
+    private void ReleaseMaterial()
+    {
+        if (CurMaterial == null)
+            return;
+
+        if (Application.isPlaying)
+            Destroy(CurMaterial);
+        else
+            DestroyImmediate(CurMaterial);
+
+        CurMaterial = null;
+    }
 }
