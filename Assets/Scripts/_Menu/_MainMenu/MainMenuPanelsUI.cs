@@ -15,6 +15,13 @@ public class MainMenuPanelsUI : MonoBehaviour
     [SerializeField] private GameObject settingsPanel;
     [SerializeField] private GameObject exitConfirmDialog; // ConfirmExit_Dialog
 
+    [Header("Settings tabs")]
+    [SerializeField, Tooltip("Скрипт вкладок внутри Settings_Panel. Если не задан — попробует найти его внутри settingsPanel.")]
+    private SettingsTabsSwitcher settingsTabsSwitcher;
+
+    [SerializeField, Tooltip("Если settingsTabsSwitcher не задан вручную — попробовать найти его внутри settingsPanel.")]
+    private bool autoFindSettingsTabsSwitcher = true;
+
     [Header("Optional CanvasGroups (for modal blocking)")]
     [SerializeField, Tooltip("CanvasGroup главной панели. Если задан — при открытии диалога выхода mainPanel станет неинтерактивной.")]
     private CanvasGroup mainPanelCanvasGroup;
@@ -100,6 +107,7 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private void Awake()
     {
+        CacheSettingsTabsIfNeeded();
         WireButtons();
         SetupExitConfirmNavigation();
 
@@ -178,6 +186,12 @@ public class MainMenuPanelsUI : MonoBehaviour
 
         if (settingsPanel != null && settingsPanel.activeSelf)
         {
+            if (HasAnySettingsContentOpen())
+            {
+                CloseSettingsContentToRoot();
+                return;
+            }
+
             BackToMain();
             return;
         }
@@ -282,6 +296,41 @@ public class MainMenuPanelsUI : MonoBehaviour
         }
 
         _lastHoveredButton = null;
+    }
+
+    private void CacheSettingsTabsIfNeeded()
+    {
+        if (settingsTabsSwitcher != null)
+            return;
+
+        if (!autoFindSettingsTabsSwitcher)
+            return;
+
+        if (settingsPanel != null)
+            settingsTabsSwitcher = settingsPanel.GetComponentInChildren<SettingsTabsSwitcher>(true);
+    }
+
+    private bool HasAnySettingsContentOpen()
+    {
+        CacheSettingsTabsIfNeeded();
+
+        if (settingsTabsSwitcher == null)
+            return false;
+
+        return settingsTabsSwitcher.HasAnyOpenView();
+    }
+
+    private void CloseSettingsContentToRoot()
+    {
+        CacheSettingsTabsIfNeeded();
+
+        if (settingsTabsSwitcher != null)
+            settingsTabsSwitcher.CloseToSettingsRoot();
+
+        if (settingsPanel != null)
+            settingsPanel.SetActive(true);
+
+        SelectButtonDeferred(settingsFirstSelected ? settingsFirstSelected : settingsBackButton);
     }
 
     private void WireButtons()

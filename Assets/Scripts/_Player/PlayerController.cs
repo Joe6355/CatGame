@@ -40,7 +40,7 @@ public class PlayerController : MonoBehaviour
 
     private enum HoldJumpSource { None, Keyboard, GamepadCharge, Mobile }
     private HoldJumpSource currentHoldJumpSource = HoldJumpSource.None;
-    private bool bufferedHoldFromGamepadCharge = false;
+    private HoldJumpSource bufferedHoldSource = HoldJumpSource.None;
 
     [Header("Отскок от стен/потолка")]
     [SerializeField, Range(0f, 1f), Tooltip("Доля силы заряда, превращаемая в отскок по X от стены.\n0.33 = 33% от силы заряда.\nРекоменд: 0.2–0.5 (часто 0.3–0.4).")]
@@ -409,7 +409,7 @@ public class PlayerController : MonoBehaviour
         {
             lastJumpPressedTime = Time.time;
             bufferedJumpKind = BufferedJumpKind.Short;
-            bufferedHoldFromGamepadCharge = false;
+            bufferedHoldSource = HoldJumpSource.None;
 
             TryPerformDedicatedShortJump();
         }
@@ -423,37 +423,18 @@ public class PlayerController : MonoBehaviour
         {
             lastJumpPressedTime = Time.time;
             bufferedJumpKind = BufferedJumpKind.Hold;
-
-            bufferedHoldFromGamepadCharge = gamepadChargeDown && !keyboardChargeDown;
+            bufferedHoldSource = (gamepadChargeDown && !keyboardChargeDown)
+                ? HoldJumpSource.GamepadCharge
+                : HoldJumpSource.Keyboard;
 
             if (canStartHold)
-                BeginJumpHold(bufferedHoldFromGamepadCharge ? HoldJumpSource.GamepadCharge : HoldJumpSource.Keyboard);
+                BeginJumpHold(bufferedHoldSource);
         }
 
         if (isJumpHoldActive)
         {
-            bool held = false;
-            bool released = false;
-
-            switch (currentHoldJumpSource)
-            {
-                case HoldJumpSource.GamepadCharge:
-                    held = GetGamepadChargeJumpHeld();
-                    released = GetGamepadChargeJumpUp();
-                    break;
-
-                case HoldJumpSource.Mobile:
-                    held = false;
-                    released = false;
-                    break;
-
-                case HoldJumpSource.Keyboard:
-                case HoldJumpSource.None:
-                default:
-                    held = GetKeyboardChargeJumpHeld();
-                    released = GetKeyboardChargeJumpUp();
-                    break;
-            }
+            bool held = IsHoldInputStillHeld(currentHoldJumpSource);
+            bool released = IsHoldInputReleased(currentHoldJumpSource);
 
             if (held)
                 UpdateJumpHold();
@@ -477,7 +458,7 @@ public class PlayerController : MonoBehaviour
         {
             lastJumpPressedTime = Time.time;
             bufferedJumpKind = BufferedJumpKind.Hold;
-            bufferedHoldFromGamepadCharge = false;
+            bufferedHoldSource = HoldJumpSource.Mobile;
         }
 
         if (mobileJumpHeld)
@@ -494,11 +475,48 @@ public class PlayerController : MonoBehaviour
                 ReleaseJumpHoldAndJump();
         }
     }
+    private bool IsHoldInputStillHeld(HoldJumpSource source)
+    {
+        switch (source)
+        {
+            case HoldJumpSource.GamepadCharge:
+                return GetGamepadChargeJumpHeld();
+
+            case HoldJumpSource.Mobile:
+                return mobileJumpHeld;
+
+            case HoldJumpSource.Keyboard:
+            case HoldJumpSource.None:
+            default:
+                return GetKeyboardChargeJumpHeld();
+        }
+    }
+
+    private bool IsHoldInputReleased(HoldJumpSource source)
+    {
+        switch (source)
+        {
+            case HoldJumpSource.GamepadCharge:
+                return GetGamepadChargeJumpUp();
+
+            case HoldJumpSource.Mobile:
+                return !mobileJumpHeld;
+
+            case HoldJumpSource.Keyboard:
+            case HoldJumpSource.None:
+            default:
+                return GetKeyboardChargeJumpUp();
+        }
+    }
+
+    private bool IsWithinGroundedJumpWindow()
+    {
+        return isGrounded || (Time.time - lastGroundedTime) <= coyoteTime;
+    }
 
     private bool CanStartJumpCharge()
     {
-        bool groundedOrCoyote = isGrounded || (Time.time - lastGroundedTime) <= coyoteTime;
-        return groundedOrCoyote && !IsFatigued();
+        return IsWithinGroundedJumpWindow() && !IsFatigued();
     }
 
     private void BeginJumpHold(HoldJumpSource source = HoldJumpSource.Keyboard)
@@ -507,7 +525,7 @@ public class PlayerController : MonoBehaviour
         isChargingJump = false;
         bufferedJumpKind = BufferedJumpKind.None;
         currentHoldJumpSource = source;
-        bufferedHoldFromGamepadCharge = false;
+        bufferedHoldSource = HoldJumpSource.None;
 
         jumpButtonDownTime = Time.time;
         UpdateJumpBar(0f);
@@ -548,20 +566,14 @@ public class PlayerController : MonoBehaviour
 
     private void ReleaseJumpHoldAndJump()
     {
-        if (!isGrounded)
-        {
-            isJumpHoldActive = false;
-            isChargingJump = false;
-            currentHoldJumpSource = HoldJumpSource.None;
-            UpdateJumpBar(0f);
-            return;
-        }
+        bool canJumpNow = IsWithinGroundedJumpWindow();
 
-        if (!isChargingJump && currentHoldJumpSource == HoldJumpSource.GamepadCharge)
+        if (!canJumpNow)
         {
             isJumpHoldActive = false;
             isChargingJump = false;
             currentHoldJumpSource = HoldJumpSource.None;
+            bufferedJumpKind = BufferedJumpKind.None;
             UpdateJumpBar(0f);
             return;
         }
@@ -581,6 +593,7 @@ public class PlayerController : MonoBehaviour
         isJumpHoldActive = false;
         isChargingJump = false;
         currentHoldJumpSource = HoldJumpSource.None;
+        bufferedJumpKind = BufferedJumpKind.None;
 
         float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
         float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul * snowMoveMul;
@@ -623,6 +636,7 @@ public class PlayerController : MonoBehaviour
         if (Time.time - lastJumpPressedTime > jumpBufferTime)
         {
             bufferedJumpKind = BufferedJumpKind.None;
+            bufferedHoldSource = HoldJumpSource.None;
             return;
         }
 
@@ -632,12 +646,28 @@ public class PlayerController : MonoBehaviour
         {
             TryPerformDedicatedShortJump();
             bufferedJumpKind = BufferedJumpKind.None;
+            bufferedHoldSource = HoldJumpSource.None;
             return;
         }
 
         if (bufferedJumpKind == BufferedJumpKind.Hold)
         {
-            BeginJumpHold(bufferedHoldFromGamepadCharge ? HoldJumpSource.GamepadCharge : HoldJumpSource.Keyboard);
+            HoldJumpSource source = bufferedHoldSource;
+
+            if (source == HoldJumpSource.None)
+                source = HoldJumpSource.Keyboard;
+
+            if (IsHoldInputStillHeld(source))
+            {
+                BeginJumpHold(source);
+            }
+            else
+            {
+                TryPerformDedicatedShortJump();
+            }
+
+            bufferedJumpKind = BufferedJumpKind.None;
+            bufferedHoldSource = HoldJumpSource.None;
         }
     }
 
@@ -877,6 +907,10 @@ public class PlayerController : MonoBehaviour
             lastGroundedTime = Time.time;
             lastGroundCol = col;
         }
+        else if ((Time.time - lastGroundedTime) > coyoteTime)
+        {
+            lastGroundCol = null;
+        }
 
         if (!wasGroundedLastFrame && isGrounded)
         {
@@ -938,12 +972,16 @@ public class PlayerController : MonoBehaviour
         if (isWall)
         {
             float dir = Mathf.Sign(n.x);
-            rb.velocity = new Vector2(bounce * dir, rb.velocity.y);
+            float bouncedVx = bounce * dir;
+
+            rb.velocity = new Vector2(bouncedVx, rb.velocity.y);
+            airVx = bouncedVx;
             lastBounceTime = Time.time;
         }
         else if (isCeil)
         {
             rb.velocity = new Vector2(rb.velocity.x, -Mathf.Abs(rb.velocity.y));
+            airVx = rb.velocity.x - externalWindVX;
             lastBounceTime = Time.time;
         }
     }
@@ -1114,7 +1152,7 @@ public class PlayerController : MonoBehaviour
 
         lastJumpPressedTime = -999f;
         bufferedJumpKind = BufferedJumpKind.None;
-        bufferedHoldFromGamepadCharge = false;
+        bufferedHoldSource = HoldJumpSource.None;
 
         jumpButtonDownTime = 0f;
         jumpStartHoldTime = 0f;
@@ -1172,11 +1210,40 @@ public class PlayerController : MonoBehaviour
 
 }
 
-public class PointerHoldHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
+public class PointerHoldHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
 {
     public event Action OnDown;
     public event Action OnUp;
 
-    public void OnPointerDown(PointerEventData eventData) => OnDown?.Invoke();
-    public void OnPointerUp(PointerEventData eventData) => OnUp?.Invoke();
+    private bool isPressed = false;
+
+    public void OnPointerDown(PointerEventData eventData)
+    {
+        isPressed = true;
+        OnDown?.Invoke();
+    }
+
+    public void OnPointerUp(PointerEventData eventData)
+    {
+        ReleaseIfNeeded();
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        ReleaseIfNeeded();
+    }
+
+    private void OnDisable()
+    {
+        ReleaseIfNeeded();
+    }
+
+    private void ReleaseIfNeeded()
+    {
+        if (!isPressed)
+            return;
+
+        isPressed = false;
+        OnUp?.Invoke();
+    }
 }
