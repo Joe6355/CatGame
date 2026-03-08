@@ -15,66 +15,85 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField] private GameObject tabGameplay;
     [SerializeField] private GameObject tabVideo;
 
-    [Header("Controls: подпункты (ребинд)")]
-    [SerializeField] private Button keyboardBtn;      // Кнопка "Клавиатура"
-    [SerializeField] private Button gamepadBtn;       // Кнопка "Геймпад"
+    [Header("Controls: подпункты")]
+    [SerializeField] private Button keyboardBtn;
+    [SerializeField] private Button gamepadBtn;
 
-    [SerializeField] private GameObject keyboardPanel; // Панель ребинда клавиатуры
-    [SerializeField] private GameObject gamepadPanel;  // Панель ребинда геймпада
+    [SerializeField] private GameObject keyboardPanel;
+    [SerializeField] private GameObject gamepadPanel;
 
     [SerializeField] private bool closeControlsSubPanelsOnControlsTabOpen = false;
     [SerializeField] private bool closeControlsSubPanelsWhenLeaveControlsTab = true;
 
-    [Header("Gameplay Tooltip (Упрощение)")]
-    [SerializeField] private Button assistInfoBtn;          // кнопка "?"
-    [SerializeField] private GameObject assistTooltipPanel; // панель подсказки
+    [Header("Gameplay Tooltip")]
+    [SerializeField] private Button assistInfoBtn;
+    [SerializeField] private GameObject assistTooltipPanel;
     [SerializeField] private bool hideTooltipOnTabChange = true;
 
     [Header("Стартовое поведение")]
-    [SerializeField] private bool closeAllTabsOnEnable = true; // при открытии Settings_Panel всё закрывать
+    [SerializeField] private bool closeAllTabsOnEnable = true;
 
     private void Awake()
     {
-        // Подписка на кнопки вкладок
-        if (audioBtn != null) audioBtn.onClick.AddListener(() => ShowTab(tabAudio));
-        if (controlsBtn != null) controlsBtn.onClick.AddListener(OnControlsTabClicked);
-        if (gameplayBtn != null) gameplayBtn.onClick.AddListener(() => ShowTab(tabGameplay));
-        if (videoBtn != null) videoBtn.onClick.AddListener(() => ShowTab(tabVideo));
+        if (audioBtn != null)
+        {
+            audioBtn.onClick.RemoveAllListeners();
+            audioBtn.onClick.AddListener(() => ShowTab(tabAudio));
+        }
 
-        // Подписка на кнопки подпунктов Controls
-        if (keyboardBtn != null) keyboardBtn.onClick.AddListener(OpenKeyboardPanel);
-        if (gamepadBtn != null) gamepadBtn.onClick.AddListener(OpenGamepadPanel);
+        if (controlsBtn != null)
+        {
+            controlsBtn.onClick.RemoveAllListeners();
+            controlsBtn.onClick.AddListener(OnControlsTabClicked);
+        }
 
-        // Tooltip
+        if (gameplayBtn != null)
+        {
+            gameplayBtn.onClick.RemoveAllListeners();
+            gameplayBtn.onClick.AddListener(() => ShowTab(tabGameplay));
+        }
+
+        if (videoBtn != null)
+        {
+            videoBtn.onClick.RemoveAllListeners();
+            videoBtn.onClick.AddListener(() => ShowTab(tabVideo));
+        }
+
+        if (keyboardBtn != null)
+        {
+            keyboardBtn.onClick.RemoveAllListeners();
+            keyboardBtn.onClick.AddListener(OpenKeyboardPanel);
+        }
+
+        if (gamepadBtn != null)
+        {
+            gamepadBtn.onClick.RemoveAllListeners();
+            gamepadBtn.onClick.AddListener(OpenGamepadPanel);
+        }
+
+        if (assistInfoBtn != null)
+        {
+            assistInfoBtn.onClick.RemoveAllListeners();
+            assistInfoBtn.onClick.AddListener(ToggleAssistTooltip);
+        }
+
         if (assistTooltipPanel != null)
             assistTooltipPanel.SetActive(false);
 
-        if (assistInfoBtn != null)
-            assistInfoBtn.onClick.AddListener(ToggleAssistTooltip);
-
-        // Ничего не открываем по умолчанию
         CloseAllTabs();
-        CloseControlsSubPanels();
     }
 
     private void OnEnable()
     {
-        // Если этот скрипт висит на Settings_Panel (который выключен в начале),
-        // то при открытии настроек вкладки будут закрываться каждый раз.
         if (closeAllTabsOnEnable)
             CloseAllTabs();
-
-        // Чтобы не оставались "залипшие" подпанели после повторного открытия настроек
-        CloseControlsSubPanels();
+        else
+            CloseControlsSubPanels();
 
         if (assistTooltipPanel != null)
             assistTooltipPanel.SetActive(false);
     }
 
-    /// <summary>
-    /// Отдельный обработчик для кнопки Controls, чтобы при необходимости
-    /// можно было закрывать подпанели при входе во вкладку Controls.
-    /// </summary>
     private void OnControlsTabClicked()
     {
         ShowTab(tabControls);
@@ -90,7 +109,6 @@ public class SettingsTabsSwitcher : MonoBehaviour
         if (tabGameplay != null) tabGameplay.SetActive(active == tabGameplay);
         if (tabVideo != null) tabVideo.SetActive(active == tabVideo);
 
-        // Если ушли с вкладки Controls — закрываем подпанели (по желанию)
         if (closeControlsSubPanelsWhenLeaveControlsTab && active != tabControls)
             CloseControlsSubPanels();
 
@@ -98,11 +116,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             assistTooltipPanel.SetActive(false);
     }
 
-    // ======== Controls: подпанели (клавиатура / геймпад) ========
-
     public void OpenKeyboardPanel()
     {
-        // Если вкладка Controls закрыта — откроем её автоматически
         if (tabControls != null && !tabControls.activeSelf)
             ShowTab(tabControls);
 
@@ -111,7 +126,6 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     public void OpenGamepadPanel()
     {
-        // Если вкладка Controls закрыта — откроем её автоматически
         if (tabControls != null && !tabControls.activeSelf)
             ShowTab(tabControls);
 
@@ -133,7 +147,29 @@ public class SettingsTabsSwitcher : MonoBehaviour
         if (gamepadPanel != null) gamepadPanel.SetActive(false);
     }
 
-    // ======== Общие методы ========
+    public bool HasAnyOpenView()
+    {
+        return HasAnyOpenTab() || IsAnyControlsSubPanelOpen();
+    }
+
+    public bool HasAnyOpenTab()
+    {
+        return (tabAudio != null && tabAudio.activeSelf) ||
+               (tabControls != null && tabControls.activeSelf) ||
+               (tabGameplay != null && tabGameplay.activeSelf) ||
+               (tabVideo != null && tabVideo.activeSelf);
+    }
+
+    public bool IsAnyControlsSubPanelOpen()
+    {
+        return (keyboardPanel != null && keyboardPanel.activeSelf) ||
+               (gamepadPanel != null && gamepadPanel.activeSelf);
+    }
+
+    public void CloseToSettingsRoot()
+    {
+        CloseAllTabs();
+    }
 
     public void CloseAllTabs()
     {
@@ -152,14 +188,12 @@ public class SettingsTabsSwitcher : MonoBehaviour
     {
         if (assistTooltipPanel == null) return;
 
-        // Подсказка показывается только на вкладке Gameplay
         if (tabGameplay != null && !tabGameplay.activeSelf)
             return;
 
         assistTooltipPanel.SetActive(!assistTooltipPanel.activeSelf);
     }
 
-    // (Необязательно) Вызов из других скриптов/кнопок:
     public void OpenControlsKeyboard()
     {
         ShowTab(tabControls);

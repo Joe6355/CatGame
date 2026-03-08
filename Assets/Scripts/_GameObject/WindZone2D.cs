@@ -101,7 +101,7 @@ public class WindZone2D : MonoBehaviour
             {
                 // Δv = a * dt * знак(направления)
                 float deltaVx = gustAccel * currentAlpha * Time.fixedDeltaTime * Mathf.Sign(dir.x);
-                pc.AddExternalWindVX(deltaVx);
+                pc.AddExternalWind(deltaVx);
             }
             else
             {

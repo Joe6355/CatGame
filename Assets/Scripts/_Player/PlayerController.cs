@@ -88,6 +88,13 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Tooltip("Отдельная кнопка геймпада для МГНОВЕННОГО короткого прыжка.\nОбычно это B / Circle (JoystickButton1).")]
     private KeyCode gamepadShortJumpKey = KeyCode.JoystickButton1;
 
+    [Header("Legacy Rebind (KeyCode)")]
+    [SerializeField, Tooltip("If ON and LegacyKeycodeRebind exists, this controller reads keys from it (UI rebind). If OFF or missing, uses local KeyCode fields below.")]
+    private bool useLegacyKeycodeRebind = true;
+
+    [SerializeField, Tooltip("If ON, when no keyboard move key is pressed we use InputManager axis 'Horizontal' as fallback (usually gamepad stick). NOTE: if your InputManager Horizontal still has A/D, those may move unless we block the common keys below.")]
+    private bool useInputManagerAxisFallback = true;
+
     [Header("Ground Check")]
     [SerializeField, Tooltip("Слои, которые считаются землёй (Ground/Platform и т.п.).\nРекоменд: выделить отдельный слой Ground и выбрать его здесь.")]
     private LayerMask groundMask;
@@ -180,6 +187,16 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Tooltip("Торможение/смена направления на обычной земле.\nРекоменд: 20–200 (плавно) или 9999 (мгновенно).")]
     private float normalBrake = 9999f;
 
+    [Header("Блокировка игрового ввода (после меню)")]
+    [SerializeField, Tooltip("Если ВКЛ — после возврата из паузы/меню игрок не начнёт двигаться/прыгать, пока все зажатые игровые кнопки не будут отпущены.")]
+    private bool waitReleaseAfterInputEnable = true;
+
+    [SerializeField, Tooltip("Небольшая доп. задержка после отпускания всех игровых кнопок перед возвратом управления. Нужна как страховка от 'протекания' ввода из UI.\nРекоменд: 0.03–0.12 сек (часто 0.05–0.08).")]
+    private float postMenuInputUnlockDelay = 0.06f;
+
+    [SerializeField, Tooltip("Порог нейтрального положения оси Horizontal, ниже которого считаем, что стик/ось отпущены.\nРекоменд: 0.15–0.35 (часто 0.2).")]
+    private float inputReleaseAxisDeadZone = 0.2f;
+
     // =========================
     // INTERNAL STATE (не в инспекторе)
     // =========================
@@ -190,16 +207,10 @@ public class PlayerController : MonoBehaviour
 
     private float inputX = 0f;
 
-    // Режимы прыжка:
-    // isJumpHoldActive = кнопку держим (но ещё может быть не заряд)
-    // isChargingJump   = мы уже в режиме заряда (после задержки chargeEnterDelay)
     private bool isJumpHoldActive = false;
     private bool isChargingJump = false;
 
-    // Время, когда нажали кнопку (для задержки входа в заряд)
     private float jumpButtonDownTime = 0f;
-
-    // Время старта ЗАРЯДА (не нажатия!), чтобы расчёт заряда был как раньше
     private float jumpStartHoldTime = 0f;
 
     private bool mobileJumpHeld = false;
@@ -209,85 +220,79 @@ public class PlayerController : MonoBehaviour
     private float jumpStartSpeed = 0f;
     private float fatigueEndTime = 0f;
 
-    // Для отскока — хранить реальную силу последнего прыжка
-    private float lastJumpVerticalForce = 0f;
+    private float lastAppliedJumpForce = 0f;
 
-    [SerializeField, Tooltip("Корень визуала (спрайт/хвост). Флип (разворот) делаем на нём, а НЕ на физике игрока.\nРекоменд: создать child PlayerVisual и закинуть туда голову/хвост/рендеры.")]
-    private Transform visualRoot; // назначь PlayerVisual
-
-    [SerializeField, Tooltip("Мёртвая зона скорости для разворота. Убирает случайные флипы от микроскоростей после коллизий.\nРекоменд: 0.05–0.15 (часто 0.08).")]
-    private float flipDeadZone = 0.08f;
-
-    [Header("Takeoff / GroundCheck Locks")]
-    [SerializeField, Tooltip("Время после прыжка, когда считаем персонажа 'в воздухе' и ограничиваем приземление/переворот логики.\nУбирает залипание к земле в момент старта прыжка.\nРекоменд: 0.05–0.12 (часто 0.06–0.10).")]
-    private float takeoffLockTime = 0.08f;
-
-    private float takeoffLockUntil = 0f;
-    private float groundCheckDisableUntil = 0f;
-
-    private bool prevUseMobileControls;
-    private bool isOnIce = false;
-    private Collider2D lastGroundCol = null;
-
-    // Moving Platform
     private float platformVX = 0f;
-    private MovingPlatform2D currentPlatform = null;
+    private float externalWindVX = 0f;
 
-    // Сугробы (замедление/ослабление прыжка)
+    private bool isOnIce = false;
+
+    private bool wasGroundedLastFrame = false;
+
+    private Collider2D lastGroundCol;
+
+    private float flipDeadZone = 0.05f;
+
+    private float lastBounceTime = -999f;
+
+    private readonly Dictionary<SnowdriftArea2D, (float move, float jump)> activeSnow = new Dictionary<SnowdriftArea2D, (float move, float jump)>();
     private float snowMoveMul = 1f;
     private float snowJumpMul = 1f;
-    private readonly Dictionary<SnowdriftArea2D, (float move, float jump)> activeSnow = new();
 
-    // ==== ВЕТЕР: аддитивная внешняя скорость по X (зона ветра добавляет Δv за кадр) ====
-    private float externalWindVX = 0f;
-    public void AddExternalWindVX(float vx) { externalWindVX += vx; }
-    // ================================================================================
+    private bool prevUseMobileControls = false;
 
-    // ==== ПУБЛИЧНЫЙ API ДЛЯ ОТРИСОВКИ ТРАЕКТОРИИ ПРЫЖКА ====
-    // ВАЖНО: true только когда мы реально в режиме заряда (после задержки)
-    public bool IsChargingJumpPublic => isChargingJump && (Time.time - jumpStartHoldTime) > 0.01f;
-    public float GetGravityScale() => rb ? rb.gravityScale : 1f;
+    private bool gameplayInputEnabled = true;
+    private bool waitForGameplayInputRelease = false;
+    private float gameplayInputUnlockAtUnscaled = -1f;
 
-    public Vector2 GetPredictedJumpVelocity()
+    private void Awake()
     {
-        float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
-        float verticalForce = Mathf.Clamp01(hold / jumpTimeLimit) * maxJumpForce * snowJumpMul;
+        rb = GetComponent<Rigidbody2D>();
 
-        float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
-        float takeoffVx = platformVX + (isFacingRight ? 1f : -1f) * moveSpeed * speedMul * snowMoveMul;
+        if (mainCamera == null) mainCamera = Camera.main;
 
-        return new Vector2(takeoffVx, verticalForce);
-    }
-    // ================================================================================
-
-    private void Awake() => rb = GetComponent<Rigidbody2D>();
-
-    private void Start()
-    {
         if (mobileJumpButton != null)
         {
-            var hold = mobileJumpButton.gameObject.GetComponent<PointerHoldHandler>();
-            if (hold == null) hold = mobileJumpButton.gameObject.AddComponent<PointerHoldHandler>();
-            hold.OnDown += OnMobileJumpDown;
-            hold.OnUp += OnMobileJumpUp;
+            var handler = mobileJumpButton.GetComponent<PointerHoldHandler>();
+            if (handler == null) handler = mobileJumpButton.gameObject.AddComponent<PointerHoldHandler>();
+
+            handler.OnDown -= OnMobileJumpDown;
+            handler.OnUp -= OnMobileJumpUp;
+
+            handler.OnDown += OnMobileJumpDown;
+            handler.OnUp += OnMobileJumpUp;
         }
 
-        UpdateJumpBar(0f);
-        SetFatigueImageActive(false, 0f);
-
-        prevUseMobileControls = !useMobileControls;
+        prevUseMobileControls = useMobileControls;
         ApplyMobileUIVisibility();
     }
 
-    private void OnValidate() => ApplyMobileUIVisibility();
+    private void Start()
+    {
+        UpdateJumpBar(0f);
+        UpdateFatigueUI();
+        UpdateJumpBarPosition();
+    }
 
     private void Update()
     {
         if (prevUseMobileControls != useMobileControls)
+        {
+            prevUseMobileControls = useMobileControls;
             ApplyMobileUIVisibility();
+        }
 
-        if (!useMobileControls) HandleDesktopInput();
-        else HandleMobileInput();
+        if (IsGameplayInputAllowedThisFrame())
+        {
+            if (!useMobileControls) HandleDesktopInput();
+            else HandleMobileInput();
+
+            TryConsumeJumpBuffer();
+        }
+        else
+        {
+            ResetGameplayInputState(false);
+        }
 
         UpdateJumpBarPosition();
         UpdateFatigueUI();
@@ -302,60 +307,110 @@ public class PlayerController : MonoBehaviour
 
     private bool GetKeyboardChargeJumpDown()
     {
+        var rb = (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null) ? LegacyKeycodeRebind.I : null;
+        if (rb != null) return rb.GetDown(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold);
         return Input.GetKeyDown(jumpKey);
     }
 
     private bool GetKeyboardChargeJumpHeld()
     {
+        var rb = (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null) ? LegacyKeycodeRebind.I : null;
+        if (rb != null) return rb.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold);
         return Input.GetKey(jumpKey);
     }
 
     private bool GetKeyboardChargeJumpUp()
     {
+        var rb = (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null) ? LegacyKeycodeRebind.I : null;
+        if (rb != null) return rb.GetUp(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold);
         return Input.GetKeyUp(jumpKey);
     }
 
     private bool GetGamepadChargeJumpDown()
     {
-        return useGamepadJump && Input.GetKeyDown(gamepadChargeJumpKey);
+        if (!useGamepadJump) return false;
+
+        var rb = (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null) ? LegacyKeycodeRebind.I : null;
+        if (rb != null) return rb.GetDown(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold);
+
+        return Input.GetKeyDown(gamepadChargeJumpKey);
     }
 
     private bool GetGamepadChargeJumpHeld()
     {
-        return useGamepadJump && Input.GetKey(gamepadChargeJumpKey);
+        if (!useGamepadJump) return false;
+
+        var rb = (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null) ? LegacyKeycodeRebind.I : null;
+        if (rb != null) return rb.GetHeld(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold);
+
+        return Input.GetKey(gamepadChargeJumpKey);
     }
 
     private bool GetGamepadChargeJumpUp()
     {
-        return useGamepadJump && Input.GetKeyUp(gamepadChargeJumpKey);
+        if (!useGamepadJump) return false;
+
+        var rb = (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null) ? LegacyKeycodeRebind.I : null;
+        if (rb != null) return rb.GetUp(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold);
+
+        return Input.GetKeyUp(gamepadChargeJumpKey);
     }
 
     private bool GetDesktopShortJumpDown()
     {
+        var rb = (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null) ? LegacyKeycodeRebind.I : null;
+
+        if (rb != null)
+        {
+            bool kb = rb.GetDown(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpShort);
+            bool gp = useGamepadJump && rb.GetDown(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpShort);
+            return kb || gp;
+        }
+
         return useGamepadJump && Input.GetKeyDown(gamepadShortJumpKey);
     }
 
     private void HandleDesktopInput()
     {
-        int dir = 0;
-        if (Input.GetKey(leftKey)) dir -= 1;
-        if (Input.GetKey(rightKey)) dir += 1;
-        inputX = (dir != 0) ? dir : Input.GetAxisRaw("Horizontal");
+        if (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null && LegacyKeycodeRebind.I.IsRebinding)
+        {
+            inputX = 0f;
+            return;
+        }
 
+        int dir = 0;
+        var rb = (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null) ? LegacyKeycodeRebind.I : null;
+
+        if (rb != null)
+        {
+            dir = rb.GetKeyboardMoveDir();
+        }
+        else
+        {
+            if (Input.GetKey(leftKey)) dir -= 1;
+            if (Input.GetKey(rightKey)) dir += 1;
+        }
+
+        float axis = 0f;
+        if (dir == 0 && useInputManagerAxisFallback)
+        {
+            if (!(Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.RightArrow)))
+                axis = Input.GetAxisRaw("Horizontal");
+        }
+
+        inputX = (dir != 0) ? dir : axis;
         if (Mathf.Abs(inputX) > 0.01f && IsGroundMovementAllowed())
         {
             bool faceRight = inputX > 0f;
             if (faceRight != isFacingRight) Flip();
         }
 
-        // ===== ОТДЕЛЬНАЯ КНОПКА КОРОТКОГО ПРЫЖКА (геймпад) =====
         if (GetDesktopShortJumpDown() && !isJumpHoldActive)
         {
             lastJumpPressedTime = Time.time;
             bufferedJumpKind = BufferedJumpKind.Short;
             bufferedHoldFromGamepadCharge = false;
 
-            // Если можно — прыгаем сразу. Если нет — сработает jump buffer на приземлении.
             TryPerformDedicatedShortJump();
         }
 
@@ -364,13 +419,11 @@ public class PlayerController : MonoBehaviour
         bool keyboardChargeDown = GetKeyboardChargeJumpDown();
         bool gamepadChargeDown = GetGamepadChargeJumpDown();
 
-        // ===== ОБЫЧНЫЙ/ЗАРЯДНЫЙ ПРЫЖОК (клава + геймпад A) =====
         if (keyboardChargeDown || gamepadChargeDown)
         {
             lastJumpPressedTime = Time.time;
             bufferedJumpKind = BufferedJumpKind.Hold;
 
-            // Если одновременно нажали и клаву и геймпад — считаем как клавиатуру (сохраняем старое поведение short/charge)
             bufferedHoldFromGamepadCharge = gamepadChargeDown && !keyboardChargeDown;
 
             if (canStartHold)
@@ -390,7 +443,6 @@ public class PlayerController : MonoBehaviour
                     break;
 
                 case HoldJumpSource.Mobile:
-                    // В desktop-режиме сюда не должны попадать, но подстрахуемся
                     held = false;
                     released = false;
                     break;
@@ -421,7 +473,6 @@ public class PlayerController : MonoBehaviour
             if (faceRight != isFacingRight) Flip();
         }
 
-        // JUMP BUFFER SAVE
         if (mobileJumpHeld)
         {
             lastJumpPressedTime = Time.time;
@@ -506,8 +557,6 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        // Особое поведение: A на геймпаде = только сильный (зарядный) прыжок.
-        // Если отпустили раньше, чем вошли в заряд — просто отменяем, без слабого прыжка.
         if (!isChargingJump && currentHoldJumpSource == HoldJumpSource.GamepadCharge)
         {
             isJumpHoldActive = false;
@@ -567,54 +616,70 @@ public class PlayerController : MonoBehaviour
         return true;
     }
 
-    private void PerformJump(float horizontalSpeed, float verticalForce)
+    private void TryConsumeJumpBuffer()
     {
-        lastJumpTime = Time.time;
+        if (bufferedJumpKind == BufferedJumpKind.None) return;
 
-        airVx = horizontalSpeed;
-        rb.velocity = new Vector2(horizontalSpeed, verticalForce);
+        if (Time.time - lastJumpPressedTime > jumpBufferTime)
+        {
+            bufferedJumpKind = BufferedJumpKind.None;
+            return;
+        }
 
-        lastJumpVerticalForce = Mathf.Abs(verticalForce);
+        if (!CanStartJumpCharge()) return;
 
-        isGrounded = false;
-        takeoffLockUntil = Time.time + takeoffLockTime;
-        groundCheckDisableUntil = Time.time + takeoffLockTime;
+        if (bufferedJumpKind == BufferedJumpKind.Short)
+        {
+            TryPerformDedicatedShortJump();
+            bufferedJumpKind = BufferedJumpKind.None;
+            return;
+        }
+
+        if (bufferedJumpKind == BufferedJumpKind.Hold)
+        {
+            BeginJumpHold(bufferedHoldFromGamepadCharge ? HoldJumpSource.GamepadCharge : HoldJumpSource.Keyboard);
+        }
     }
 
-    // Внешние пинки (поршни/ветер/пар)
-    public void ExternalPistonLaunch(Vector2 dir, float force, bool resetAlongBefore)
+    private void PerformJump(float vx, float vy)
     {
-        if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
-        dir = dir.normalized;
-
-        Vector2 v = rb.velocity;
-        float vAlong = Vector2.Dot(v, dir);
-        Vector2 vOrtho = v - vAlong * dir;
-
-        if (resetAlongBefore) vAlong = 0f;
-
-        float finalAlong = force;
-        rb.velocity = vOrtho + dir * finalAlong;
-
-        isGrounded = false;
-        takeoffLockUntil = Time.time + 0.08f;
-        groundCheckDisableUntil = Time.time + 0.08f;
-
-        airVx = rb.velocity.x;
-        jumpStartSpeed = rb.velocity.x;
-        lastJumpVerticalForce = Mathf.Abs(rb.velocity.y);
-
         lastJumpTime = Time.time;
+        lastAppliedJumpForce = vy;
 
-        isJumpHoldActive = false;
-        isChargingJump = false;
-        currentHoldJumpSource = HoldJumpSource.None;
-        UpdateJumpBar(0f);
+        rb.velocity = new Vector2(vx + externalWindVX, vy);
+
+        airVx = vx;
+        lastBounceTime = Time.time;
     }
 
-    public void AllowAirControlFor(float seconds)
+    private void StartFatigue()
     {
-        airControlUnlockUntil = Mathf.Max(airControlUnlockUntil, Time.time + Mathf.Max(0f, seconds));
+        fatigueEndTime = Time.time + fatigueDuration;
+    }
+
+    private bool IsFatigued()
+    {
+        return Time.time < fatigueEndTime;
+    }
+
+    private bool IsAirborne()
+    {
+        return !isGrounded;
+    }
+
+    private bool IsGroundMovementAllowed()
+    {
+        return !isJumpHoldActive && !isChargingJump;
+    }
+
+    public void AllowAirControlFor(float duration)
+    {
+        airControlUnlockUntil = Mathf.Max(airControlUnlockUntil, Time.time + Mathf.Max(0f, duration));
+    }
+
+    public void AddExternalWind(float vx)
+    {
+        externalWindVX += vx;
     }
 
     private void ApplyMovement()
@@ -687,270 +752,43 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    private bool IsAirborne() => !isGrounded || Time.time < takeoffLockUntil;
-    private bool IsGroundMovementAllowed() => isGrounded && Time.time >= takeoffLockUntil;
-
     private void Flip()
     {
         isFacingRight = !isFacingRight;
-        if (!visualRoot) return;
-
-        var s = visualRoot.localScale;
-        s.x = Mathf.Abs(s.x) * (isFacingRight ? 1f : -1f);
-        visualRoot.localScale = s;
+        Vector3 s = transform.localScale;
+        s.x *= -1f;
+        transform.localScale = s;
     }
 
-    private bool IsJumpButtonHeldNow()
+    private void ApplyMobileUIVisibility()
     {
-        if (useMobileControls) return mobileJumpHeld;
-
-        return Input.GetKey(jumpKey) ||
-               (useGamepadJump && Input.GetKey(gamepadChargeJumpKey));
+        if (mobileJoystick != null) mobileJoystick.gameObject.SetActive(useMobileControls);
+        if (mobileJumpButton != null) mobileJumpButton.gameObject.SetActive(useMobileControls);
     }
 
-    // ==== Grounded с Edge-Assist ====
-    private void CheckGrounded()
+    private void OnMobileJumpDown()
     {
-        if (Time.time < groundCheckDisableUntil)
-        {
-            isGrounded = false;
-            currentPlatform = null;
-            platformVX = 0f;
-            return;
-        }
-
-        Collider2D groundCol = null;
-
-        // 1) Базовый GroundCheck
-        if (useBoxGroundCheck)
-        {
-            Vector2 center = (Vector2)transform.TransformPoint(groundBoxOffset);
-            Vector2 size = new Vector2(
-                groundBoxSize.x * Mathf.Abs(transform.lossyScale.x),
-                groundBoxSize.y * Mathf.Abs(transform.lossyScale.y)
-            );
-            groundCol = Physics2D.OverlapBox(center, size, 0f, groundMask);
-        }
-        else
-        {
-            if (groundCheck != null)
-                groundCol = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
-        }
-
-        bool grounded = groundCol != null;
-
-        // 2) Узкие зонды под краями стоп
-        if (!grounded && useEdgeAssist)
-        {
-            Vector2 feetCenter = (useBoxGroundCheck)
-                ? (Vector2)transform.TransformPoint(groundBoxOffset)
-                : (groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position);
-
-            float width = (useBoxGroundCheck ? groundBoxSize.x : groundCheckRadius * 2f) * Mathf.Abs(transform.lossyScale.x);
-
-            float half = Mathf.Max(0.05f, edgeProbeHalfWidth);
-            float y = feetCenter.y - 0.001f;
-            Vector2 leftPos = new Vector2(feetCenter.x - half, y);
-            Vector2 rightPos = new Vector2(feetCenter.x + half, y);
-            Vector2 probeSize = new Vector2(Mathf.Min(half * 0.9f, width * 0.5f), edgeProbeHeight);
-
-            Collider2D edgeCol = Physics2D.OverlapBox(leftPos, probeSize, 0f, groundMask);
-            if (!edgeCol)
-                edgeCol = Physics2D.OverlapBox(rightPos, probeSize, 0f, groundMask);
-
-            if (edgeCol != null)
-            {
-                grounded = true;
-                groundCol = edgeCol;
-            }
-        }
-
-        // 3) Снап-лучи вниз (центр/лево/право)
-        float effSnap = Mathf.Min(Mathf.Max(0f, snapProbeDistance), Mathf.Max(0.001f, snapProbeDistanceMax));
-
-        if (!grounded && useEdgeAssist && effSnap > 0.001f && rb != null && rb.velocity.y <= snapOnlyWhenFallingY)
-        {
-            int hits = 0;
-
-            RaycastHit2D hCenter = Physics2D.Raycast(transform.position, Vector2.down, effSnap, groundMask);
-            if (hCenter && hCenter.normal.y >= snapMinNormalY) { groundCol = hCenter.collider; hits++; }
-
-            if (hits == 0)
-            {
-                Vector2 feetCenter = (useBoxGroundCheck)
-                    ? (Vector2)transform.TransformPoint(groundBoxOffset)
-                    : (groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position);
-
-                float half = Mathf.Max(0.05f, edgeProbeHalfWidth);
-                Vector2 left = new Vector2(feetCenter.x - half, transform.position.y);
-                Vector2 right = new Vector2(feetCenter.x + half, transform.position.y);
-
-                RaycastHit2D hL = Physics2D.Raycast(left, Vector2.down, effSnap, groundMask);
-                if (hL && hL.normal.y >= snapMinNormalY) { groundCol = hL.collider; hits++; }
-
-                if (hits == 0)
-                {
-                    RaycastHit2D hR = Physics2D.Raycast(right, Vector2.down, effSnap, groundMask);
-                    if (hR && hR.normal.y >= snapMinNormalY) { groundCol = hR.collider; hits++; }
-                }
-            }
-
-            if (hits > 0) grounded = true;
-        }
-
-        isGrounded = grounded;
-        lastGroundCol = groundCol;
-
-        if (isGrounded)
-        {
-            lastGroundedTime = Time.time;
-
-            // JUMP BUFFER CHECK
-            if (!isJumpHoldActive &&
-                (Time.time - lastJumpPressedTime) <= jumpBufferTime &&
-                !IsFatigued())
-            {
-                if (bufferedJumpKind == BufferedJumpKind.Short)
-                {
-                    // Короткий прыжок по буферу
-                    if (TryPerformDedicatedShortJump())
-                        return; // важно: не перетираем состояние после прыжка ниже
-                }
-                else
-                {
-                    // Обычный буфер: начинаем hold (клава/геймпад заряд/мобилка)
-                    BeginJumpHold(bufferedHoldFromGamepadCharge ? HoldJumpSource.GamepadCharge : HoldJumpSource.Keyboard);
-                }
-            }
-
-            airVx = 0f;
-            airControlUnlockUntil = 0f;
-
-            isOnIce = lastGroundCol != null && lastGroundCol.CompareTag("Ice");
-
-            currentPlatform = lastGroundCol ? lastGroundCol.GetComponentInParent<MovingPlatform2D>() : null;
-            platformVX = (currentPlatform != null && currentPlatform.parentRider) ? currentPlatform.FrameVelocity.x : 0f;
-
-            if (!IsJumpButtonHeldNow()) UpdateJumpBar(0f);
-        }
-        else
-        {
-            isOnIce = false;
-            currentPlatform = null;
-            platformVX = 0f;
-        }
+        mobileJumpHeld = true;
     }
 
-    private void OnCollisionEnter2D(Collision2D collision)
+    private void OnMobileJumpUp()
     {
-        if (collision.gameObject.CompareTag("Ground"))
-        {
-            isGrounded = true;
-            isChargingJump = false;
-            isJumpHoldActive = false;
-            currentHoldJumpSource = HoldJumpSource.None;
-        }
-        else if (collision.gameObject.CompareTag("Wall"))
-        {
-            if (!CanWallBounceNow()) return;
-            if (collision.contactCount <= 0) return;
-
-            // ===== FIX: берём самый "боковой" контакт (на углах contacts[0] часто плохой) =====
-            Vector2 bestNormal = collision.contacts[0].normal;
-            float bestAbsX = Mathf.Abs(bestNormal.x);
-
-            for (int i = 1; i < collision.contactCount; i++)
-            {
-                Vector2 n = collision.contacts[i].normal;
-                float ax = Mathf.Abs(n.x);
-                if (ax > bestAbsX)
-                {
-                    bestAbsX = ax;
-                    bestNormal = n;
-                }
-            }
-            // ===============================================================================
-
-            if (bestAbsX >= Mathf.Clamp01(wallNormalMinAbsX))
-            {
-                float jumpForce = Mathf.Max(lastJumpVerticalForce, Mathf.Abs(rb.velocity.y));
-                BounceOffWall(jumpForce, bestNormal);
-            }
-        }
-        else if (collision.gameObject.CompareTag("Ceiling"))
-        {
-            BounceOffCeiling();
-        }
-    }
-
-    private bool CanWallBounceNow()
-    {
-        if (rb == null) return false;
-
-        if (isChargingJump) return false;
-
-        if (isGrounded && Mathf.Abs(rb.velocity.y) < wallBounceMinAbsY)
-            return false;
-
-        if (Mathf.Abs(rb.velocity.y) >= wallBounceMinAbsY)
-            return true;
-
-        if ((Time.time - lastJumpTime) <= wallBounceApexWindow)
-            return true;
-
-        if ((Time.time - lastGroundedTime) > 0.05f)
-            return true;
-
-        return false;
-    }
-
-    private void BounceOffWall(float jumpForce, Vector2 wallNormal)
-    {
-        float currentDamping = (Time.time - lastJumpTime < dampingExclusionTime) ? 1f : damping;
-
-        float wallBounceForce = Mathf.Max(0f, jumpForce) * wallBounceFraction * currentDamping;
-
-        float dir = Mathf.Sign(wallNormal.x);
-        if (Mathf.Approximately(dir, 0f))
-            dir = isFacingRight ? -1f : 1f;
-
-        float newVx = dir * wallBounceForce;
-
-        rb.velocity = new Vector2(newVx, rb.velocity.y);
-        airVx = newVx;
-
-        if (Mathf.Abs(newVx) > flipDeadZone)
-        {
-            bool faceRight = newVx > 0f;
-            if (faceRight != isFacingRight) Flip();
-        }
-
-        takeoffLockUntil = Time.time + 0.02f;
-        groundCheckDisableUntil = Time.time + 0.02f;
-    }
-
-    private void BounceOffCeiling()
-    {
-        rb.velocity = new Vector2(rb.velocity.x, -Mathf.Abs(rb.velocity.y));
+        mobileJumpHeld = false;
     }
 
     private void UpdateJumpBar(float normalized)
     {
-        bool show = normalized > 0f;
+        if (jumpBarFill != null) jumpBarFill.fillAmount = Mathf.Clamp01(normalized);
 
-        if (jumpBarFill != null)
-        {
-            jumpBarFill.enabled = show;
-            jumpBarFill.fillAmount = Mathf.Clamp01(normalized);
-        }
-        if (jumpBarBG != null)
-            jumpBarBG.enabled = show;
+        bool show = normalized > 0f || isJumpHoldActive || isChargingJump;
+        if (jumpBarFill != null) jumpBarFill.enabled = show;
+        if (jumpBarBG != null) jumpBarBG.enabled = show;
     }
 
     private void UpdateJumpBarPosition()
     {
-        if ((jumpBarFill == null && jumpBarBG == null) || mainCamera == null || uiCanvas == null)
-            return;
+        if (jumpBarFill == null && jumpBarBG == null) return;
+        if (mainCamera == null || uiCanvas == null) return;
 
         Vector3 worldPos = transform.position + barOffset;
         Vector3 screenPos = mainCamera.WorldToScreenPoint(worldPos);
@@ -958,107 +796,179 @@ public class PlayerController : MonoBehaviour
         RectTransform canvasRect = uiCanvas.transform as RectTransform;
         if (canvasRect == null) return;
 
-        Vector2 uiPos;
-        Camera camForUI = (uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay) ? null : uiCanvas.worldCamera;
+        Vector2 localPoint;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screenPos, uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : mainCamera, out localPoint);
 
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screenPos, camForUI, out uiPos);
-
-        if (jumpBarFill != null)
-            jumpBarFill.rectTransform.anchoredPosition = uiPos;
-        if (jumpBarBG != null)
-            jumpBarBG.rectTransform.anchoredPosition = uiPos;
+        if (jumpBarFill != null) jumpBarFill.rectTransform.anchoredPosition = localPoint;
+        if (jumpBarBG != null) jumpBarBG.rectTransform.anchoredPosition = localPoint;
     }
 
     private void UpdateFatigueUI()
     {
         if (fatigueImage == null) return;
 
-        if (IsFatigued())
-        {
-            float total = Mathf.Max(fatigueDuration, 0.0001f);
-            float timeLeft = Mathf.Clamp(fatigueEndTime - Time.time, 0f, total);
-            float normalized = timeLeft / total;
-            SetFatigueImageActive(true, normalized);
-        }
-        else
-        {
-            SetFatigueImageActive(false, 0f);
-        }
-    }
-
-    private void SetFatigueImageActive(bool active, float alpha01)
-    {
-        var go = fatigueImage.gameObject;
-        if (go.activeSelf != active) go.SetActive(active);
-
-        var c = fatigueImage.color;
-        c.a = Mathf.Clamp01(alpha01);
+        float alpha = IsFatigued() ? 1f : 0f;
+        Color c = fatigueImage.color;
+        c.a = alpha;
         fatigueImage.color = c;
     }
 
-    private bool IsFatigued() => Time.time < fatigueEndTime;
-
-    private void StartFatigue()
+    private void CheckGrounded()
     {
-        fatigueEndTime = Time.time + fatigueDuration;
-        SetFatigueImageActive(true, 1f);
+        wasGroundedLastFrame = isGrounded;
+
+        Vector2 origin = (Vector2)transform.position + groundBoxOffset;
+
+        bool grounded = false;
+        Collider2D col = null;
+
+        if (useBoxGroundCheck)
+        {
+            col = Physics2D.OverlapBox(origin, groundBoxSize, 0f, groundMask);
+            grounded = col != null;
+        }
+        else
+        {
+            Vector2 p = groundCheck ? (Vector2)groundCheck.position : origin;
+            col = Physics2D.OverlapCircle(p, groundCheckRadius, groundMask);
+            grounded = col != null;
+        }
+
+        if (!grounded && useEdgeAssist)
+        {
+            if (rb.velocity.y <= snapOnlyWhenFallingY)
+            {
+                float half = Mathf.Max(0.05f, edgeProbeHalfWidth);
+                float y = origin.y - 0.001f;
+                Vector2 size = new Vector2(half * 0.9f, edgeProbeHeight);
+
+                Collider2D leftProbe = Physics2D.OverlapBox(new Vector2(origin.x - half, y), size, 0f, groundMask);
+                Collider2D rightProbe = Physics2D.OverlapBox(new Vector2(origin.x + half, y), size, 0f, groundMask);
+
+                if (leftProbe != null || rightProbe != null)
+                {
+                    float dist = Mathf.Min(snapProbeDistance, snapProbeDistanceMax);
+
+                    RaycastHit2D hit = Physics2D.Raycast(transform.position, Vector2.down, dist, groundMask);
+                    if (hit.collider != null && hit.normal.y >= snapMinNormalY)
+                    {
+                        grounded = true;
+                        col = hit.collider;
+                    }
+                    else
+                    {
+                        RaycastHit2D hitL = Physics2D.Raycast(new Vector2(origin.x - half, transform.position.y), Vector2.down, dist, groundMask);
+                        if (hitL.collider != null && hitL.normal.y >= snapMinNormalY) { grounded = true; col = hitL.collider; }
+
+                        if (!grounded)
+                        {
+                            RaycastHit2D hitR = Physics2D.Raycast(new Vector2(origin.x + half, transform.position.y), Vector2.down, dist, groundMask);
+                            if (hitR.collider != null && hitR.normal.y >= snapMinNormalY) { grounded = true; col = hitR.collider; }
+                        }
+                    }
+                }
+            }
+        }
+
+        isGrounded = grounded;
+
+        if (isGrounded)
+        {
+            lastGroundedTime = Time.time;
+            lastGroundCol = col;
+        }
+
+        if (!wasGroundedLastFrame && isGrounded)
+        {
+            TryConsumeJumpBuffer();
+        }
+
+        if (lastGroundCol != null)
+        {
+            isOnIce = lastGroundCol.CompareTag("Ice");
+
+            var eff = lastGroundCol.GetComponent<SurfaceEffector2D>();
+            if (eff != null)
+                platformVX = eff.speed;
+            else
+                platformVX = 0f;
+        }
+        else
+        {
+            isOnIce = false;
+            platformVX = 0f;
+        }
     }
 
-    private void OnMobileJumpDown()
+    private void OnCollisionEnter2D(Collision2D collision)
     {
-        mobileJumpHeld = true;
-        lastJumpPressedTime = Time.time;
-        bufferedJumpKind = BufferedJumpKind.Hold;
-        bufferedHoldFromGamepadCharge = false;
-
-        if (!isJumpHoldActive && CanStartJumpCharge())
-            BeginJumpHold(HoldJumpSource.Mobile);
+        HandleBounce(collision);
     }
 
-    private void OnMobileJumpUp()
+    private void OnCollisionStay2D(Collision2D collision)
     {
-        mobileJumpHeld = false;
-        if (isJumpHoldActive)
-            ReleaseJumpHoldAndJump();
+        HandleBounce(collision);
     }
 
-    private void ApplyMobileUIVisibility()
+    private void HandleBounce(Collision2D collision)
     {
-        prevUseMobileControls = useMobileControls;
+        if (collision == null) return;
+        if (Time.time - lastBounceTime < 0.02f) return;
 
-        bool showMobile = useMobileControls;
-        if (mobileJoystick != null) mobileJoystick.gameObject.SetActive(showMobile);
-        if (mobileJumpButton != null) mobileJumpButton.gameObject.SetActive(showMobile);
+        if (collision.contactCount <= 0) return;
+
+        ContactPoint2D cp = collision.GetContact(0);
+        Vector2 n = cp.normal;
+
+        bool isWall = Mathf.Abs(n.x) >= wallNormalMinAbsX && n.y < 0.6f;
+        bool isCeil = n.y <= -0.6f;
+
+        if (!isWall && !isCeil) return;
+
+        float absY = Mathf.Abs(rb.velocity.y);
+        bool allowApex = (Time.time - lastJumpTime) <= wallBounceApexWindow;
+
+        if (!allowApex && absY < wallBounceMinAbsY)
+            return;
+
+        float bounce = lastAppliedJumpForce * wallBounceFraction;
+        if ((Time.time - lastJumpTime) > dampingExclusionTime)
+            bounce *= damping;
+
+        if (isWall)
+        {
+            float dir = Mathf.Sign(n.x);
+            rb.velocity = new Vector2(bounce * dir, rb.velocity.y);
+            lastBounceTime = Time.time;
+        }
+        else if (isCeil)
+        {
+            rb.velocity = new Vector2(rb.velocity.x, -Mathf.Abs(rb.velocity.y));
+            lastBounceTime = Time.time;
+        }
     }
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.yellow;
+        Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.6f);
 
         if (useBoxGroundCheck)
         {
-            Vector2 center = Application.isPlaying
-                ? (Vector2)transform.TransformPoint(groundBoxOffset)
-                : (Vector2)(transform.position + (Vector3)groundBoxOffset);
-
-            Vector2 size = new Vector2(
-                groundBoxSize.x * Mathf.Abs(transform.lossyScale.x),
-                groundBoxSize.y * Mathf.Abs(transform.lossyScale.y)
-            );
-
-            Gizmos.DrawWireCube(center, size);
+            Vector2 origin = (Vector2)transform.position + groundBoxOffset;
+            Gizmos.DrawWireCube(origin, groundBoxSize);
         }
         else
         {
-            if (groundCheck != null)
-                Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+            Vector2 p = groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position;
+            Gizmos.DrawWireSphere(p, groundCheckRadius);
         }
 
         if (useEdgeAssist)
         {
-            Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.6f);
-            Vector2 feetCenter = (useBoxGroundCheck)
-                ? (Vector2)transform.TransformPoint(groundBoxOffset)
+            Gizmos.color = new Color(1f, 0.7f, 0.2f, 0.6f);
+
+            Vector2 feetCenter = useBoxGroundCheck
+                ? (Vector2)transform.position + groundBoxOffset
                 : (groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position);
 
             float half = Mathf.Max(0.05f, edgeProbeHalfWidth);
@@ -1108,7 +1018,158 @@ public class PlayerController : MonoBehaviour
         snowJumpMul = Mathf.Clamp01(j);
     }
 
-    public void SetInputEnabled(bool enabled) { }
+    public void SetInputEnabled(bool enabled)
+    {
+        gameplayInputEnabled = enabled;
+
+        if (!enabled)
+        {
+            waitForGameplayInputRelease = false;
+            gameplayInputUnlockAtUnscaled = -1f;
+            ResetGameplayInputState(true);
+            return;
+        }
+
+        ResetGameplayInputState(true);
+
+        if (waitReleaseAfterInputEnable)
+        {
+            waitForGameplayInputRelease = true;
+            gameplayInputUnlockAtUnscaled = Time.unscaledTime + Mathf.Max(0f, postMenuInputUnlockDelay);
+        }
+        else
+        {
+            waitForGameplayInputRelease = false;
+            gameplayInputUnlockAtUnscaled = Time.unscaledTime + Mathf.Max(0f, postMenuInputUnlockDelay);
+        }
+    }
+
+    private bool IsGameplayInputAllowedThisFrame()
+    {
+        if (!gameplayInputEnabled)
+            return false;
+
+        if (waitForGameplayInputRelease)
+        {
+            if (AreAnyGameplayInputsStillHeld())
+                return false;
+
+            waitForGameplayInputRelease = false;
+            gameplayInputUnlockAtUnscaled = Time.unscaledTime + Mathf.Max(0f, postMenuInputUnlockDelay);
+            return false;
+        }
+
+        if (Time.unscaledTime < gameplayInputUnlockAtUnscaled)
+            return false;
+
+        return true;
+    }
+
+    private bool AreAnyGameplayInputsStillHeld()
+    {
+        if (useMobileControls)
+        {
+            if (mobileJumpHeld)
+                return true;
+
+            if (mobileJoystick != null && Mathf.Abs(mobileJoystick.Horizontal) > inputReleaseAxisDeadZone)
+                return true;
+
+            return false;
+        }
+
+        var rebind = (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null) ? LegacyKeycodeRebind.I : null;
+
+        if (rebind != null)
+        {
+            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveLeft)) return true;
+            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveRight)) return true;
+            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold)) return true;
+            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpShort)) return true;
+
+            if (useGamepadJump)
+            {
+                if (rebind.GetHeld(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold)) return true;
+                if (rebind.GetHeld(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpShort)) return true;
+            }
+        }
+        else
+        {
+            if (Input.GetKey(leftKey) || Input.GetKey(rightKey) || Input.GetKey(jumpKey))
+                return true;
+
+            if (useGamepadJump && (Input.GetKey(gamepadChargeJumpKey) || Input.GetKey(gamepadShortJumpKey)))
+                return true;
+        }
+
+        if (useInputManagerAxisFallback && Mathf.Abs(Input.GetAxisRaw("Horizontal")) > inputReleaseAxisDeadZone)
+            return true;
+
+        return false;
+    }
+
+    private void ResetGameplayInputState(bool clearMobileHold)
+    {
+        inputX = 0f;
+
+        lastJumpPressedTime = -999f;
+        bufferedJumpKind = BufferedJumpKind.None;
+        bufferedHoldFromGamepadCharge = false;
+
+        jumpButtonDownTime = 0f;
+        jumpStartHoldTime = 0f;
+
+        if (clearMobileHold)
+            mobileJumpHeld = false;
+
+        CancelJumpCharge();
+    }
+
+
+    // ==== Public API для JumpTrajectory2D ====
+
+    public bool IsChargingJumpPublic
+    {
+        get
+        {
+            // Показываем траекторию, пока игрок держит кнопку прыжка:
+            // до входа в заряд это будет короткий прыжок,
+            // после входа в заряд — уже заряжаемый прыжок.
+            return isJumpHoldActive || isChargingJump;
+        }
+    }
+
+    public Vector2 GetPredictedJumpVelocity()
+    {
+        float speedMul = IsFatigued() ? fatigueSpeedMultiplier : 1f;
+
+        float predictedVx =
+            platformVX +
+            (isFacingRight ? 1f : -1f) * moveSpeed * speedMul * snowMoveMul +
+            externalWindVX;
+
+        float predictedVy;
+
+        if (!isChargingJump)
+        {
+            // Пока заряд ещё не начался — показываем слабый прыжок.
+            predictedVy = shortJumpForce * snowJumpMul;
+        }
+        else
+        {
+            float hold = Mathf.Clamp(Time.time - jumpStartHoldTime, 0f, jumpTimeLimit);
+            float normalized = Mathf.Clamp01(hold / jumpTimeLimit);
+            predictedVy = normalized * maxJumpForce * snowJumpMul;
+        }
+
+        return new Vector2(predictedVx, predictedVy);
+    }
+
+    public float GetGravityScale()
+    {
+        return rb != null ? rb.gravityScale : 1f;
+    }
+
 }
 
 public class PointerHoldHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler

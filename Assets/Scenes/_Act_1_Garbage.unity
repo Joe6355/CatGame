@@ -893,7 +893,7 @@ Transform:
   m_GameObject: {fileID: 211992295}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -4.065813, y: 3.3912868, z: 9.905232}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -911,10 +911,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2d9b3bd0318e96840b7d8ad71fac2156, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  ShaderName: Learning Unity Shader/Lecture 15/RapidBlurEffect
   CurShader: {fileID: 4800000, guid: 9148487883933c84087d4e5cf90bacd2, type: 3}
-  DownSampleNum: 2
-  BlurSpreadSize: 3
-  BlurIterations: 3
+  DownSampleNum: 0
+  BlurSpreadSize: 0.9
+  BlurIterations: 2
+  referenceCamera: {fileID: 1384799366}
+  forceExactCameraMatch: 1
+  syncTransformWithReference: 1
+  syncViewportRect: 1
+  syncLensSettings: 1
 --- !u!81 &211992298
 AudioListener:
   m_ObjectHideFlags: 0
@@ -934,7 +940,7 @@ Camera:
   serializedVersion: 2
   m_ClearFlags: 2
   m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
-  m_projectionMatrixMode: 1
+  m_projectionMatrixMode: 0
   m_GateFitMode: 2
   m_FOVAxisMode: 0
   m_Iso: 200
@@ -956,9 +962,9 @@ Camera:
     height: 1
   near clip plane: 0.3
   far clip plane: 1000
-  field of view: 60
+  field of view: 67.67275
   orthographic: 0
-  orthographic size: 5
+  orthographic size: 5.625
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -4901,7 +4907,7 @@ Transform:
   m_GameObject: {fileID: 1011144432}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 21.050522, y: -1.6692768, z: -10}
+  m_LocalPosition: {x: 22.157494, y: -1.6692768, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -7712,7 +7718,7 @@ Transform:
   m_GameObject: {fileID: 1384799365}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 21.050522, y: -1.6692768, z: -10}
+  m_LocalPosition: {x: 22.157494, y: -1.6692768, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

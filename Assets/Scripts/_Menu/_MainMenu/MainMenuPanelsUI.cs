@@ -74,15 +74,28 @@ public class MainMenuPanelsUI : MonoBehaviour
     [SerializeField, Tooltip("Если нажать Back в главном меню — открыть диалог выхода.")]
     private bool openExitDialogOnBackFromMain = true;
 
-    [Header("Mouse hover sync (фикс двойной подсветки)")]
+    [Header("Legacy Rebind (KeyCode)")]
+    [SerializeField, Tooltip("Если ВКЛ и в сцене есть LegacyKeycodeRebind — Back читается из него (с учётом ребинда и сохранения).")]
+    private bool useLegacyKeycodeRebind = true;
+
+    [Header("Mouse hover sync")]
     [SerializeField, Tooltip("При наведении мышью делать кнопку currentSelected, чтобы не было двойной подсветки.")]
     private bool selectHoveredButtonWithMouse = true;
 
-    [SerializeField, Tooltip("Обновлять hover->selected только когда мышь реально двигается.")]
+    [SerializeField, Tooltip("Обновлять hover -> selected только когда мышь реально двигается.")]
     private bool syncMouseOnlyWhenMoved = true;
+
+    [SerializeField, Tooltip("Когда игрок начал пользоваться клавиатурой/геймпадом — hover мыши временно отключается, пока мышь снова не сдвинется.")]
+    private bool disableMouseHoverWhileUsingNavigation = true;
 
     private Coroutine _selectRoutine;
     private Vector3 _lastMousePosition;
+    private bool _mouseMovedThisFrame;
+    private bool _mouseInputActive = true;
+    private Button _lastHoveredButton;
+    private float _prevHorizontalAxis;
+    private float _prevVerticalAxis;
+
     private readonly List<RaycastResult> _mouseRaycastResults = new List<RaycastResult>(16);
 
     private void Awake()
@@ -96,10 +109,9 @@ public class MainMenuPanelsUI : MonoBehaviour
         }
         else
         {
-            // Минимум: диалог выхода скрываем
-            if (exitConfirmDialog != null) exitConfirmDialog.SetActive(false);
+            if (exitConfirmDialog != null)
+                exitConfirmDialog.SetActive(false);
 
-            // И на всякий случай возвращаем интерактивность главного меню
             SetMainMenuInteractable(true);
         }
     }
@@ -107,6 +119,7 @@ public class MainMenuPanelsUI : MonoBehaviour
     private void Start()
     {
         _lastMousePosition = Input.mousePosition;
+        _mouseInputActive = Input.mousePresent;
 
         if (enableUiNavigation)
             SelectCurrentPanelDefault();
@@ -126,6 +139,8 @@ public class MainMenuPanelsUI : MonoBehaviour
             _selectRoutine = null;
         }
 
+        ClearMouseHoverVisual();
+
         if (EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(null);
     }
@@ -135,11 +150,14 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (!enableUiNavigation)
             return;
 
-        // Back / Cancel с клавы или геймпада
+        if (IsRebindBlockingUi())
+            return;
+
+        UpdateInputModeState();
+
         if (!IsBackPressed())
             return;
 
-        // Приоритет закрытия: сначала ExitConfirm -> потом панели -> потом выход из Main (опц.)
         if (exitConfirmDialog != null && exitConfirmDialog.activeSelf)
         {
             CloseExitDialog();
@@ -173,34 +191,111 @@ public class MainMenuPanelsUI : MonoBehaviour
     private void LateUpdate()
     {
         if (!enableUiNavigation) return;
+        if (IsRebindBlockingUi()) return;
 
-        // Фикс двойной подсветки (мышь + selected)
-        if (selectHoveredButtonWithMouse)
+        if (selectHoveredButtonWithMouse &&
+            (!disableMouseHoverWhileUsingNavigation || _mouseInputActive))
+        {
             SyncMouseHoverSelection();
+        }
 
         if (restoreSelectionIfLost)
             RestoreSelectionIfNeeded();
     }
 
-    // =========================================================
-    // Wiring (подписка на кнопки)
-    // =========================================================
+    private bool IsRebindBlockingUi()
+    {
+        return useLegacyKeycodeRebind &&
+               LegacyKeycodeRebind.I != null &&
+               LegacyKeycodeRebind.I.IsBlockingOtherUi;
+    }
+
+    private void UpdateInputModeState()
+    {
+        _mouseMovedThisFrame = false;
+
+        if (Input.mousePresent)
+        {
+            Vector3 mousePos = Input.mousePosition;
+
+            if (mousePos != _lastMousePosition)
+            {
+                _mouseMovedThisFrame = true;
+                _mouseInputActive = true;
+                _lastMousePosition = mousePos;
+            }
+        }
+
+        if (!disableMouseHoverWhileUsingNavigation)
+            return;
+
+        if (HasNavigationInputThisFrame())
+        {
+            _mouseInputActive = false;
+            ClearMouseHoverVisual();
+        }
+    }
+
+    private bool HasNavigationInputThisFrame()
+    {
+        bool keyNav =
+            Input.GetKeyDown(KeyCode.UpArrow) ||
+            Input.GetKeyDown(KeyCode.DownArrow) ||
+            Input.GetKeyDown(KeyCode.LeftArrow) ||
+            Input.GetKeyDown(KeyCode.RightArrow) ||
+            Input.GetKeyDown(KeyCode.W) ||
+            Input.GetKeyDown(KeyCode.A) ||
+            Input.GetKeyDown(KeyCode.S) ||
+            Input.GetKeyDown(KeyCode.D) ||
+            Input.GetKeyDown(KeyCode.Tab) ||
+            Input.GetKeyDown(KeyCode.Return) ||
+            Input.GetKeyDown(KeyCode.KeypadEnter) ||
+            Input.GetKeyDown(KeyCode.Space) ||
+            Input.GetKeyDown(gamepadBackKey);
+
+        float h = Input.GetAxisRaw("Horizontal");
+        float v = Input.GetAxisRaw("Vertical");
+
+        bool axisNav =
+            (Mathf.Abs(h) > 0.5f && Mathf.Abs(_prevHorizontalAxis) <= 0.5f) ||
+            (Mathf.Abs(v) > 0.5f && Mathf.Abs(_prevVerticalAxis) <= 0.5f);
+
+        _prevHorizontalAxis = h;
+        _prevVerticalAxis = v;
+
+        return keyNav || axisNav;
+    }
+
+    private void ClearMouseHoverVisual()
+    {
+        if (_lastHoveredButton == null)
+            return;
+
+        if (EventSystem.current != null && _lastHoveredButton.gameObject != null)
+        {
+            PointerEventData pointerData = new PointerEventData(EventSystem.current)
+            {
+                position = new Vector2(-100000f, -100000f)
+            };
+
+            ExecuteEvents.Execute(_lastHoveredButton.gameObject, pointerData, ExecuteEvents.pointerExitHandler);
+        }
+
+        _lastHoveredButton = null;
+    }
 
     private void WireButtons()
     {
-        // Main menu
-        Bind(newGameButton, LoadNewGameScene); // опционально
+        Bind(newGameButton, LoadNewGameScene);
         Bind(openContinueButton, OpenContinue);
         Bind(openControlButton, OpenControl);
         Bind(openSettingsButton, OpenSettings);
         Bind(quitButton, OpenExitDialog);
 
-        // Backs
         Bind(continueBackButton, BackToMain);
         Bind(controlBackButton, BackToMain);
         Bind(settingsBackButton, BackToMain);
 
-        // Exit confirm
         Bind(exitNoButton, CloseExitDialog);
         Bind(exitYesButton, QuitGame);
     }
@@ -209,14 +304,9 @@ public class MainMenuPanelsUI : MonoBehaviour
     {
         if (btn == null) return;
 
-        // Без дублей обработчиков
         btn.onClick.RemoveListener(action);
         btn.onClick.AddListener(action);
     }
-
-    // =========================================================
-    // Public API (можно вешать на OnClick в инспекторе)
-    // =========================================================
 
     public void LoadNewGameScene()
     {
@@ -258,9 +348,7 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (exitConfirmDialog != null)
             exitConfirmDialog.SetActive(true);
 
-        // Блокируем взаимодействие с main menu, пока открыт модальный диалог
         SetMainMenuInteractable(false);
-
         SelectButtonDeferred(exitConfirmFirstSelected ? exitConfirmFirstSelected : exitNoButton);
     }
 
@@ -269,9 +357,7 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (exitConfirmDialog != null)
             exitConfirmDialog.SetActive(false);
 
-        // Возвращаем взаимодействие с main menu
         SetMainMenuInteractable(true);
-
         SelectCurrentPanelDefault();
     }
 
@@ -284,10 +370,6 @@ public class MainMenuPanelsUI : MonoBehaviour
 #endif
     }
 
-    // =========================================================
-    // Panels helpers
-    // =========================================================
-
     private void ShowMainOnly()
     {
         if (mainPanel != null) mainPanel.SetActive(true);
@@ -298,7 +380,6 @@ public class MainMenuPanelsUI : MonoBehaviour
 
         if (exitConfirmDialog != null) exitConfirmDialog.SetActive(false);
 
-        // На главной панели всё снова интерактивно
         SetMainMenuInteractable(true);
     }
 
@@ -312,24 +393,17 @@ public class MainMenuPanelsUI : MonoBehaviour
 
         if (exitConfirmDialog != null) exitConfirmDialog.SetActive(false);
 
-        // Подстраховка: если вдруг main был заблокирован модалкой — вернём интерактивность
         SetMainMenuInteractable(true);
     }
 
-    // =========================================================
-    // Modal blocking helpers (чтобы кнопки сзади не выбирались)
-    // =========================================================
-
     private void SetMainMenuInteractable(bool value)
     {
-        // Лучший вариант: CanvasGroup на Main_Panel
         if (mainPanelCanvasGroup != null)
         {
             mainPanelCanvasGroup.interactable = value;
             mainPanelCanvasGroup.blocksRaycasts = value;
         }
 
-        // Подстраховка по кнопкам (работает даже без CanvasGroup)
         SetButtonInteractable(newGameButton, value);
         SetButtonInteractable(openContinueButton, value);
         SetButtonInteractable(openControlButton, value);
@@ -343,12 +417,11 @@ public class MainMenuPanelsUI : MonoBehaviour
             btn.interactable = value;
     }
 
-    // =========================================================
-    // UI Navigation (keyboard / gamepad)
-    // =========================================================
-
     private bool IsBackPressed()
     {
+        if (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null)
+            return LegacyKeycodeRebind.I.GetDownAny(LegacyKeycodeRebind.Action.Back);
+
         if (Input.GetKeyDown(keyboardBackKey))
             return true;
 
@@ -372,14 +445,12 @@ public class MainMenuPanelsUI : MonoBehaviour
     {
         if (!enableUiNavigation) return;
 
-        // 1) Exit dialog (если открыт)
         if (exitConfirmDialog != null && exitConfirmDialog.activeSelf)
         {
             SelectButtonDeferred(exitConfirmFirstSelected ? exitConfirmFirstSelected : exitNoButton);
             return;
         }
 
-        // 2) Подпанели
         if (continuePanel != null && continuePanel.activeSelf)
         {
             SelectButtonDeferred(continueFirstSelected ? continueFirstSelected : continueBackButton);
@@ -398,7 +469,6 @@ public class MainMenuPanelsUI : MonoBehaviour
             return;
         }
 
-        // 3) Main panel
         if (mainPanel != null && mainPanel.activeSelf)
         {
             SelectButtonDeferred(GetDefaultMainButton());
@@ -409,7 +479,6 @@ public class MainMenuPanelsUI : MonoBehaviour
     {
         if (mainFirstSelected != null) return mainFirstSelected;
 
-        // Фоллбеки (если mainFirstSelected не задан)
         if (newGameButton != null && newGameButton.isActiveAndEnabled && newGameButton.interactable) return newGameButton;
         if (openContinueButton != null && openContinueButton.isActiveAndEnabled && openContinueButton.interactable) return openContinueButton;
         if (openSettingsButton != null && openSettingsButton.isActiveAndEnabled && openSettingsButton.interactable) return openSettingsButton;
@@ -448,7 +517,6 @@ public class MainMenuPanelsUI : MonoBehaviour
         _selectRoutine = null;
     }
 
-    // Явная навигация для Yes/No, чтобы выбор НЕ улетал в кнопки сзади
     private void SetupExitConfirmNavigation()
     {
         if (exitYesButton == null || exitNoButton == null)
@@ -467,35 +535,19 @@ public class MainMenuPanelsUI : MonoBehaviour
         noNav.selectOnLeft = exitYesButton;
         noNav.selectOnRight = exitYesButton;
         noNav.selectOnUp = exitNoButton;
-        noNav.selectOnDown = noButtonSelfOrFallback();
+        noNav.selectOnDown = exitNoButton;
         exitNoButton.navigation = noNav;
-
-        // локальная функция, чтобы не плодить отдельный метод
-        Selectable noButtonSelfOrFallback()
-        {
-            return exitNoButton != null ? exitNoButton : exitYesButton;
-        }
     }
-
-    // =========================================================
-    // Mouse hover -> selected sync (фикс двойной подсветки)
-    // =========================================================
 
     private void SyncMouseHoverSelection()
     {
         if (EventSystem.current == null) return;
         if (!Input.mousePresent) return;
-
-        Vector3 mousePos = Input.mousePosition;
-
-        if (syncMouseOnlyWhenMoved && mousePos == _lastMousePosition)
-            return;
-
-        _lastMousePosition = mousePos;
+        if (syncMouseOnlyWhenMoved && !_mouseMovedThisFrame) return;
 
         PointerEventData pointerData = new PointerEventData(EventSystem.current)
         {
-            position = mousePos
+            position = Input.mousePosition
         };
 
         _mouseRaycastResults.Clear();
@@ -508,21 +560,22 @@ public class MainMenuPanelsUI : MonoBehaviour
             GameObject go = _mouseRaycastResults[i].gameObject;
             if (go == null) continue;
 
-            // Рейкаст часто попадает в Text/Image внутри кнопки — поднимаемся к Button в родителе
             Button btn = go.GetComponentInParent<Button>();
             if (btn == null) continue;
             if (!btn.isActiveAndEnabled || !btn.interactable) continue;
+            if (!IsButtonAllowedInCurrentContext(btn)) continue;
 
             hoveredButton = btn;
             break;
         }
 
-        if (hoveredButton == null) return;
-        if (!hoveredButton.gameObject.activeInHierarchy) return;
-
-        // ВАЖНО: не даём мыши перехватывать кнопки "не того" окна (например, сзади модалки)
-        if (!IsButtonAllowedInCurrentContext(hoveredButton))
+        if (hoveredButton == null)
+        {
+            ClearMouseHoverVisual();
             return;
+        }
+
+        _lastHoveredButton = hoveredButton;
 
         if (EventSystem.current.currentSelectedGameObject == hoveredButton.gameObject)
             return;
@@ -541,11 +594,9 @@ public class MainMenuPanelsUI : MonoBehaviour
     {
         if (btn == null) return false;
 
-        // Если открыт диалог выхода — разрешены только кнопки внутри него
         if (exitConfirmDialog != null && exitConfirmDialog.activeSelf)
             return btn.transform.IsChildOf(exitConfirmDialog.transform);
 
-        // Если открыта одна из панелей — разрешаем только кнопки внутри неё
         if (continuePanel != null && continuePanel.activeSelf)
             return btn.transform.IsChildOf(continuePanel.transform);
 
@@ -555,7 +606,6 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (settingsPanel != null && settingsPanel.activeSelf)
             return btn.transform.IsChildOf(settingsPanel.transform);
 
-        // Иначе — главное меню
         if (mainPanel != null && mainPanel.activeSelf)
             return btn.transform.IsChildOf(mainPanel.transform);
 

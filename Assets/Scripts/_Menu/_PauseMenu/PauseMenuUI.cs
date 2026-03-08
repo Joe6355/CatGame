@@ -9,14 +9,21 @@ using UnityEngine.EventSystems;
 public class PauseMenuUI : MonoBehaviour
 {
     [Header("Root panels")]
-    [SerializeField] private GameObject pauseRoot;        // Dim + всё меню
-    [SerializeField] private GameObject menuPanel;        // панель с кнопками
-    [SerializeField] private GameObject settingsPanel;    // настройки
-    [SerializeField] private GameObject controlsPanel;    // управление
+    [SerializeField] private GameObject pauseRoot;        // затемнение + всё pause-меню
+    [SerializeField] private GameObject menuPanel;        // главное меню паузы
+    [SerializeField] private GameObject settingsPanel;    // панель настроек
+    [SerializeField] private GameObject controlsPanel;    // отдельная панель управления (НЕ вкладка Settings)
+
+    [Header("Settings tabs")]
+    [SerializeField, Tooltip("Скрипт вкладок внутри Settings_Panel. Если не задан — попробует найти внутри settingsPanel.")]
+    private SettingsTabsSwitcher settingsTabsSwitcher;
+
+    [SerializeField, Tooltip("Если settingsTabsSwitcher не задан вручную — попробовать найти его внутри settingsPanel.")]
+    private bool autoFindSettingsTabsSwitcher = true;
 
     [Header("Confirm panels")]
-    [SerializeField] private GameObject exitConfirmPanel;     // подтверждение выхода в меню
-    [SerializeField] private GameObject restartConfirmPanel;  // подтверждение рестарта
+    [SerializeField] private GameObject exitConfirmPanel;
+    [SerializeField] private GameObject restartConfirmPanel;
 
     [Header("Main menu buttons")]
     [SerializeField] private Button continueButton;
@@ -34,25 +41,25 @@ public class PauseMenuUI : MonoBehaviour
     [SerializeField] private Button restartNoButton;
 
     [Header("Back buttons (optional)")]
-    [SerializeField] private Button settingsBackButton;   // кнопка "Назад" в настройках (если есть)
-    [SerializeField] private Button controlsBackButton;   // кнопка "Назад" в управлении (если есть)
+    [SerializeField] private Button settingsBackButton;   // Back внутри Settings_Panel
+    [SerializeField] private Button controlsBackButton;   // Back внутри отдельного ControlsPanel
 
     [Header("Optional Pause Button (mobile/UI)")]
-    [SerializeField] private Button openPauseButton;      // если есть кнопка паузы на экране
+    [SerializeField] private Button openPauseButton;      // кнопка паузы на экране
 
     [Header("Navigation (keyboard / gamepad)")]
     [SerializeField] private bool enableUiNavigation = true;
 
-    [Tooltip("Кнопка 'Назад/Отмена' на геймпаде (обычно B / Circle). Часто это JoystickButton1.")]
+    [Tooltip("Кнопка 'Назад/Отмена' на геймпаде. Обычно B / Circle = JoystickButton1.")]
     [SerializeField] private KeyCode gamepadBackKey = KeyCode.JoystickButton1;
 
-    [Tooltip("Какая кнопка/элемент выделяется при открытии главного меню паузы. Если пусто — будет Continue.")]
+    [Tooltip("Какой элемент выделять при открытии главного меню паузы. Если пусто — Continue.")]
     [SerializeField] private Button pauseMenuFirstSelected;
 
-    [Tooltip("Какая кнопка/элемент выделяется при открытии Settings (например Audio tab button).")]
+    [Tooltip("Какой элемент выделять внутри Settings_Panel, когда открыта вкладка.")]
     [SerializeField] private Button settingsFirstSelected;
 
-    [Tooltip("Какая кнопка/элемент выделяется при открытии Controls (например Back button).")]
+    [Tooltip("Какой элемент выделять внутри отдельного ControlsPanel.")]
     [SerializeField] private Button controlsFirstSelected;
 
     [Tooltip("Какая кнопка выделяется в подтверждении выхода (обычно No).")]
@@ -61,15 +68,18 @@ public class PauseMenuUI : MonoBehaviour
     [Tooltip("Какая кнопка выделяется в подтверждении рестарта (обычно No).")]
     [SerializeField] private Button restartConfirmFirstSelected;
 
-    [Tooltip("Если выделение потерялось (клик по пустому месту и т.п.), скрипт восстановит его автоматически.")]
+    [Tooltip("Если выделение потерялось — восстановить автоматически.")]
     [SerializeField] private bool restoreSelectionIfLost = true;
 
     [Header("Mouse hover sync")]
-    [SerializeField, Tooltip("Если включено — при наведении мышкой кнопка становится текущей selected (убирает двойную подсветку).")]
+    [SerializeField, Tooltip("Если включено — hovered кнопка становится current selected, чтобы не было двойной подсветки.")]
     private bool selectHoveredButtonWithMouse = true;
 
-    [SerializeField, Tooltip("Обновлять selected от мыши только когда мышь реально сдвинулась.")]
+    [SerializeField, Tooltip("Обновлять hover -> selected только когда мышь реально двигается.")]
     private bool syncMouseOnlyWhenMoved = true;
+
+    [SerializeField, Tooltip("Когда игрок начал пользоваться клавиатурой/геймпадом — hover мыши временно отключается, пока мышь снова не сдвинется.")]
+    private bool disableMouseHoverWhileUsingNavigation = true;
 
     [Header("Pause input")]
     [SerializeField] private KeyCode keyboardPauseKey = KeyCode.Escape;
@@ -77,8 +87,19 @@ public class PauseMenuUI : MonoBehaviour
     [Tooltip("Обычно Start / Options / Menu на геймпаде. Часто это JoystickButton7.")]
     [SerializeField] private KeyCode gamepadPauseKey = KeyCode.JoystickButton7;
 
-    [Tooltip("Дополнительная кнопка паузы (например Back/View), если нужна. Можно оставить None.")]
+    [Tooltip("Дополнительная кнопка паузы. Можно оставить None.")]
     [SerializeField] private KeyCode gamepadPauseAltKey = KeyCode.None;
+
+    [Header("Legacy Rebind (KeyCode)")]
+    [SerializeField, Tooltip("Если включено и в сцене есть LegacyKeycodeRebind — Pause/Back читаются из него.")]
+    private bool useLegacyKeycodeRebind = true;
+
+    [Header("Gameplay input block")]
+    [SerializeField, Tooltip("Ссылка на PlayerController, у которого выключаем игровой ввод на время паузы.")]
+    private PlayerController playerController;
+
+    [SerializeField, Tooltip("Если ссылка на PlayerController не задана — попробовать найти автоматически.")]
+    private bool autoFindPlayerController = true;
 
     [Header("Scenes")]
     [SerializeField] private string mainMenuSceneName = "MainMenu";
@@ -91,13 +112,24 @@ public class PauseMenuUI : MonoBehaviour
     private bool _paused;
     private Coroutine _selectRoutine;
 
-    private Vector3 _lastMousePosition;
     private readonly List<RaycastResult> _mouseRaycastResults = new List<RaycastResult>(16);
+
+    private bool _pauseButtonNavCached;
+    private Navigation _pauseButtonOriginalNavigation;
+
+    private Vector3 _lastMousePosition;
+    private bool _mouseMovedThisFrame;
+    private bool _mouseInputActive = true;
+    private Button _lastHoveredButton;
+    private float _prevHorizontalAxis;
+    private float _prevVerticalAxis;
 
     public bool IsPaused => _paused;
 
     private void Awake()
     {
+        CacheSettingsTabsIfNeeded();
+        CacheOpenPauseButtonNavigationIfNeeded();
         WireButtons();
         SceneManager.sceneLoaded += OnSceneLoaded;
     }
@@ -109,13 +141,21 @@ public class PauseMenuUI : MonoBehaviour
 
     private void Start()
     {
-        ResumeGame(); // стартуем без паузы
         _lastMousePosition = Input.mousePosition;
+        _mouseInputActive = Input.mousePresent;
+
+        CachePlayerControllerIfNeeded();
+        CacheSettingsTabsIfNeeded();
+        ResumeGame(true);
     }
 
     private void Update()
     {
-        // --- Если игра НЕ на паузе: открыть паузу только кнопкой паузы (Esc / Start) ---
+        if (IsRebindBlockingUi())
+            return;
+
+        UpdateInputModeState();
+
         if (!_paused)
         {
             if (IsPausePressed())
@@ -124,82 +164,256 @@ public class PauseMenuUI : MonoBehaviour
             return;
         }
 
-        // --- Если игра на паузе: Esc / Start / B работают как "назад/отмена" ---
         if (!IsPausePressed() && !IsBackPressed())
             return;
 
-        // Закрываем верхние окна по приоритету
         if (exitConfirmPanel && exitConfirmPanel.activeSelf)
         {
-            CancelExitToMainMenu();   // B = "Нет"
+            CancelExitToMainMenu();
             return;
         }
 
         if (restartConfirmPanel && restartConfirmPanel.activeSelf)
         {
-            CancelRestartLevel();     // B = "Нет"
-            return;
-        }
-
-        if (settingsPanel && settingsPanel.activeSelf)
-        {
-            BackToPauseMenu();        // B = назад из настроек
+            CancelRestartLevel();
             return;
         }
 
         if (controlsPanel && controlsPanel.activeSelf)
         {
-            BackToPauseMenu();        // B = назад из управления
+            BackToPauseMenu();
             return;
         }
 
-        // Если мы в главном меню паузы — закрываем паузу
+        if (settingsPanel && settingsPanel.activeSelf)
+        {
+            if (HasAnySettingsContentOpen())
+            {
+                CloseSettingsContentToRoot();
+                return;
+            }
+
+            BackToPauseMenu();
+            return;
+        }
+
         ResumeGame();
     }
 
     private void LateUpdate()
     {
-        // Держим курсор видимым каждый кадр, пока меню паузы открыто
-        if (_paused && pauseRoot != null && pauseRoot.activeSelf)
+        if (!_paused || pauseRoot == null || !pauseRoot.activeSelf)
+            return;
+
+        ApplyPauseCursorState();
+
+        if (IsRebindBlockingUi())
+            return;
+
+        if (enableUiNavigation &&
+            selectHoveredButtonWithMouse &&
+            (!disableMouseHoverWhileUsingNavigation || _mouseInputActive))
         {
-            ApplyPauseCursorState();
-
-            // 1) Сначала синхронизируем hover мыши -> selected (убирает двойную подсветку)
-            if (enableUiNavigation && selectHoveredButtonWithMouse)
-                SyncMouseHoverSelection();
-
-            // 2) Затем (если надо) восстанавливаем выделение, когда оно потеряно
-            if (enableUiNavigation && restoreSelectionIfLost)
-                RestoreSelectionIfNeeded();
+            SyncMouseHoverSelection();
         }
+
+        if (enableUiNavigation && restoreSelectionIfLost)
+            RestoreSelectionIfNeeded();
     }
 
     private void OnApplicationFocus(bool hasFocus)
     {
         if (!hasFocus) return;
 
-        if (_paused && pauseRoot != null && pauseRoot.activeSelf) ApplyPauseCursorState();
-        else ApplyPlayCursorState();
-    }
-
-    private void OnApplicationPause(bool pause)
-    {
-        if (pause) return;
-
-        if (_paused && pauseRoot != null && pauseRoot.activeSelf) ApplyPauseCursorState();
-        else ApplyPlayCursorState();
-    }
-
-    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
         if (_paused && pauseRoot != null && pauseRoot.activeSelf)
             ApplyPauseCursorState();
         else
             ApplyPlayCursorState();
     }
 
+    private void OnApplicationPause(bool pause)
+    {
+        if (pause) return;
+
+        if (_paused && pauseRoot != null && pauseRoot.activeSelf)
+            ApplyPauseCursorState();
+        else
+            ApplyPlayCursorState();
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        playerController = null;
+        CachePlayerControllerIfNeeded();
+        CacheSettingsTabsIfNeeded();
+        CacheOpenPauseButtonNavigationIfNeeded();
+
+        if (_paused && pauseRoot != null && pauseRoot.activeSelf)
+            ApplyPauseCursorState();
+        else
+            ApplyPlayCursorState();
+    }
+
+    private void UpdateInputModeState()
+    {
+        _mouseMovedThisFrame = false;
+
+        if (Input.mousePresent)
+        {
+            Vector3 mousePos = Input.mousePosition;
+
+            if (mousePos != _lastMousePosition)
+            {
+                _mouseMovedThisFrame = true;
+                _mouseInputActive = true;
+                _lastMousePosition = mousePos;
+            }
+        }
+
+        if (!disableMouseHoverWhileUsingNavigation)
+            return;
+
+        if (HasNavigationInputThisFrame())
+        {
+            _mouseInputActive = false;
+            ClearMouseHoverVisual();
+        }
+    }
+
+    private bool HasNavigationInputThisFrame()
+    {
+        bool keyNav =
+            Input.GetKeyDown(KeyCode.UpArrow) ||
+            Input.GetKeyDown(KeyCode.DownArrow) ||
+            Input.GetKeyDown(KeyCode.LeftArrow) ||
+            Input.GetKeyDown(KeyCode.RightArrow) ||
+            Input.GetKeyDown(KeyCode.W) ||
+            Input.GetKeyDown(KeyCode.A) ||
+            Input.GetKeyDown(KeyCode.S) ||
+            Input.GetKeyDown(KeyCode.D) ||
+            Input.GetKeyDown(KeyCode.Tab) ||
+            Input.GetKeyDown(KeyCode.Return) ||
+            Input.GetKeyDown(KeyCode.KeypadEnter) ||
+            Input.GetKeyDown(KeyCode.Space) ||
+            Input.GetKeyDown(gamepadBackKey);
+
+        float h = Input.GetAxisRaw("Horizontal");
+        float v = Input.GetAxisRaw("Vertical");
+
+        bool axisNav =
+            (Mathf.Abs(h) > 0.5f && Mathf.Abs(_prevHorizontalAxis) <= 0.5f) ||
+            (Mathf.Abs(v) > 0.5f && Mathf.Abs(_prevVerticalAxis) <= 0.5f);
+
+        _prevHorizontalAxis = h;
+        _prevVerticalAxis = v;
+
+        return keyNav || axisNav;
+    }
+
+    private void ClearMouseHoverVisual()
+    {
+        if (_lastHoveredButton == null)
+            return;
+
+        if (EventSystem.current != null && _lastHoveredButton.gameObject != null)
+        {
+            PointerEventData pointerData = new PointerEventData(EventSystem.current)
+            {
+                position = new Vector2(-100000f, -100000f)
+            };
+
+            ExecuteEvents.Execute(_lastHoveredButton.gameObject, pointerData, ExecuteEvents.pointerExitHandler);
+        }
+
+        _lastHoveredButton = null;
+    }
+
+    private void CachePlayerControllerIfNeeded()
+    {
+        if (playerController == null && autoFindPlayerController)
+            playerController = FindObjectOfType<PlayerController>();
+    }
+
+    private void CacheSettingsTabsIfNeeded()
+    {
+        if (settingsTabsSwitcher != null)
+            return;
+
+        if (!autoFindSettingsTabsSwitcher)
+            return;
+
+        if (settingsPanel != null)
+            settingsTabsSwitcher = settingsPanel.GetComponentInChildren<SettingsTabsSwitcher>(true);
+    }
+
+    private void CacheOpenPauseButtonNavigationIfNeeded()
+    {
+        if (openPauseButton == null || _pauseButtonNavCached)
+            return;
+
+        _pauseButtonOriginalNavigation = openPauseButton.navigation;
+        _pauseButtonNavCached = true;
+    }
+
+    private void SetOpenPauseButtonAvailable(bool available)
+    {
+        if (openPauseButton == null)
+            return;
+
+        CacheOpenPauseButtonNavigationIfNeeded();
+
+        openPauseButton.interactable = available;
+
+        if (available)
+        {
+            openPauseButton.navigation = _pauseButtonOriginalNavigation;
+        }
+        else
+        {
+            Navigation nav = openPauseButton.navigation;
+            nav.mode = Navigation.Mode.None;
+            nav.selectOnUp = null;
+            nav.selectOnDown = null;
+            nav.selectOnLeft = null;
+            nav.selectOnRight = null;
+            openPauseButton.navigation = nav;
+
+            if (EventSystem.current != null &&
+                EventSystem.current.currentSelectedGameObject == openPauseButton.gameObject)
+            {
+                EventSystem.current.SetSelectedGameObject(null);
+            }
+        }
+    }
+
+    private bool IsRebindBlockingUi()
+    {
+        LegacyKeycodeRebind rebind =
+            (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null)
+            ? LegacyKeycodeRebind.I
+            : null;
+
+        return rebind != null && rebind.IsBlockingOtherUi;
+    }
+
+    private void SetGameplayInputEnabled(bool enabled)
+    {
+        CachePlayerControllerIfNeeded();
+
+        if (playerController != null)
+            playerController.SetInputEnabled(enabled);
+    }
+
     private bool IsPausePressed()
     {
+        LegacyKeycodeRebind rebind =
+            (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null)
+            ? LegacyKeycodeRebind.I
+            : null;
+
+        if (rebind != null)
+            return rebind.GetDownAny(LegacyKeycodeRebind.Action.Pause);
+
         if (Input.GetKeyDown(keyboardPauseKey))
             return true;
 
@@ -212,43 +426,54 @@ public class PauseMenuUI : MonoBehaviour
         return false;
     }
 
+    private bool IsBackPressed()
+    {
+        LegacyKeycodeRebind rebind =
+            (useLegacyKeycodeRebind && LegacyKeycodeRebind.I != null)
+            ? LegacyKeycodeRebind.I
+            : null;
+
+        if (rebind != null)
+            return rebind.GetDownAny(LegacyKeycodeRebind.Action.Back);
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+            return true;
+
+        return Input.GetKeyDown(gamepadBackKey);
+    }
+
     private void WireButtons()
     {
-        // Главное меню
         Bind(continueButton, ResumeGame);
         Bind(restartButton, AskRestartLevel);
         Bind(settingsButton, OpenSettings);
         Bind(controlsButton, OpenControls);
         Bind(exitToMenuButton, AskExitToMainMenu);
 
-        // Confirm: Exit
         Bind(exitYesButton, ConfirmExitToMainMenu);
         Bind(exitNoButton, CancelExitToMainMenu);
 
-        // Confirm: Restart
         Bind(restartYesButton, ConfirmRestartLevel);
         Bind(restartNoButton, CancelRestartLevel);
 
-        // Back (если кнопки есть)
         Bind(settingsBackButton, BackToPauseMenu);
         Bind(controlsBackButton, BackToPauseMenu);
 
-        // UI кнопка паузы (если есть)
         Bind(openPauseButton, OpenPauseFromButton);
     }
 
     private static void Bind(Button btn, UnityEngine.Events.UnityAction action)
     {
-        if (!btn) return;
+        if (btn == null) return;
+
         btn.onClick.RemoveListener(action);
         btn.onClick.AddListener(action);
     }
 
-    // ===== Cursor helpers =====
-
     private void ApplyPauseCursorState()
     {
         if (!showCursorWhenPaused) return;
+
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
     }
@@ -256,16 +481,51 @@ public class PauseMenuUI : MonoBehaviour
     private void ApplyPlayCursorState()
     {
         if (!hideCursorWhenPlaying) return;
+
         Cursor.visible = false;
         Cursor.lockState = playLockMode;
     }
 
-    // ===== UI Navigation helpers (keyboard / gamepad) =====
+    private bool HasAnySettingsContentOpen()
+    {
+        CacheSettingsTabsIfNeeded();
+
+        if (settingsTabsSwitcher == null)
+            return false;
+
+        return settingsTabsSwitcher.HasAnyOpenView();
+    }
+
+    private void CloseSettingsContentToRoot()
+    {
+        CacheSettingsTabsIfNeeded();
+
+        if (settingsTabsSwitcher != null)
+            settingsTabsSwitcher.CloseToSettingsRoot();
+
+        if (menuPanel) menuPanel.SetActive(false);
+        if (controlsPanel) controlsPanel.SetActive(false);
+        if (settingsPanel) settingsPanel.SetActive(true);
+        if (exitConfirmPanel) exitConfirmPanel.SetActive(false);
+        if (restartConfirmPanel) restartConfirmPanel.SetActive(false);
+
+        SelectSettingsRoot();
+    }
+
+    private void SelectSettingsRoot()
+    {
+        if (settingsBackButton != null && settingsBackButton.isActiveAndEnabled && settingsBackButton.interactable)
+        {
+            SelectButtonDeferred(settingsBackButton);
+            return;
+        }
+
+        SelectButtonDeferred(settingsFirstSelected);
+    }
 
     private void RestoreSelectionIfNeeded()
     {
         if (EventSystem.current == null) return;
-
         if (EventSystem.current.currentSelectedGameObject != null) return;
 
         if (exitConfirmPanel && exitConfirmPanel.activeSelf)
@@ -280,22 +540,24 @@ public class PauseMenuUI : MonoBehaviour
             return;
         }
 
-        if (settingsPanel && settingsPanel.activeSelf)
+        if (controlsPanel && controlsPanel.activeSelf)
         {
-            SelectButtonDeferred(settingsFirstSelected);
+            SelectButtonDeferred(controlsFirstSelected ? controlsFirstSelected : controlsBackButton);
             return;
         }
 
-        if (controlsPanel && controlsPanel.activeSelf)
+        if (settingsPanel && settingsPanel.activeSelf)
         {
-            SelectButtonDeferred(controlsFirstSelected);
+            if (HasAnySettingsContentOpen())
+                SelectButtonDeferred(settingsFirstSelected ? settingsFirstSelected : settingsBackButton);
+            else
+                SelectSettingsRoot();
+
             return;
         }
 
         if (menuPanel && menuPanel.activeSelf)
-        {
             SelectPauseMenuDefault();
-        }
     }
 
     private void SelectPauseMenuDefault()
@@ -306,7 +568,8 @@ public class PauseMenuUI : MonoBehaviour
     private void SelectButtonDeferred(Button btn)
     {
         if (!enableUiNavigation) return;
-        if (!btn) return;
+        if (btn == null) return;
+        if (!btn.isActiveAndEnabled || !btn.interactable) return;
         if (EventSystem.current == null) return;
 
         if (_selectRoutine != null)
@@ -322,6 +585,8 @@ public class PauseMenuUI : MonoBehaviour
         if (!enableUiNavigation) yield break;
         if (btn == null) yield break;
         if (EventSystem.current == null) yield break;
+        if (!btn.isActiveAndEnabled || !btn.interactable) yield break;
+        if (!IsButtonAllowedInCurrentContext(btn)) yield break;
 
         Canvas.ForceUpdateCanvases();
         EventSystem.current.SetSelectedGameObject(null);
@@ -330,23 +595,15 @@ public class PauseMenuUI : MonoBehaviour
         _selectRoutine = null;
     }
 
-    // Синхронизация наведения мышью с currentSelectedGameObject,
-    // чтобы не было двойной подсветки (одна кнопка Selected, другая Highlighted).
     private void SyncMouseHoverSelection()
     {
         if (EventSystem.current == null) return;
         if (!Input.mousePresent) return;
-
-        Vector3 mousePos = Input.mousePosition;
-
-        if (syncMouseOnlyWhenMoved && mousePos == _lastMousePosition)
-            return;
-
-        _lastMousePosition = mousePos;
+        if (syncMouseOnlyWhenMoved && !_mouseMovedThisFrame) return;
 
         PointerEventData pointerData = new PointerEventData(EventSystem.current)
         {
-            position = mousePos
+            position = Input.mousePosition
         };
 
         _mouseRaycastResults.Clear();
@@ -359,21 +616,26 @@ public class PauseMenuUI : MonoBehaviour
             GameObject go = _mouseRaycastResults[i].gameObject;
             if (go == null) continue;
 
-            // Часто рейкаст попадает в Text/Image внутри кнопки — поднимаемся к родителю
             Button btn = go.GetComponentInParent<Button>();
             if (btn == null) continue;
             if (!btn.isActiveAndEnabled || !btn.interactable) continue;
+            if (!IsButtonAllowedInCurrentContext(btn)) continue;
 
             hoveredButton = btn;
             break;
         }
 
-        if (hoveredButton == null) return;
+        if (hoveredButton == null)
+        {
+            ClearMouseHoverVisual();
+            return;
+        }
+
+        _lastHoveredButton = hoveredButton;
 
         if (EventSystem.current.currentSelectedGameObject == hoveredButton.gameObject)
             return;
 
-        // Если есть отложенный выбор кнопки — отменим, чтобы не перетёр выбор мыши
         if (_selectRoutine != null)
         {
             StopCoroutine(_selectRoutine);
@@ -384,11 +646,36 @@ public class PauseMenuUI : MonoBehaviour
         EventSystem.current.SetSelectedGameObject(hoveredButton.gameObject);
     }
 
-    // ===== Public API =====
+    private bool IsButtonAllowedInCurrentContext(Button btn)
+    {
+        if (btn == null) return false;
+
+        if (_paused && btn == openPauseButton)
+            return false;
+
+        if (exitConfirmPanel != null && exitConfirmPanel.activeSelf)
+            return btn.transform.IsChildOf(exitConfirmPanel.transform);
+
+        if (restartConfirmPanel != null && restartConfirmPanel.activeSelf)
+            return btn.transform.IsChildOf(restartConfirmPanel.transform);
+
+        if (controlsPanel != null && controlsPanel.activeSelf)
+            return btn.transform.IsChildOf(controlsPanel.transform);
+
+        if (settingsPanel != null && settingsPanel.activeSelf)
+            return btn.transform.IsChildOf(settingsPanel.transform);
+
+        if (menuPanel != null && menuPanel.activeSelf)
+            return btn.transform.IsChildOf(menuPanel.transform);
+
+        return false;
+    }
 
     public void OpenPauseFromButton()
     {
         if (_paused) return;
+
+        _mouseInputActive = true;
         PauseGame();
     }
 
@@ -400,6 +687,9 @@ public class PauseMenuUI : MonoBehaviour
 
     public void PauseGame()
     {
+        SetGameplayInputEnabled(false);
+        SetOpenPauseButtonAvailable(false);
+
         _paused = true;
         Time.timeScale = 0f;
 
@@ -411,6 +701,11 @@ public class PauseMenuUI : MonoBehaviour
     }
 
     public void ResumeGame()
+    {
+        ResumeGame(false);
+    }
+
+    private void ResumeGame(bool isInitialStart)
     {
         _paused = false;
         Time.timeScale = 1f;
@@ -424,13 +719,17 @@ public class PauseMenuUI : MonoBehaviour
             _selectRoutine = null;
         }
 
+        ClearMouseHoverVisual();
+
         if (EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(null);
 
         ApplyPlayCursorState();
-    }
+        SetOpenPauseButtonAvailable(true);
 
-    // ===== Restart confirm =====
+        if (!isInitialStart)
+            SetGameplayInputEnabled(true);
+    }
 
     public void AskRestartLevel()
     {
@@ -453,8 +752,6 @@ public class PauseMenuUI : MonoBehaviour
         SelectPauseMenuDefault();
     }
 
-    // ===== Exit confirm =====
-
     public void AskExitToMainMenu()
     {
         HideAllSubPanels();
@@ -476,26 +773,38 @@ public class PauseMenuUI : MonoBehaviour
         SelectPauseMenuDefault();
     }
 
-    // ===== Sub menus =====
-
     public void OpenSettings()
     {
-        HideAllSubPanels();
-        if (settingsPanel) settingsPanel.SetActive(true);
+        CacheSettingsTabsIfNeeded();
 
-        SelectButtonDeferred(settingsFirstSelected);
+        HideAllSubPanels();
+
+        if (settingsPanel) settingsPanel.SetActive(true);
+        if (controlsPanel) controlsPanel.SetActive(false);
+
+        if (settingsTabsSwitcher != null)
+            settingsTabsSwitcher.CloseToSettingsRoot();
+
+        SelectSettingsRoot();
     }
 
     public void OpenControls()
     {
         HideAllSubPanels();
-        if (controlsPanel) controlsPanel.SetActive(true);
 
-        SelectButtonDeferred(controlsFirstSelected);
+        if (controlsPanel) controlsPanel.SetActive(true);
+        if (settingsPanel) settingsPanel.SetActive(false);
+
+        SelectButtonDeferred(controlsFirstSelected ? controlsFirstSelected : controlsBackButton);
     }
 
     public void BackToPauseMenu()
     {
+        CacheSettingsTabsIfNeeded();
+
+        if (settingsTabsSwitcher != null)
+            settingsTabsSwitcher.CloseToSettingsRoot();
+
         if (settingsPanel) settingsPanel.SetActive(false);
         if (controlsPanel) controlsPanel.SetActive(false);
         if (exitConfirmPanel) exitConfirmPanel.SetActive(false);
@@ -504,8 +813,6 @@ public class PauseMenuUI : MonoBehaviour
         ShowMainMenu();
         SelectPauseMenuDefault();
     }
-
-    // ===== Helpers =====
 
     private void HideAllSubPanels()
     {
@@ -523,10 +830,5 @@ public class PauseMenuUI : MonoBehaviour
         if (controlsPanel) controlsPanel.SetActive(false);
         if (exitConfirmPanel) exitConfirmPanel.SetActive(false);
         if (restartConfirmPanel) restartConfirmPanel.SetActive(false);
-    }
-
-    private bool IsBackPressed()
-    {
-        return Input.GetKeyDown(gamepadBackKey);
     }
 }
