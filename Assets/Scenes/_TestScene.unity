@@ -3276,7 +3276,7 @@ Transform:
   m_GameObject: {fileID: 616883574}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 6.4123664, y: 0.88786006, z: -10}
+  m_LocalPosition: {x: 5.5689387, y: 0.88834, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4523,7 +4523,7 @@ Transform:
   m_GameObject: {fileID: 956994266}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 6.4048615, y: -2.2449996, z: -10}
+  m_LocalPosition: {x: 5.563169, y: -2.2449996, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -7200,11 +7200,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a8995c3ee7b2a2140b30455fbf4ae563, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxJumpForce: 20
-  jumpTimeLimit: 1
-  shortJumpForce: 8
+  maxJumpForce: 22
+  jumpTimeLimit: 0.8
+  shortJumpForce: 12
   chargeEnterDelay: 1
-  coyoteTime: 0.05
+  coyoteTime: 0.12
   jumpBufferTime: 0.1
   fatigueDuration: 0.8
 --- !u!114 &1471706309
@@ -7219,7 +7219,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 45335e58e29a03e4da58cb2b60d76067, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 5
+  moveSpeed: 7
   fatigueSpeedMultiplier: 0.6
   airControlSpeed: 5
   enableAirControlInAir: 0
@@ -7253,12 +7253,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6682bf22e76e1d748ac4058b5bb3b6a7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  jumpBarFill: {fileID: 0}
-  jumpBarBG: {fileID: 0}
-  fatigueImage: {fileID: 0}
-  mainCamera: {fileID: 0}
-  uiCanvas: {fileID: 0}
-  barOffset: {x: 0, y: 2, z: 0}
+  jumpBarFill: {fileID: 996478416}
+  jumpBarBG: {fileID: 1016314045}
+  fatigueImage: {fileID: 1127009665}
+  mainCamera: {fileID: 616883575}
+  uiCanvas: {fileID: 1586208782}
+  barOffset: {x: 0, y: -0.8, z: 0}
 --- !u!114 &1471706312
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7271,9 +7271,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2fb109293e3b56244a20d14ce39df5c3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  wallBounceFraction: 0.33
-  damping: 0.5
-  dampingExclusionTime: 0.2
+  wallBounceFraction: 0.4
+  damping: 0.4
+  dampingExclusionTime: 0.25
   wallBounceMinAbsY: 0.05
   wallBounceApexWindow: 0.6
   wallNormalMinAbsX: 0.45
