@@ -116,45 +116,76 @@ public class LegacyKeycodeRebind : MonoBehaviour
     private string playerPrefsKey = "LEGACY_KEYCODE_BINDS_JSON";
 
     [Header("Дефолтные бинды")]
-    [SerializeField] private KeyboardBinds defaultKeyboard = new KeyboardBinds();
-    [SerializeField] private GamepadBinds defaultGamepad = new GamepadBinds();
+    [SerializeField, Tooltip("Стандартные бинды клавиатуры, к которым будет идти сброс кнопкой Reset Keyboard.")]
+    private KeyboardBinds defaultKeyboard = new KeyboardBinds();
+
+    [SerializeField, Tooltip("Стандартные бинды геймпада, к которым будет идти сброс кнопкой Reset Gamepad.")]
+    private GamepadBinds defaultGamepad = new GamepadBinds();
 
     [Header("Текущие бинды (runtime)")]
-    [SerializeField] private KeyboardBinds keyboard = new KeyboardBinds();
-    [SerializeField] private GamepadBinds gamepad = new GamepadBinds();
+    [SerializeField, Tooltip("Текущие бинды клавиатуры во время игры.")]
+    private KeyboardBinds keyboard = new KeyboardBinds();
 
-    [Header("UI: Reset All")]
-    [SerializeField] private Button resetAllButton;
+    [SerializeField, Tooltip("Текущие бинды геймпада во время игры.")]
+    private GamepadBinds gamepad = new GamepadBinds();
+
+    [Header("UI: Reset кнопки")]
+    [SerializeField, Tooltip("Кнопка, которая сбрасывает только клавиатурные бинды к defaultKeyboard.")]
+    private Button resetKeyboardButton;
+
+    [SerializeField, Tooltip("Кнопка, которая сбрасывает только бинды геймпада к defaultGamepad.")]
+    private Button resetGamepadButton;
+
+    [SerializeField, Tooltip("Старая общая кнопка Reset All. Оставлена для совместимости со старыми сценами. Можно не использовать.")]
+    private Button resetAllButton;
 
     [Header("UI: строки ребинда")]
-    [SerializeField] private List<RebindRow> rows = new List<RebindRow>();
+    [SerializeField, Tooltip("Список строк ребинда. Каждая строка отвечает за одно действие конкретного устройства.")]
+    private List<RebindRow> rows = new List<RebindRow>();
 
     [Header("UI: оверлей ожидания")]
-    [SerializeField] private GameObject waitingOverlay;
-    [SerializeField] private Graphic waitingText;
+    [SerializeField, Tooltip("Оверлей, который показывается во время ожидания новой кнопки.")]
+    private GameObject waitingOverlay;
 
-    [SerializeField, TextArea(2, 6)]
+    [SerializeField, Tooltip("Текст на оверлее ожидания.")]
+    private Graphic waitingText;
+
+    [SerializeField, TextArea(2, 6), Tooltip("Текст, который показывается на оверлее во время ребинда.")]
     private string waitingMessage =
         "Нажми кнопку для переназначения...\nОтмена: Esc / B";
 
     [Header("Правила")]
-    [SerializeField] private bool preventDuplicatesPerDevice = true;
+    [SerializeField, Tooltip("Если включено — нельзя назначить одну и ту же кнопку два раза внутри одного устройства.")]
+    private bool preventDuplicatesPerDevice = true;
 
     [Header("Геймпад: диапазон кнопок")]
-    [SerializeField] private int gamepadButtonsCount = 20;
+    [SerializeField, Tooltip("Сколько кнопок геймпада проверять: от JoystickButton0 и дальше.")]
+    private int gamepadButtonsCount = 20;
 
     [Header("Отмена ребинда")]
-    [SerializeField] private KeyCode cancelKeyboardKey = KeyCode.Escape;
-    [SerializeField] private KeyCode cancelGamepadKey = KeyCode.JoystickButton1;
+    [SerializeField, Tooltip("Кнопка клавиатуры, которая отменяет режим ожидания новой клавиши.")]
+    private KeyCode cancelKeyboardKey = KeyCode.Escape;
+
+    [SerializeField, Tooltip("Кнопка геймпада, которая отменяет режим ожидания новой клавиши.")]
+    private KeyCode cancelGamepadKey = KeyCode.JoystickButton1;
 
     [Header("Доп. защита UI")]
-    [SerializeField] private float menuInputBlockDuration = 0.12f;
-    [SerializeField] private float captureStartDelay = 0.12f;
-    [SerializeField] private bool clearCurrentSelectedOnRebind = true;
-    [SerializeField] private bool forceOverlayRaycastBlock = true;
-    [SerializeField] private bool ignoreSpaceSubmitOnRebindButtons = true;
+    [SerializeField, Tooltip("На сколько секунд блокировать прочий UI после входа/выхода из ребинда.")]
+    private float menuInputBlockDuration = 0.12f;
 
-    [SerializeField]
+    [SerializeField, Tooltip("Небольшая задержка перед началом захвата кнопки, чтобы не поймать submit/click текущей кнопки.")]
+    private float captureStartDelay = 0.12f;
+
+    [SerializeField, Tooltip("Если включено — при старте ребинда снимется текущее выделение UI-кнопки.")]
+    private bool clearCurrentSelectedOnRebind = true;
+
+    [SerializeField, Tooltip("Если включено — оверлей будет принудительно блокировать raycast'ы.")]
+    private bool forceOverlayRaycastBlock = true;
+
+    [SerializeField, Tooltip("Если включено — Space не будет запускать ребинд/сброс в тот же кадр как submit.")]
+    private bool ignoreSpaceSubmitOnRebindButtons = true;
+
+    [SerializeField, Tooltip("Список клавиш, которые нельзя назначать через ребинд.")]
     private List<KeyCode> forbiddenBindingKeys = new List<KeyCode>
     {
         KeyCode.Return,
@@ -290,6 +321,18 @@ public class LegacyKeycodeRebind : MonoBehaviour
 
     private void WireUI()
     {
+        if (resetKeyboardButton != null)
+        {
+            resetKeyboardButton.onClick.RemoveAllListeners();
+            resetKeyboardButton.onClick.AddListener(OnResetKeyboardClicked);
+        }
+
+        if (resetGamepadButton != null)
+        {
+            resetGamepadButton.onClick.RemoveAllListeners();
+            resetGamepadButton.onClick.AddListener(OnResetGamepadClicked);
+        }
+
         if (resetAllButton != null)
         {
             resetAllButton.onClick.RemoveAllListeners();
@@ -414,6 +457,12 @@ public class LegacyKeycodeRebind : MonoBehaviour
             if (r.resetButton != null) r.resetButton.interactable = on;
         }
 
+        if (resetKeyboardButton != null)
+            resetKeyboardButton.interactable = on;
+
+        if (resetGamepadButton != null)
+            resetGamepadButton.interactable = on;
+
         if (resetAllButton != null)
             resetAllButton.interactable = on;
     }
@@ -439,6 +488,24 @@ public class LegacyKeycodeRebind : MonoBehaviour
     public void ResetAllToDefaults()
     {
         keyboard = Copy(defaultKeyboard);
+        gamepad = Copy(defaultGamepad);
+
+        Save();
+        OnBindsChanged?.Invoke();
+        RefreshAllRows();
+    }
+
+    public void ResetKeyboardToDefaults()
+    {
+        keyboard = Copy(defaultKeyboard);
+
+        Save();
+        OnBindsChanged?.Invoke();
+        RefreshAllRows();
+    }
+
+    public void ResetGamepadToDefaults()
+    {
         gamepad = Copy(defaultGamepad);
 
         Save();
@@ -512,6 +579,18 @@ public class LegacyKeycodeRebind : MonoBehaviour
     {
         bool changed = false;
 
+        if (duplicate.resetKeyboardButton != null)
+        {
+            resetKeyboardButton = duplicate.resetKeyboardButton;
+            changed = true;
+        }
+
+        if (duplicate.resetGamepadButton != null)
+        {
+            resetGamepadButton = duplicate.resetGamepadButton;
+            changed = true;
+        }
+
         if (duplicate.resetAllButton != null)
         {
             resetAllButton = duplicate.resetAllButton;
@@ -565,6 +644,22 @@ public class LegacyKeycodeRebind : MonoBehaviour
             return;
 
         ResetOneToDefault(device, action);
+    }
+
+    private void OnResetKeyboardClicked()
+    {
+        if (ShouldIgnoreSpaceSubmitThisFrame())
+            return;
+
+        ResetKeyboardToDefaults();
+    }
+
+    private void OnResetGamepadClicked()
+    {
+        if (ShouldIgnoreSpaceSubmitThisFrame())
+            return;
+
+        ResetGamepadToDefaults();
     }
 
     private void OnResetAllClicked()
@@ -626,6 +721,23 @@ public class LegacyKeycodeRebind : MonoBehaviour
             if (selectedButton != null && selectedButton.isActiveAndEnabled)
                 return selectedButton;
         }
+
+        if (_rebindDevice == Device.Keyboard)
+        {
+            if (resetKeyboardButton != null && resetKeyboardButton.isActiveAndEnabled)
+                return resetKeyboardButton;
+        }
+        else
+        {
+            if (resetGamepadButton != null && resetGamepadButton.isActiveAndEnabled)
+                return resetGamepadButton;
+        }
+
+        if (resetKeyboardButton != null && resetKeyboardButton.isActiveAndEnabled)
+            return resetKeyboardButton;
+
+        if (resetGamepadButton != null && resetGamepadButton.isActiveAndEnabled)
+            return resetGamepadButton;
 
         return resetAllButton;
     }
