@@ -449,6 +449,8 @@ MonoBehaviour:
   controlPanel: {fileID: 68193892}
   settingsPanel: {fileID: 2218904033519821891}
   exitConfirmDialog: {fileID: 1774345981}
+  settingsTabsSwitcher: {fileID: 0}
+  autoFindSettingsTabsSwitcher: 1
   mainPanelCanvasGroup: {fileID: 969618564}
   newGameButton: {fileID: 398694769}
   openContinueButton: {fileID: 1769274179}
@@ -460,7 +462,7 @@ MonoBehaviour:
   settingsBackButton: {fileID: 2748430122986376077}
   exitYesButton: {fileID: 1243452749}
   exitNoButton: {fileID: 1462304795}
-  newGameSceneName: _TestScene
+  newGameSceneName: _Act_1_Garbage
   setupInitialStateOnAwake: 1
   enableUiNavigation: 1
   restoreSelectionIfLost: 1
@@ -472,8 +474,10 @@ MonoBehaviour:
   keyboardBackKey: 27
   gamepadBackKey: 331
   openExitDialogOnBackFromMain: 1
+  useLegacyKeycodeRebind: 1
   selectHoveredButtonWithMouse: 1
   syncMouseOnlyWhenMoved: 1
+  disableMouseHoverWhileUsingNavigation: 1
 --- !u!1 &115361309
 GameObject:
   m_ObjectHideFlags: 0
@@ -1058,7 +1062,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 920.00006, y: -45}
+  m_AnchoredPosition: {x: 920.0001, y: -45}
   m_SizeDelta: {x: 1840.0001, y: 90}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &384177484
@@ -6257,7 +6261,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 920.00006, y: -147}
+  m_AnchoredPosition: {x: 920.0001, y: -147}
   m_SizeDelta: {x: 1840.0001, y: 90}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1483316965
@@ -8337,7 +8341,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 920.00006, y: -249}
+  m_AnchoredPosition: {x: 920.0001, y: -249}
   m_SizeDelta: {x: 1840.0001, y: 90}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2110789524
