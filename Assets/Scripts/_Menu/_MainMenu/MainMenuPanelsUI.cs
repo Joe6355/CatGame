@@ -42,6 +42,31 @@ public class MainMenuPanelsUI : MonoBehaviour
     [SerializeField] private Button exitYesButton;         // Btn_Yes
     [SerializeField] private Button exitNoButton;          // Btn_No
 
+    [Header("Reset confirm dialogs (optional)")]
+    [SerializeField, Tooltip("Панель подтверждения сброса клавиатуры.")]
+    private GameObject keyboardResetConfirmDialog;
+
+    [SerializeField, Tooltip("Кнопка Да в окне подтверждения сброса клавиатуры.")]
+    private Button keyboardResetYesButton;
+
+    [SerializeField, Tooltip("Кнопка Нет / Закрыть в окне подтверждения сброса клавиатуры.")]
+    private Button keyboardResetNoButton;
+
+    [SerializeField, Tooltip("Кнопка Reset Keyboard, на которую вернётся выделение после закрытия keyboard confirm.")]
+    private Button keyboardResetReturnButton;
+
+    [SerializeField, Tooltip("Панель подтверждения сброса геймпада.")]
+    private GameObject gamepadResetConfirmDialog;
+
+    [SerializeField, Tooltip("Кнопка Да в окне подтверждения сброса геймпада.")]
+    private Button gamepadResetYesButton;
+
+    [SerializeField, Tooltip("Кнопка Нет / Закрыть в окне подтверждения сброса геймпада.")]
+    private Button gamepadResetNoButton;
+
+    [SerializeField, Tooltip("Кнопка Reset Gamepad, на которую вернётся выделение после закрытия gamepad confirm.")]
+    private Button gamepadResetReturnButton;
+
     [Header("New Game (optional, from NewGameLoader)")]
     [SerializeField, Tooltip("Имя сцены для кнопки New Game. Если пусто — кнопка newGameButton ничего не загрузит.")]
     private string newGameSceneName;
@@ -70,6 +95,12 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     [SerializeField, Tooltip("Кнопка, которая будет выделена в Exit Confirm (обычно No).")]
     private Button exitConfirmFirstSelected;
+
+    [SerializeField, Tooltip("Кнопка, которая будет выделена в Keyboard Reset Confirm.")]
+    private Button keyboardResetConfirmFirstSelected;
+
+    [SerializeField, Tooltip("Кнопка, которая будет выделена в Gamepad Reset Confirm.")]
+    private Button gamepadResetConfirmFirstSelected;
 
     [Header("Back / Cancel input")]
     [SerializeField, Tooltip("Клавиша назад/отмена (обычно Esc).")]
@@ -103,6 +134,10 @@ public class MainMenuPanelsUI : MonoBehaviour
     private float _prevHorizontalAxis;
     private float _prevVerticalAxis;
 
+    private bool _prevExitConfirmActive;
+    private bool _prevKeyboardResetConfirmActive;
+    private bool _prevGamepadResetConfirmActive;
+
     private readonly List<RaycastResult> _mouseRaycastResults = new List<RaycastResult>(16);
 
     private void Awake()
@@ -110,6 +145,8 @@ public class MainMenuPanelsUI : MonoBehaviour
         CacheSettingsTabsIfNeeded();
         WireButtons();
         SetupExitConfirmNavigation();
+        SetupResetConfirmNavigation();
+        CacheModalStates();
 
         if (setupInitialStateOnAwake)
         {
@@ -135,6 +172,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private void OnEnable()
     {
+        CacheModalStates();
+
         if (enableUiNavigation)
             SelectCurrentPanelDefault();
     }
@@ -158,13 +197,27 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (!enableUiNavigation)
             return;
 
-        if (IsRebindBlockingUi())
+        UpdateModalSelectionState();
+
+        if (IsLegacyUiBlocking())
             return;
 
         UpdateInputModeState();
 
         if (!IsBackPressed())
             return;
+
+        if (IsKeyboardResetConfirmOpen())
+        {
+            InvokeButton(keyboardResetNoButton);
+            return;
+        }
+
+        if (IsGamepadResetConfirmOpen())
+        {
+            InvokeButton(gamepadResetNoButton);
+            return;
+        }
 
         if (exitConfirmDialog != null && exitConfirmDialog.activeSelf)
         {
@@ -205,7 +258,10 @@ public class MainMenuPanelsUI : MonoBehaviour
     private void LateUpdate()
     {
         if (!enableUiNavigation) return;
-        if (IsRebindBlockingUi()) return;
+
+        UpdateModalSelectionState();
+
+        if (IsLegacyUiBlocking()) return;
 
         if (selectHoveredButtonWithMouse &&
             (!disableMouseHoverWhileUsingNavigation || _mouseInputActive))
@@ -217,7 +273,7 @@ public class MainMenuPanelsUI : MonoBehaviour
             RestoreSelectionIfNeeded();
     }
 
-    private bool IsRebindBlockingUi()
+    private bool IsLegacyUiBlocking()
     {
         return useLegacyKeycodeRebind &&
                LegacyKeycodeRebind.I != null &&
@@ -484,8 +540,19 @@ public class MainMenuPanelsUI : MonoBehaviour
     {
         if (EventSystem.current == null) return;
 
-        if (EventSystem.current.currentSelectedGameObject != null)
+        GameObject currentSelected = EventSystem.current.currentSelectedGameObject;
+
+        if (currentSelected != null)
+        {
+            Button selectedButton = currentSelected.GetComponent<Button>();
+
+            if (HasAnyModalOpen() && (selectedButton == null || !IsButtonAllowedInCurrentContext(selectedButton)))
+            {
+                SelectCurrentPanelDefault();
+            }
+
             return;
+        }
 
         SelectCurrentPanelDefault();
     }
@@ -568,24 +635,35 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private void SetupExitConfirmNavigation()
     {
-        if (exitYesButton == null || exitNoButton == null)
+        SetupTwoButtonNavigation(exitYesButton, exitNoButton);
+    }
+
+    private void SetupResetConfirmNavigation()
+    {
+        SetupTwoButtonNavigation(keyboardResetYesButton, keyboardResetNoButton);
+        SetupTwoButtonNavigation(gamepadResetYesButton, gamepadResetNoButton);
+    }
+
+    private void SetupTwoButtonNavigation(Button leftOrYes, Button rightOrNo)
+    {
+        if (leftOrYes == null || rightOrNo == null)
             return;
 
-        Navigation yesNav = exitYesButton.navigation;
-        yesNav.mode = Navigation.Mode.Explicit;
-        yesNav.selectOnLeft = exitNoButton;
-        yesNav.selectOnRight = exitNoButton;
-        yesNav.selectOnUp = exitYesButton;
-        yesNav.selectOnDown = exitYesButton;
-        exitYesButton.navigation = yesNav;
+        Navigation firstNav = leftOrYes.navigation;
+        firstNav.mode = Navigation.Mode.Explicit;
+        firstNav.selectOnLeft = rightOrNo;
+        firstNav.selectOnRight = rightOrNo;
+        firstNav.selectOnUp = leftOrYes;
+        firstNav.selectOnDown = leftOrYes;
+        leftOrYes.navigation = firstNav;
 
-        Navigation noNav = exitNoButton.navigation;
-        noNav.mode = Navigation.Mode.Explicit;
-        noNav.selectOnLeft = exitYesButton;
-        noNav.selectOnRight = exitYesButton;
-        noNav.selectOnUp = exitNoButton;
-        noNav.selectOnDown = exitNoButton;
-        exitNoButton.navigation = noNav;
+        Navigation secondNav = rightOrNo.navigation;
+        secondNav.mode = Navigation.Mode.Explicit;
+        secondNav.selectOnLeft = leftOrYes;
+        secondNav.selectOnRight = leftOrYes;
+        secondNav.selectOnUp = rightOrNo;
+        secondNav.selectOnDown = rightOrNo;
+        rightOrNo.navigation = secondNav;
     }
 
     private void SyncMouseHoverSelection()
@@ -643,6 +721,12 @@ public class MainMenuPanelsUI : MonoBehaviour
     {
         if (btn == null) return false;
 
+        if (IsKeyboardResetConfirmOpen())
+            return keyboardResetConfirmDialog != null && btn.transform.IsChildOf(keyboardResetConfirmDialog.transform);
+
+        if (IsGamepadResetConfirmOpen())
+            return gamepadResetConfirmDialog != null && btn.transform.IsChildOf(gamepadResetConfirmDialog.transform);
+
         if (exitConfirmDialog != null && exitConfirmDialog.activeSelf)
             return btn.transform.IsChildOf(exitConfirmDialog.transform);
 
@@ -659,5 +743,80 @@ public class MainMenuPanelsUI : MonoBehaviour
             return btn.transform.IsChildOf(mainPanel.transform);
 
         return true;
+    }
+
+    private bool IsKeyboardResetConfirmOpen()
+    {
+        return keyboardResetConfirmDialog != null && keyboardResetConfirmDialog.activeInHierarchy;
+    }
+
+    private bool IsGamepadResetConfirmOpen()
+    {
+        return gamepadResetConfirmDialog != null && gamepadResetConfirmDialog.activeInHierarchy;
+    }
+
+    private bool HasAnyModalOpen()
+    {
+        return exitConfirmDialog != null && exitConfirmDialog.activeSelf;
+    }
+
+    private void UpdateModalSelectionState()
+    {
+        bool exitActive = exitConfirmDialog != null && exitConfirmDialog.activeSelf;
+
+        bool exitJustOpened = exitActive && !_prevExitConfirmActive;
+        bool exitJustClosed = !exitActive && _prevExitConfirmActive;
+
+        _prevExitConfirmActive = exitActive;
+        _prevKeyboardResetConfirmActive = IsKeyboardResetConfirmOpen();
+        _prevGamepadResetConfirmActive = IsGamepadResetConfirmOpen();
+
+        if (exitJustOpened)
+        {
+            SelectButtonDeferred(exitConfirmFirstSelected ? exitConfirmFirstSelected : exitNoButton);
+            return;
+        }
+
+        if (exitJustClosed)
+        {
+            SelectCurrentPanelDefault();
+        }
+    }
+
+    private void CacheModalStates()
+    {
+        _prevExitConfirmActive = exitConfirmDialog != null && exitConfirmDialog.activeSelf;
+        _prevKeyboardResetConfirmActive = false;
+        _prevGamepadResetConfirmActive = false;
+    }
+
+    private Button GetKeyboardResetReturnButton()
+    {
+        if (keyboardResetReturnButton != null && keyboardResetReturnButton.isActiveAndEnabled && keyboardResetReturnButton.interactable)
+            return keyboardResetReturnButton;
+
+        if (settingsFirstSelected != null && settingsFirstSelected.isActiveAndEnabled && settingsFirstSelected.interactable)
+            return settingsFirstSelected;
+
+        return settingsBackButton;
+    }
+
+    private Button GetGamepadResetReturnButton()
+    {
+        if (gamepadResetReturnButton != null && gamepadResetReturnButton.isActiveAndEnabled && gamepadResetReturnButton.interactable)
+            return gamepadResetReturnButton;
+
+        if (settingsFirstSelected != null && settingsFirstSelected.isActiveAndEnabled && settingsFirstSelected.interactable)
+            return settingsFirstSelected;
+
+        return settingsBackButton;
+    }
+
+    private static void InvokeButton(Button btn)
+    {
+        if (btn == null) return;
+        if (!btn.isActiveAndEnabled || !btn.interactable) return;
+
+        btn.onClick.Invoke();
     }
 }

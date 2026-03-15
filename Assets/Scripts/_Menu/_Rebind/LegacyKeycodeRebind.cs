@@ -104,6 +104,22 @@ public class LegacyKeycodeRebind : MonoBehaviour
         public string customActionName;
     }
 
+    [Serializable]
+    public class ResetConfirmUI
+    {
+        [Tooltip("Кнопка, которая открывает окно подтверждения сброса для этого устройства.")]
+        public Button openResetButton;
+
+        [Tooltip("Панель подтверждения сброса. Обычно скрыта до нажатия Reset.")]
+        public GameObject confirmPanel;
+
+        [Tooltip("Кнопка Да. Сбрасывает бинды устройства к дефолтным.")]
+        public Button confirmYesButton;
+
+        [Tooltip("Кнопка Нет / Закрыть. Просто закрывает панель подтверждения.")]
+        public Button cancelButton;
+    }
+
     [Header("Режим жизни между сценами")]
     [SerializeField, Tooltip(
         "Если включено — объект станет Singleton и переживёт загрузку сцен.\n" +
@@ -116,10 +132,10 @@ public class LegacyKeycodeRebind : MonoBehaviour
     private string playerPrefsKey = "LEGACY_KEYCODE_BINDS_JSON";
 
     [Header("Дефолтные бинды")]
-    [SerializeField, Tooltip("Стандартные бинды клавиатуры, к которым будет идти сброс кнопкой Reset Keyboard.")]
+    [SerializeField, Tooltip("Стандартные бинды клавиатуры, к которым идёт сброс Reset Keyboard.")]
     private KeyboardBinds defaultKeyboard = new KeyboardBinds();
 
-    [SerializeField, Tooltip("Стандартные бинды геймпада, к которым будет идти сброс кнопкой Reset Gamepad.")]
+    [SerializeField, Tooltip("Стандартные бинды геймпада, к которым идёт сброс Reset Gamepad.")]
     private GamepadBinds defaultGamepad = new GamepadBinds();
 
     [Header("Текущие бинды (runtime)")]
@@ -129,15 +145,23 @@ public class LegacyKeycodeRebind : MonoBehaviour
     [SerializeField, Tooltip("Текущие бинды геймпада во время игры.")]
     private GamepadBinds gamepad = new GamepadBinds();
 
-    [Header("UI: Reset кнопки")]
-    [SerializeField, Tooltip("Кнопка, которая сбрасывает только клавиатурные бинды к defaultKeyboard.")]
-    private Button resetKeyboardButton;
+    [Header("UI: Reset Keyboard + подтверждение")]
+    [SerializeField, Tooltip(
+        "Ссылки для клавиатурного сброса:\n" +
+        "- кнопка открытия окна подтверждения\n" +
+        "- панель подтверждения\n" +
+        "- кнопка Да\n" +
+        "- кнопка Нет/Закрыть")]
+    private ResetConfirmUI keyboardResetUI = new ResetConfirmUI();
 
-    [SerializeField, Tooltip("Кнопка, которая сбрасывает только бинды геймпада к defaultGamepad.")]
-    private Button resetGamepadButton;
-
-    [SerializeField, Tooltip("Старая общая кнопка Reset All. Оставлена для совместимости со старыми сценами. Можно не использовать.")]
-    private Button resetAllButton;
+    [Header("UI: Reset Gamepad + подтверждение")]
+    [SerializeField, Tooltip(
+        "Ссылки для сброса геймпада:\n" +
+        "- кнопка открытия окна подтверждения\n" +
+        "- панель подтверждения\n" +
+        "- кнопка Да\n" +
+        "- кнопка Нет/Закрыть")]
+    private ResetConfirmUI gamepadResetUI = new ResetConfirmUI();
 
     [Header("UI: строки ребинда")]
     [SerializeField, Tooltip("Список строк ребинда. Каждая строка отвечает за одно действие конкретного устройства.")]
@@ -170,7 +194,7 @@ public class LegacyKeycodeRebind : MonoBehaviour
     private KeyCode cancelGamepadKey = KeyCode.JoystickButton1;
 
     [Header("Доп. защита UI")]
-    [SerializeField, Tooltip("На сколько секунд блокировать прочий UI после входа/выхода из ребинда.")]
+    [SerializeField, Tooltip("На сколько секунд блокировать прочий UI после входа/выхода из ребинда или окна подтверждения.")]
     private float menuInputBlockDuration = 0.12f;
 
     [SerializeField, Tooltip("Небольшая задержка перед началом захвата кнопки, чтобы не поймать submit/click текущей кнопки.")]
@@ -199,6 +223,10 @@ public class LegacyKeycodeRebind : MonoBehaviour
     private Device _rebindDevice;
     private Action _rebindAction;
 
+    private bool _isResetConfirmOpen;
+    private Device _activeResetConfirmDevice;
+    private GameObject _selectedBeforeResetConfirm;
+
     private KeyCode[] _keyboardKeysCache;
     private KeyCode[] _gamepadKeysCache;
 
@@ -207,7 +235,7 @@ public class LegacyKeycodeRebind : MonoBehaviour
     private GameObject _selectedBeforeRebind;
 
     public bool IsRebinding => _isRebinding;
-    public bool IsBlockingOtherUi => _isRebinding || Time.unscaledTime < _blockOtherUiUntilUnscaled;
+    public bool IsBlockingOtherUi => _isRebinding || _isResetConfirmOpen || Time.unscaledTime < _blockOtherUiUntilUnscaled;
     public KeyboardBinds Keyboard => keyboard;
     public GamepadBinds Gamepad => gamepad;
 
@@ -231,15 +259,29 @@ public class LegacyKeycodeRebind : MonoBehaviour
         WireUI();
         RefreshAllRows();
         SetOverlay(false);
+        CloseAllResetConfirmPanelsImmediate();
     }
 
     private void OnDisable()
     {
         CancelRebind();
+        CloseAllResetConfirmPanelsImmediate();
+        _isResetConfirmOpen = false;
+        _selectedBeforeResetConfirm = null;
     }
 
     private void Update()
     {
+        if (_isResetConfirmOpen)
+        {
+            if (Input.GetKeyDown(cancelKeyboardKey) || Input.GetKeyDown(cancelGamepadKey))
+            {
+                CloseActiveResetConfirm(true);
+            }
+
+            return;
+        }
+
         if (!_isRebinding) return;
 
         if (Input.GetKeyDown(cancelKeyboardKey) || Input.GetKeyDown(cancelGamepadKey))
@@ -321,23 +363,8 @@ public class LegacyKeycodeRebind : MonoBehaviour
 
     private void WireUI()
     {
-        if (resetKeyboardButton != null)
-        {
-            resetKeyboardButton.onClick.RemoveAllListeners();
-            resetKeyboardButton.onClick.AddListener(OnResetKeyboardClicked);
-        }
-
-        if (resetGamepadButton != null)
-        {
-            resetGamepadButton.onClick.RemoveAllListeners();
-            resetGamepadButton.onClick.AddListener(OnResetGamepadClicked);
-        }
-
-        if (resetAllButton != null)
-        {
-            resetAllButton.onClick.RemoveAllListeners();
-            resetAllButton.onClick.AddListener(OnResetAllClicked);
-        }
+        WireResetConfirmUI(keyboardResetUI, Device.Keyboard);
+        WireResetConfirmUI(gamepadResetUI, Device.Gamepad);
 
         for (int i = 0; i < rows.Count; i++)
         {
@@ -355,6 +382,29 @@ public class LegacyKeycodeRebind : MonoBehaviour
                 row.resetButton.onClick.RemoveAllListeners();
                 row.resetButton.onClick.AddListener(() => OnResetOneClicked(row.device, row.action));
             }
+        }
+    }
+
+    private void WireResetConfirmUI(ResetConfirmUI ui, Device device)
+    {
+        if (ui == null) return;
+
+        if (ui.openResetButton != null)
+        {
+            ui.openResetButton.onClick.RemoveAllListeners();
+            ui.openResetButton.onClick.AddListener(() => OnOpenResetConfirmClicked(device));
+        }
+
+        if (ui.confirmYesButton != null)
+        {
+            ui.confirmYesButton.onClick.RemoveAllListeners();
+            ui.confirmYesButton.onClick.AddListener(() => OnConfirmResetClicked(device));
+        }
+
+        if (ui.cancelButton != null)
+        {
+            ui.cancelButton.onClick.RemoveAllListeners();
+            ui.cancelButton.onClick.AddListener(() => OnCancelResetClicked(device));
         }
     }
 
@@ -382,6 +432,7 @@ public class LegacyKeycodeRebind : MonoBehaviour
     {
         if (rowIndex < 0 || rowIndex >= rows.Count) return;
         if (_isRebinding) return;
+        if (_isResetConfirmOpen) return;
         if (ShouldIgnoreSpaceSubmitThisFrame()) return;
 
         RebindRow row = rows[rowIndex];
@@ -457,14 +508,11 @@ public class LegacyKeycodeRebind : MonoBehaviour
             if (r.resetButton != null) r.resetButton.interactable = on;
         }
 
-        if (resetKeyboardButton != null)
-            resetKeyboardButton.interactable = on;
+        if (keyboardResetUI != null && keyboardResetUI.openResetButton != null)
+            keyboardResetUI.openResetButton.interactable = on;
 
-        if (resetGamepadButton != null)
-            resetGamepadButton.interactable = on;
-
-        if (resetAllButton != null)
-            resetAllButton.interactable = on;
+        if (gamepadResetUI != null && gamepadResetUI.openResetButton != null)
+            gamepadResetUI.openResetButton.interactable = on;
     }
 
     private void SetOverlay(bool on, string msg = "")
@@ -483,16 +531,6 @@ public class LegacyKeycodeRebind : MonoBehaviour
         }
 
         SetGraphicText(waitingText, on ? msg : "");
-    }
-
-    public void ResetAllToDefaults()
-    {
-        keyboard = Copy(defaultKeyboard);
-        gamepad = Copy(defaultGamepad);
-
-        Save();
-        OnBindsChanged?.Invoke();
-        RefreshAllRows();
     }
 
     public void ResetKeyboardToDefaults()
@@ -579,23 +617,11 @@ public class LegacyKeycodeRebind : MonoBehaviour
     {
         bool changed = false;
 
-        if (duplicate.resetKeyboardButton != null)
-        {
-            resetKeyboardButton = duplicate.resetKeyboardButton;
+        if (TryAbsorbResetConfirmUI(ref keyboardResetUI, duplicate.keyboardResetUI))
             changed = true;
-        }
 
-        if (duplicate.resetGamepadButton != null)
-        {
-            resetGamepadButton = duplicate.resetGamepadButton;
+        if (TryAbsorbResetConfirmUI(ref gamepadResetUI, duplicate.gamepadResetUI))
             changed = true;
-        }
-
-        if (duplicate.resetAllButton != null)
-        {
-            resetAllButton = duplicate.resetAllButton;
-            changed = true;
-        }
 
         if (duplicate.waitingOverlay != null)
         {
@@ -627,7 +653,44 @@ public class LegacyKeycodeRebind : MonoBehaviour
             WireUI();
             RefreshAllRows();
             SetOverlay(false);
+            CloseAllResetConfirmPanelsImmediate();
         }
+    }
+
+    private bool TryAbsorbResetConfirmUI(ref ResetConfirmUI target, ResetConfirmUI source)
+    {
+        if (source == null) return false;
+
+        if (target == null)
+            target = new ResetConfirmUI();
+
+        bool changed = false;
+
+        if (source.openResetButton != null)
+        {
+            target.openResetButton = source.openResetButton;
+            changed = true;
+        }
+
+        if (source.confirmPanel != null)
+        {
+            target.confirmPanel = source.confirmPanel;
+            changed = true;
+        }
+
+        if (source.confirmYesButton != null)
+        {
+            target.confirmYesButton = source.confirmYesButton;
+            changed = true;
+        }
+
+        if (source.cancelButton != null)
+        {
+            target.cancelButton = source.cancelButton;
+            changed = true;
+        }
+
+        return changed;
     }
 
     private void OnChangeButtonClicked(int rowIndex)
@@ -640,34 +703,115 @@ public class LegacyKeycodeRebind : MonoBehaviour
 
     private void OnResetOneClicked(Device device, Action action)
     {
-        if (ShouldIgnoreSpaceSubmitThisFrame())
-            return;
+        if (_isResetConfirmOpen) return;
+        if (ShouldIgnoreSpaceSubmitThisFrame()) return;
 
         ResetOneToDefault(device, action);
     }
 
-    private void OnResetKeyboardClicked()
+    private void OnOpenResetConfirmClicked(Device device)
     {
-        if (ShouldIgnoreSpaceSubmitThisFrame())
-            return;
+        if (_isRebinding) return;
+        if (ShouldIgnoreSpaceSubmitThisFrame()) return;
 
-        ResetKeyboardToDefaults();
+        OpenResetConfirm(device);
     }
 
-    private void OnResetGamepadClicked()
+    private void OnConfirmResetClicked(Device device)
     {
-        if (ShouldIgnoreSpaceSubmitThisFrame())
-            return;
+        if (!_isResetConfirmOpen) return;
 
-        ResetGamepadToDefaults();
+        if (device == Device.Keyboard)
+            ResetKeyboardToDefaults();
+        else
+            ResetGamepadToDefaults();
+
+        CloseActiveResetConfirm(true);
     }
 
-    private void OnResetAllClicked()
+    private void OnCancelResetClicked(Device device)
     {
-        if (ShouldIgnoreSpaceSubmitThisFrame())
+        if (!_isResetConfirmOpen) return;
+        CloseActiveResetConfirm(true);
+    }
+
+    private void OpenResetConfirm(Device device)
+    {
+        ResetConfirmUI ui = GetResetConfirmUI(device);
+        if (ui == null || ui.confirmPanel == null)
             return;
 
-        ResetAllToDefaults();
+        if (_isResetConfirmOpen)
+            CloseActiveResetConfirm(false);
+
+        _isResetConfirmOpen = true;
+        _activeResetConfirmDevice = device;
+
+        if (EventSystem.current != null)
+            _selectedBeforeResetConfirm = EventSystem.current.currentSelectedGameObject;
+        else
+            _selectedBeforeResetConfirm = null;
+
+        CloseAllResetConfirmPanelsImmediate();
+        SetResetConfirmPanel(ui, true);
+        BlockOtherUiForAWhile();
+
+        if (EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(null);
+
+        if (ui.cancelButton != null && ui.cancelButton.isActiveAndEnabled && ui.cancelButton.interactable)
+            RestoreSelectionNextFrame(ui.cancelButton);
+        else if (ui.confirmYesButton != null && ui.confirmYesButton.isActiveAndEnabled && ui.confirmYesButton.interactable)
+            RestoreSelectionNextFrame(ui.confirmYesButton);
+
+    }
+
+    private void CloseActiveResetConfirm(bool restoreSelection)
+    {
+        Button buttonToRestore = null;
+
+        if (_isResetConfirmOpen)
+        {
+            ResetConfirmUI currentUI = GetResetConfirmUI(_activeResetConfirmDevice);
+
+            if (currentUI != null && currentUI.openResetButton != null && currentUI.openResetButton.isActiveAndEnabled)
+            {
+                buttonToRestore = currentUI.openResetButton;
+            }
+            else if (_selectedBeforeResetConfirm != null)
+            {
+                Button selectedButton = _selectedBeforeResetConfirm.GetComponent<Button>();
+                if (selectedButton != null && selectedButton.isActiveAndEnabled)
+                    buttonToRestore = selectedButton;
+            }
+        }
+
+        CloseAllResetConfirmPanelsImmediate();
+        _isResetConfirmOpen = false;
+        _selectedBeforeResetConfirm = null;
+        BlockOtherUiForAWhile();
+
+        if (restoreSelection)
+            RestoreSelectionNextFrame(buttonToRestore);
+    }
+
+    private void CloseAllResetConfirmPanelsImmediate()
+    {
+        SetResetConfirmPanel(keyboardResetUI, false);
+        SetResetConfirmPanel(gamepadResetUI, false);
+    }
+
+    private void SetResetConfirmPanel(ResetConfirmUI ui, bool on)
+    {
+        if (ui == null || ui.confirmPanel == null)
+            return;
+
+        ui.confirmPanel.SetActive(on);
+    }
+
+    private ResetConfirmUI GetResetConfirmUI(Device device)
+    {
+        return device == Device.Keyboard ? keyboardResetUI : gamepadResetUI;
     }
 
     private bool ShouldIgnoreSpaceSubmitThisFrame()
@@ -708,6 +852,10 @@ public class LegacyKeycodeRebind : MonoBehaviour
 
     private Button GetButtonToRestoreSelection()
     {
+        Button preferredResetButton = GetPreferredResetButtonForDevice(_rebindDevice);
+        if (preferredResetButton != null)
+            return preferredResetButton;
+
         if (_rebindRowIndex >= 0 && _rebindRowIndex < rows.Count)
         {
             Button rowButton = rows[_rebindRowIndex].changeButton;
@@ -722,24 +870,28 @@ public class LegacyKeycodeRebind : MonoBehaviour
                 return selectedButton;
         }
 
-        if (_rebindDevice == Device.Keyboard)
+        if (keyboardResetUI != null && keyboardResetUI.openResetButton != null && keyboardResetUI.openResetButton.isActiveAndEnabled)
+            return keyboardResetUI.openResetButton;
+
+        if (gamepadResetUI != null && gamepadResetUI.openResetButton != null && gamepadResetUI.openResetButton.isActiveAndEnabled)
+            return gamepadResetUI.openResetButton;
+
+        return null;
+    }
+
+    private Button GetPreferredResetButtonForDevice(Device device)
+    {
+        ResetConfirmUI ui = GetResetConfirmUI(device);
+        if (ui == null) return null;
+
+        if (ui.openResetButton != null &&
+            ui.openResetButton.isActiveAndEnabled &&
+            ui.openResetButton.interactable)
         {
-            if (resetKeyboardButton != null && resetKeyboardButton.isActiveAndEnabled)
-                return resetKeyboardButton;
-        }
-        else
-        {
-            if (resetGamepadButton != null && resetGamepadButton.isActiveAndEnabled)
-                return resetGamepadButton;
+            return ui.openResetButton;
         }
 
-        if (resetKeyboardButton != null && resetKeyboardButton.isActiveAndEnabled)
-            return resetKeyboardButton;
-
-        if (resetGamepadButton != null && resetGamepadButton.isActiveAndEnabled)
-            return resetGamepadButton;
-
-        return resetAllButton;
+        return null;
     }
 
     private void RestoreSelectionNextFrame(Button target)

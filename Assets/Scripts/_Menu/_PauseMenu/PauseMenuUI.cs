@@ -40,6 +40,13 @@ public class PauseMenuUI : MonoBehaviour
     [SerializeField] private Button restartYesButton;
     [SerializeField] private Button restartNoButton;
 
+    [Header("Confirm return buttons")]
+    [SerializeField, Tooltip("На какую кнопку возвращать выделение после закрытия подтверждения выхода. Если пусто — вернётся на кнопку, с которой окно открыли, иначе на Exit To Menu.")]
+    private Button exitConfirmReturnButton;
+
+    [SerializeField, Tooltip("На какую кнопку возвращать выделение после закрытия подтверждения рестарта. Если пусто — вернётся на кнопку, с которой окно открыли, иначе на Restart.")]
+    private Button restartConfirmReturnButton;
+
     [Header("Back buttons (optional)")]
     [SerializeField] private Button settingsBackButton;   // Back внутри Settings_Panel
     [SerializeField] private Button controlsBackButton;   // Back внутри отдельного ControlsPanel
@@ -56,7 +63,7 @@ public class PauseMenuUI : MonoBehaviour
     [Tooltip("Какой элемент выделять при открытии главного меню паузы. Если пусто — Continue.")]
     [SerializeField] private Button pauseMenuFirstSelected;
 
-    [Tooltip("Какой элемент выделять внутри Settings_Panel, когда открыта вкладка.")]
+    [Tooltip("Какой элемент выделять внутри Settings_Panel. Обычно сюда лучше поставить первую кнопку вкладок (например Audio), а не Back.")]
     [SerializeField] private Button settingsFirstSelected;
 
     [Tooltip("Какой элемент выделять внутри отдельного ControlsPanel.")]
@@ -124,6 +131,12 @@ public class PauseMenuUI : MonoBehaviour
     private float _prevHorizontalAxis;
     private float _prevVerticalAxis;
 
+    private bool _prevExitConfirmActive;
+    private bool _prevRestartConfirmActive;
+
+    private Button _selectedBeforeExitConfirm;
+    private Button _selectedBeforeRestartConfirm;
+
     public bool IsPaused => _paused;
 
     private void Awake()
@@ -131,6 +144,8 @@ public class PauseMenuUI : MonoBehaviour
         CacheSettingsTabsIfNeeded();
         CacheOpenPauseButtonNavigationIfNeeded();
         WireButtons();
+        SetupConfirmNavigation();
+        CacheModalStates();
         SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
@@ -149,8 +164,15 @@ public class PauseMenuUI : MonoBehaviour
         ResumeGame(true);
     }
 
+    private void OnEnable()
+    {
+        CacheModalStates();
+    }
+
     private void Update()
     {
+        UpdateConfirmSelectionState();
+
         if (IsRebindBlockingUi())
             return;
 
@@ -206,6 +228,7 @@ public class PauseMenuUI : MonoBehaviour
             return;
 
         ApplyPauseCursorState();
+        UpdateConfirmSelectionState();
 
         if (IsRebindBlockingUi())
             return;
@@ -247,6 +270,10 @@ public class PauseMenuUI : MonoBehaviour
         CachePlayerControllerIfNeeded();
         CacheSettingsTabsIfNeeded();
         CacheOpenPauseButtonNavigationIfNeeded();
+        CacheModalStates();
+
+        _selectedBeforeExitConfirm = null;
+        _selectedBeforeRestartConfirm = null;
 
         if (_paused && pauseRoot != null && pauseRoot.activeSelf)
             ApplyPauseCursorState();
@@ -470,6 +497,34 @@ public class PauseMenuUI : MonoBehaviour
         btn.onClick.AddListener(action);
     }
 
+    private void SetupConfirmNavigation()
+    {
+        SetupTwoButtonNavigation(exitYesButton, exitNoButton);
+        SetupTwoButtonNavigation(restartYesButton, restartNoButton);
+    }
+
+    private void SetupTwoButtonNavigation(Button leftOrYes, Button rightOrNo)
+    {
+        if (leftOrYes == null || rightOrNo == null)
+            return;
+
+        Navigation firstNav = leftOrYes.navigation;
+        firstNav.mode = Navigation.Mode.Explicit;
+        firstNav.selectOnLeft = rightOrNo;
+        firstNav.selectOnRight = rightOrNo;
+        firstNav.selectOnUp = leftOrYes;
+        firstNav.selectOnDown = leftOrYes;
+        leftOrYes.navigation = firstNav;
+
+        Navigation secondNav = rightOrNo.navigation;
+        secondNav.mode = Navigation.Mode.Explicit;
+        secondNav.selectOnLeft = leftOrYes;
+        secondNav.selectOnRight = leftOrYes;
+        secondNav.selectOnUp = rightOrNo;
+        secondNav.selectOnDown = rightOrNo;
+        rightOrNo.navigation = secondNav;
+    }
+
     private void ApplyPauseCursorState()
     {
         if (!showCursorWhenPaused) return;
@@ -514,20 +569,40 @@ public class PauseMenuUI : MonoBehaviour
 
     private void SelectSettingsRoot()
     {
+        if (settingsFirstSelected != null && settingsFirstSelected.isActiveAndEnabled && settingsFirstSelected.interactable)
+        {
+            SelectButtonDeferred(settingsFirstSelected);
+            return;
+        }
+
         if (settingsBackButton != null && settingsBackButton.isActiveAndEnabled && settingsBackButton.interactable)
         {
             SelectButtonDeferred(settingsBackButton);
             return;
         }
-
-        SelectButtonDeferred(settingsFirstSelected);
     }
 
     private void RestoreSelectionIfNeeded()
     {
         if (EventSystem.current == null) return;
-        if (EventSystem.current.currentSelectedGameObject != null) return;
 
+        GameObject currentSelected = EventSystem.current.currentSelectedGameObject;
+
+        if (currentSelected != null)
+        {
+            Selectable currentSelectable = currentSelected.GetComponent<Selectable>();
+
+            if (currentSelectable == null || !IsSelectableAllowedInCurrentContext(currentSelectable))
+                SelectCurrentContextDefault();
+
+            return;
+        }
+
+        SelectCurrentContextDefault();
+    }
+
+    private void SelectCurrentContextDefault()
+    {
         if (exitConfirmPanel && exitConfirmPanel.activeSelf)
         {
             SelectButtonDeferred(exitConfirmFirstSelected ? exitConfirmFirstSelected : exitNoButton);
@@ -646,27 +721,42 @@ public class PauseMenuUI : MonoBehaviour
         EventSystem.current.SetSelectedGameObject(hoveredButton.gameObject);
     }
 
+    private bool IsSelectableAllowedInCurrentContext(Selectable selectable)
+    {
+        if (selectable == null) return false;
+        if (!selectable.isActiveAndEnabled) return false;
+        if (!selectable.interactable) return false;
+
+        return IsTransformAllowedInCurrentContext(selectable.transform);
+    }
+
     private bool IsButtonAllowedInCurrentContext(Button btn)
     {
         if (btn == null) return false;
+        return IsSelectableAllowedInCurrentContext(btn);
+    }
 
-        if (_paused && btn == openPauseButton)
+    private bool IsTransformAllowedInCurrentContext(Transform target)
+    {
+        if (target == null) return false;
+
+        if (_paused && openPauseButton != null && target == openPauseButton.transform)
             return false;
 
         if (exitConfirmPanel != null && exitConfirmPanel.activeSelf)
-            return btn.transform.IsChildOf(exitConfirmPanel.transform);
+            return target.IsChildOf(exitConfirmPanel.transform);
 
         if (restartConfirmPanel != null && restartConfirmPanel.activeSelf)
-            return btn.transform.IsChildOf(restartConfirmPanel.transform);
+            return target.IsChildOf(restartConfirmPanel.transform);
 
         if (controlsPanel != null && controlsPanel.activeSelf)
-            return btn.transform.IsChildOf(controlsPanel.transform);
+            return target.IsChildOf(controlsPanel.transform);
 
         if (settingsPanel != null && settingsPanel.activeSelf)
-            return btn.transform.IsChildOf(settingsPanel.transform);
+            return target.IsChildOf(settingsPanel.transform);
 
         if (menuPanel != null && menuPanel.activeSelf)
-            return btn.transform.IsChildOf(menuPanel.transform);
+            return target.IsChildOf(menuPanel.transform);
 
         return false;
     }
@@ -697,6 +787,7 @@ public class PauseMenuUI : MonoBehaviour
 
         ShowMainMenu();
         ApplyPauseCursorState();
+        CacheModalStates();
         SelectPauseMenuDefault();
     }
 
@@ -726,6 +817,10 @@ public class PauseMenuUI : MonoBehaviour
 
         ApplyPlayCursorState();
         SetOpenPauseButtonAvailable(true);
+        CacheModalStates();
+
+        _selectedBeforeExitConfirm = null;
+        _selectedBeforeRestartConfirm = null;
 
         if (!isInitialStart)
             SetGameplayInputEnabled(true);
@@ -733,6 +828,8 @@ public class PauseMenuUI : MonoBehaviour
 
     public void AskRestartLevel()
     {
+        _selectedBeforeRestartConfirm = GetCurrentlySelectedButton();
+
         HideAllSubPanels();
         if (restartConfirmPanel) restartConfirmPanel.SetActive(true);
 
@@ -749,11 +846,13 @@ public class PauseMenuUI : MonoBehaviour
     {
         if (restartConfirmPanel) restartConfirmPanel.SetActive(false);
         ShowMainMenu();
-        SelectPauseMenuDefault();
+        SelectButtonDeferred(GetRestartConfirmReturnButton());
     }
 
     public void AskExitToMainMenu()
     {
+        _selectedBeforeExitConfirm = GetCurrentlySelectedButton();
+
         HideAllSubPanels();
         if (exitConfirmPanel) exitConfirmPanel.SetActive(true);
 
@@ -770,7 +869,7 @@ public class PauseMenuUI : MonoBehaviour
     {
         if (exitConfirmPanel) exitConfirmPanel.SetActive(false);
         ShowMainMenu();
-        SelectPauseMenuDefault();
+        SelectButtonDeferred(GetExitConfirmReturnButton());
     }
 
     public void OpenSettings()
@@ -830,5 +929,88 @@ public class PauseMenuUI : MonoBehaviour
         if (controlsPanel) controlsPanel.SetActive(false);
         if (exitConfirmPanel) exitConfirmPanel.SetActive(false);
         if (restartConfirmPanel) restartConfirmPanel.SetActive(false);
+    }
+
+    private Button GetExitConfirmReturnButton()
+    {
+        if (exitConfirmReturnButton != null && exitConfirmReturnButton.isActiveAndEnabled && exitConfirmReturnButton.interactable)
+            return exitConfirmReturnButton;
+
+        if (_selectedBeforeExitConfirm != null && _selectedBeforeExitConfirm.isActiveAndEnabled && _selectedBeforeExitConfirm.interactable)
+            return _selectedBeforeExitConfirm;
+
+        if (exitToMenuButton != null && exitToMenuButton.isActiveAndEnabled && exitToMenuButton.interactable)
+            return exitToMenuButton;
+
+        return pauseMenuFirstSelected != null ? pauseMenuFirstSelected : continueButton;
+    }
+
+    private Button GetRestartConfirmReturnButton()
+    {
+        if (restartConfirmReturnButton != null && restartConfirmReturnButton.isActiveAndEnabled && restartConfirmReturnButton.interactable)
+            return restartConfirmReturnButton;
+
+        if (_selectedBeforeRestartConfirm != null && _selectedBeforeRestartConfirm.isActiveAndEnabled && _selectedBeforeRestartConfirm.interactable)
+            return _selectedBeforeRestartConfirm;
+
+        if (restartButton != null && restartButton.isActiveAndEnabled && restartButton.interactable)
+            return restartButton;
+
+        return pauseMenuFirstSelected != null ? pauseMenuFirstSelected : continueButton;
+    }
+
+    private void UpdateConfirmSelectionState()
+    {
+        bool exitActive = exitConfirmPanel != null && exitConfirmPanel.activeSelf;
+        bool restartActive = restartConfirmPanel != null && restartConfirmPanel.activeSelf;
+
+        bool exitJustOpened = exitActive && !_prevExitConfirmActive;
+        bool exitJustClosed = !exitActive && _prevExitConfirmActive;
+        bool restartJustOpened = restartActive && !_prevRestartConfirmActive;
+        bool restartJustClosed = !restartActive && _prevRestartConfirmActive;
+
+        _prevExitConfirmActive = exitActive;
+        _prevRestartConfirmActive = restartActive;
+
+        if (exitJustOpened)
+        {
+            SelectButtonDeferred(exitConfirmFirstSelected ? exitConfirmFirstSelected : exitNoButton);
+            return;
+        }
+
+        if (exitJustClosed)
+        {
+            SelectButtonDeferred(GetExitConfirmReturnButton());
+            return;
+        }
+
+        if (restartJustOpened)
+        {
+            SelectButtonDeferred(restartConfirmFirstSelected ? restartConfirmFirstSelected : restartNoButton);
+            return;
+        }
+
+        if (restartJustClosed)
+        {
+            SelectButtonDeferred(GetRestartConfirmReturnButton());
+        }
+    }
+
+    private void CacheModalStates()
+    {
+        _prevExitConfirmActive = exitConfirmPanel != null && exitConfirmPanel.activeSelf;
+        _prevRestartConfirmActive = restartConfirmPanel != null && restartConfirmPanel.activeSelf;
+    }
+
+    private Button GetCurrentlySelectedButton()
+    {
+        if (EventSystem.current == null)
+            return null;
+
+        GameObject current = EventSystem.current.currentSelectedGameObject;
+        if (current == null)
+            return null;
+
+        return current.GetComponent<Button>();
     }
 }
