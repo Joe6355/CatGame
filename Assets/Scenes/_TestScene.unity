@@ -3266,7 +3266,7 @@ Transform:
   m_GameObject: {fileID: 616883574}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 6.4123664, y: 0.88786006, z: -10}
+  m_LocalPosition: {x: 8.3318, y: 0.88678, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4513,7 +4513,7 @@ Transform:
   m_GameObject: {fileID: 956994266}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 6.4048615, y: -2.2449996, z: -10}
+  m_LocalPosition: {x: 8.324862, y: -1.9849997, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -6923,7 +6923,7 @@ Transform:
   m_GameObject: {fileID: 1471706294}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.54, y: -3.37, z: 0}
+  m_LocalPosition: {x: 1.38, y: -3.11, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -6953,12 +6953,18 @@ MonoBehaviour:
   groundCheck: {fileID: 2023908797}
   groundCheckRadius: 0.12
   useEdgeAssist: 1
-  edgeProbeHalfWidth: 0.22
-  edgeProbeHeight: 0.06
-  snapProbeDistance: 0.12
+  edgeProbeHalfWidth: 0.12
+  edgeProbeWidth: 0.05
+  edgeProbeHeight: 0.09
+  snapProbeDistance: 0.08
   snapProbeDistanceMax: 0.18
   snapOnlyWhenFallingY: 0.02
-  snapMinNormalY: 0.35
+  snapMinNormalY: 0.6
+  snapRayStartHeight: 0.04
+  rejectEdgeAssistWhenSideBlocked: 1
+  sideBlockCheckDistance: 0.04
+  sideBlockMinNormalX: 0.7
+  bodyCollider: {fileID: 1471706301}
 --- !u!114 &1471706306
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7028,8 +7034,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 45335e58e29a03e4da58cb2b60d76067, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 7
+  moveSpeed: 3
   fatigueSpeedMultiplier: 0.6
+  enableSprintAcceleration: 1
+  sprintMoveSpeed: 12
+  sprintBuildTime: 0.8
+  sprintInputDeadZone: 0.2
+  resetSprintOnDirectionChange: 1
   airControlSpeed: 5
   enableAirControlInAir: 0
   iceAccel: 2.5
@@ -10320,7 +10331,7 @@ Transform:
   m_GameObject: {fileID: 2023908796}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.476, z: 0}
+  m_LocalPosition: {x: 0, y: -0.563, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -23,7 +23,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Tooltip("Модуль прыжка: short/charged jump, hold, buffer, coyote time, fatigue и предсказание траектории. Если не назначен, будет найден автоматически на этом же объекте.")]
     private PlayerJumpModule jumpModule;
 
-    [SerializeField, Tooltip("Модуль движения: горизонтальное движение, лёд, air control, facing/flip и сохранённая скорость в воздухе. Если не назначен, будет найден автоматически на этом же объекте.")]
+    [SerializeField, Tooltip("Модуль движения: горизонтальное движение, лёд, air control, facing/flip, плавный разгон до спринта и сохранённая скорость в воздухе. Если не назначен, будет найден автоматически на этом же объекте.")]
     private PlayerMovementModule movementModule;
 
     [SerializeField, Tooltip("Модуль bounce: отскоки от стен и потолка, их сила, демпфирование и анти-дубль по времени. Если не назначен, будет найден автоматически на этом же объекте.")]
@@ -146,12 +146,13 @@ public class PlayerController : MonoBehaviour
             IsGrounded = IsGroundedNow,
             LastGroundedTime = LastGroundedTimeNow,
             IsFacingRight = movementModule.IsFacingRight,
-            MoveSpeed = movementModule.MoveSpeed,
+            MoveSpeed = movementModule.CurrentMoveSpeedForJump,
             FatigueSpeedMultiplier = movementModule.FatigueSpeedMultiplier,
             PlatformVX = PlatformVXNow,
             SnowMoveMul = SnowMoveMul,
             SnowJumpMul = SnowJumpMul,
             ExternalWindVX = ExternalWindVX,
+            SprintChargedJumpReady = movementModule.SprintChargedJumpReady,
             Rigidbody = rb
         };
     }
@@ -202,7 +203,12 @@ public class PlayerController : MonoBehaviour
             jumpModule.MarkHoldJumpPressed(snapshot.ChargeDownSource, Time.time);
 
             if (jumpModule.CanStartJumpCharge(BuildJumpContext()))
-                jumpModule.BeginJumpHold(snapshot.ChargeDownSource, Time.time);
+            {
+                jumpModule.BeginJumpHold(
+                    snapshot.ChargeDownSource,
+                    Time.time,
+                    movementModule.SprintChargedJumpReady);
+            }
         }
 
         if (jumpModule.IsJumpHoldActive)
@@ -241,7 +247,12 @@ public class PlayerController : MonoBehaviour
         if (snapshot.JumpHeld)
         {
             if (!jumpModule.IsJumpHoldActive && jumpModule.CanStartJumpCharge(BuildJumpContext()))
-                jumpModule.BeginJumpHold(PlayerInputModule.HoldSource.Mobile, Time.time);
+            {
+                jumpModule.BeginJumpHold(
+                    PlayerInputModule.HoldSource.Mobile,
+                    Time.time,
+                    movementModule.SprintChargedJumpReady);
+            }
 
             if (jumpModule.IsJumpHoldActive)
             {

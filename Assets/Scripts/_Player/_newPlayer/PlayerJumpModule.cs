@@ -14,7 +14,7 @@ public class PlayerJumpModule : MonoBehaviour
     [SerializeField, Tooltip("Сила слабого прыжка, если отпустили кнопку ДО входа в режим заряда.\nРекоменд: 4–12 (зависит от gravityScale).")]
     private float shortJumpForce = 8f;
 
-    [SerializeField, Tooltip("Задержка (сек) чтобы ВОЙТИ в режим заряда.\nЕсли отпустить раньше — будет слабый прыжок.\nРекоменд: 0.3–1.5 (по задаче поставим 1.0).")]
+    [SerializeField, Tooltip("Задержка (сек), чтобы ВОЙТИ в режим заряда.\nЕсли отпустить раньше — будет слабый прыжок.\nРекоменд: 0.3–1.5.")]
     private float chargeEnterDelay = 1f;
 
     [SerializeField, Tooltip("Койот-тайм: сколько секунд после схода с платформы ещё можно начать заряд прыжка.\nРекоменд: 0.05–0.15 (часто 0.08–0.12).")]
@@ -47,6 +47,7 @@ public class PlayerJumpModule : MonoBehaviour
         public float SnowMoveMul;
         public float SnowJumpMul;
         public float ExternalWindVX;
+        public bool SprintChargedJumpReady;
         public Rigidbody2D Rigidbody;
     }
 
@@ -64,6 +65,7 @@ public class PlayerJumpModule : MonoBehaviour
 
     private bool isJumpHoldActive = false;
     private bool isChargingJump = false;
+    private bool isInstantFullChargeActive = false;
 
     private float jumpButtonDownTime = 0f;
     private float jumpStartHoldTime = 0f;
@@ -78,7 +80,10 @@ public class PlayerJumpModule : MonoBehaviour
     public float CoyoteTime => coyoteTime;
     public bool IsJumpHoldActive => isJumpHoldActive;
     public bool IsChargingJump => isChargingJump;
-    public bool IsChargingJumpPublic => isJumpHoldActive || isChargingJump;
+
+    // Наружу показываем только реальный charge.
+    public bool IsChargingJumpPublic => isChargingJump;
+
     public float CurrentBarNormalized => currentBarNormalized;
     public float LastJumpTime => lastJumpTime;
     public float LastAppliedJumpForce => lastAppliedJumpForce;
@@ -113,16 +118,27 @@ public class PlayerJumpModule : MonoBehaviour
         bufferedHoldSource = source;
     }
 
-    public void BeginJumpHold(PlayerInputModule.HoldSource source, float now)
+    public void BeginJumpHold(PlayerInputModule.HoldSource source, float now, bool instantFullCharge)
     {
         isJumpHoldActive = true;
         isChargingJump = false;
+        isInstantFullChargeActive = false;
+
         bufferedJumpKind = BufferedJumpKind.None;
         currentHoldJumpSource = source;
         bufferedHoldSource = PlayerInputModule.HoldSource.None;
 
         jumpButtonDownTime = now;
+        jumpStartHoldTime = 0f;
         currentBarNormalized = 0f;
+
+        if (instantFullCharge)
+        {
+            isChargingJump = true;
+            isInstantFullChargeActive = true;
+            jumpStartHoldTime = now;
+            currentBarNormalized = 1f;
+        }
     }
 
     public void UpdateJumpHold(float now, bool isStillWithinGroundedWindow)
@@ -130,6 +146,13 @@ public class PlayerJumpModule : MonoBehaviour
         if (!isStillWithinGroundedWindow)
         {
             CancelJumpCharge();
+            return;
+        }
+
+        if (isInstantFullChargeActive)
+        {
+            isChargingJump = true;
+            currentBarNormalized = 1f;
             return;
         }
 
@@ -144,7 +167,7 @@ public class PlayerJumpModule : MonoBehaviour
             }
 
             isChargingJump = true;
-            jumpStartHoldTime = now;
+            jumpStartHoldTime = jumpButtonDownTime + chargeEnterDelay;
         }
 
         float safeTimeLimit = Mathf.Max(0.0001f, jumpTimeLimit);
@@ -156,12 +179,7 @@ public class PlayerJumpModule : MonoBehaviour
     {
         if (!IsWithinGroundedJumpWindow(ctx))
         {
-            isJumpHoldActive = false;
-            isChargingJump = false;
-            currentHoldJumpSource = PlayerInputModule.HoldSource.None;
-            bufferedJumpKind = BufferedJumpKind.None;
-            bufferedHoldSource = PlayerInputModule.HoldSource.None;
-            currentBarNormalized = 0f;
+            ClearHoldState();
             return default;
         }
 
@@ -171,6 +189,10 @@ public class PlayerJumpModule : MonoBehaviour
         {
             verticalForce = shortJumpForce * ctx.SnowJumpMul;
         }
+        else if (isInstantFullChargeActive)
+        {
+            verticalForce = maxJumpForce * ctx.SnowJumpMul;
+        }
         else
         {
             float safeTimeLimit = Mathf.Max(0.0001f, jumpTimeLimit);
@@ -178,12 +200,7 @@ public class PlayerJumpModule : MonoBehaviour
             verticalForce = Mathf.Clamp01(hold / safeTimeLimit) * maxJumpForce * ctx.SnowJumpMul;
         }
 
-        isJumpHoldActive = false;
-        isChargingJump = false;
-        currentHoldJumpSource = PlayerInputModule.HoldSource.None;
-        bufferedJumpKind = BufferedJumpKind.None;
-        bufferedHoldSource = PlayerInputModule.HoldSource.None;
-        currentBarNormalized = 0f;
+        ClearHoldState();
 
         float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
         float takeoffVx =
@@ -205,9 +222,7 @@ public class PlayerJumpModule : MonoBehaviour
         if (!CanStartJumpCharge(ctx))
             return default;
 
-        isJumpHoldActive = false;
-        isChargingJump = false;
-        currentHoldJumpSource = PlayerInputModule.HoldSource.None;
+        ClearHoldState();
 
         float verticalForce = shortJumpForce * ctx.SnowJumpMul;
 
@@ -219,7 +234,6 @@ public class PlayerJumpModule : MonoBehaviour
         PerformJump(ctx.Rigidbody, ctx.Now, takeoffVx, verticalForce, ctx.ExternalWindVX);
         StartFatigue(ctx.Now);
 
-        currentBarNormalized = 0f;
         bufferedJumpKind = BufferedJumpKind.None;
         bufferedHoldSource = PlayerInputModule.HoldSource.None;
 
@@ -263,7 +277,7 @@ public class PlayerJumpModule : MonoBehaviour
 
             if (isHoldInputStillHeld != null && isHoldInputStillHeld(source))
             {
-                BeginJumpHold(source, ctx.Now);
+                BeginJumpHold(source, ctx.Now, ctx.SprintChargedJumpReady);
             }
             else
             {
@@ -285,10 +299,7 @@ public class PlayerJumpModule : MonoBehaviour
         if (!isJumpHoldActive && !isChargingJump)
             return;
 
-        isJumpHoldActive = false;
-        isChargingJump = false;
-        currentHoldJumpSource = PlayerInputModule.HoldSource.None;
-        currentBarNormalized = 0f;
+        ClearHoldState();
     }
 
     public void ResetJumpInputState()
@@ -300,7 +311,7 @@ public class PlayerJumpModule : MonoBehaviour
         jumpButtonDownTime = 0f;
         jumpStartHoldTime = 0f;
 
-        CancelJumpCharge();
+        ClearHoldState();
     }
 
     public Vector2 GetPredictedJumpVelocity(JumpContext ctx)
@@ -317,6 +328,10 @@ public class PlayerJumpModule : MonoBehaviour
         if (!isChargingJump)
         {
             predictedVy = shortJumpForce * ctx.SnowJumpMul;
+        }
+        else if (isInstantFullChargeActive)
+        {
+            predictedVy = maxJumpForce * ctx.SnowJumpMul;
         }
         else
         {
@@ -341,6 +356,15 @@ public class PlayerJumpModule : MonoBehaviour
     private void StartFatigue(float now)
     {
         fatigueEndTime = now + fatigueDuration;
+    }
+
+    private void ClearHoldState()
+    {
+        isJumpHoldActive = false;
+        isChargingJump = false;
+        isInstantFullChargeActive = false;
+        currentHoldJumpSource = PlayerInputModule.HoldSource.None;
+        currentBarNormalized = 0f;
     }
 
     private void OnDisable()

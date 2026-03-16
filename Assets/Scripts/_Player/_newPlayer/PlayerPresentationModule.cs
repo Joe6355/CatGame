@@ -65,7 +65,7 @@ public class PlayerPresentationModule : MonoBehaviour
         if (jumpBarFill != null)
             jumpBarFill.fillAmount = clamped;
 
-        bool show = clamped > 0f || isJumpHoldActive || isChargingJump;
+        bool show = clamped > 0f || isChargingJump;
 
         if (jumpBarFill != null)
             jumpBarFill.enabled = show;
