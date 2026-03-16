@@ -11,26 +11,13 @@
 public class PlayerController : MonoBehaviour
 {
     [Header("Ссылки на модули")]
-    [SerializeField, Tooltip("Модуль окружения игрока: хранит одноразовый внешний ветер по X и итоговые множители движения/прыжка от активных сугробов. Если не назначен, будет найден автоматически на этом же объекте.")]
-    private PlayerEnvironmentModule environmentModule;
-
-    [SerializeField, Tooltip("Модуль проверки земли: считает grounded, last grounded time, лёд, платформенную скорость и edge assist. Если не назначен, будет найден автоматически на этом же объекте.")]
-    private PlayerGroundModule groundModule;
-
-    [SerializeField, Tooltip("Модуль ввода: клавиатура, геймпад, мобилка, rebind и блокировка ввода после меню. Если не назначен, будет найден автоматически на этом же объекте.")]
-    private PlayerInputModule inputModule;
-
-    [SerializeField, Tooltip("Модуль прыжка: short/charged jump, hold, buffer, coyote time, fatigue и предсказание траектории. Если не назначен, будет найден автоматически на этом же объекте.")]
-    private PlayerJumpModule jumpModule;
-
-    [SerializeField, Tooltip("Модуль движения: горизонтальное движение, лёд, air control, facing/flip, плавный разгон до спринта и сохранённая скорость в воздухе. Если не назначен, будет найден автоматически на этом же объекте.")]
-    private PlayerMovementModule movementModule;
-
-    [SerializeField, Tooltip("Модуль bounce: отскоки от стен и потолка, их сила, демпфирование и анти-дубль по времени. Если не назначен, будет найден автоматически на этом же объекте.")]
-    private PlayerBounceModule bounceModule;
-
-    [SerializeField, Tooltip("Модуль presentation/UI: шкала заряда, позиционирование UI над игроком и иконка усталости. Если не назначен, будет найден автоматически на этом же объекте.")]
-    private PlayerPresentationModule presentationModule;
+    [SerializeField] private PlayerEnvironmentModule environmentModule;
+    [SerializeField] private PlayerGroundModule groundModule;
+    [SerializeField] private PlayerInputModule inputModule;
+    [SerializeField] private PlayerJumpModule jumpModule;
+    [SerializeField] private PlayerMovementModule movementModule;
+    [SerializeField] private PlayerBounceModule bounceModule;
+    [SerializeField] private PlayerPresentationModule presentationModule;
 
     private Rigidbody2D rb;
     private float inputX = 0f;
@@ -82,7 +69,7 @@ public class PlayerController : MonoBehaviour
                     source => inputModule.IsHoldInputStillHeld(source));
 
             if (bufferResult.DidJump)
-                OnJumpPerformed(bufferResult.TakeoffVx);
+                OnJumpPerformed(bufferResult.TakeoffVx, bufferResult.WasChargedJump);
         }
         else
         {
@@ -104,7 +91,7 @@ public class PlayerController : MonoBehaviour
                     source => inputModule.IsHoldInputStillHeld(source));
 
             if (bufferResult.DidJump)
-                OnJumpPerformed(bufferResult.TakeoffVx);
+                OnJumpPerformed(bufferResult.TakeoffVx, bufferResult.WasChargedJump);
         }
 
         movementModule.ApplyMovement(BuildMovementContext());
@@ -113,29 +100,14 @@ public class PlayerController : MonoBehaviour
 
     private void CacheComponents()
     {
-        if (rb == null)
-            rb = GetComponent<Rigidbody2D>();
-
-        if (environmentModule == null)
-            environmentModule = GetComponent<PlayerEnvironmentModule>();
-
-        if (groundModule == null)
-            groundModule = GetComponent<PlayerGroundModule>();
-
-        if (inputModule == null)
-            inputModule = GetComponent<PlayerInputModule>();
-
-        if (jumpModule == null)
-            jumpModule = GetComponent<PlayerJumpModule>();
-
-        if (movementModule == null)
-            movementModule = GetComponent<PlayerMovementModule>();
-
-        if (bounceModule == null)
-            bounceModule = GetComponent<PlayerBounceModule>();
-
-        if (presentationModule == null)
-            presentationModule = GetComponent<PlayerPresentationModule>();
+        if (rb == null) rb = GetComponent<Rigidbody2D>();
+        if (environmentModule == null) environmentModule = GetComponent<PlayerEnvironmentModule>();
+        if (groundModule == null) groundModule = GetComponent<PlayerGroundModule>();
+        if (inputModule == null) inputModule = GetComponent<PlayerInputModule>();
+        if (jumpModule == null) jumpModule = GetComponent<PlayerJumpModule>();
+        if (movementModule == null) movementModule = GetComponent<PlayerMovementModule>();
+        if (bounceModule == null) bounceModule = GetComponent<PlayerBounceModule>();
+        if (presentationModule == null) presentationModule = GetComponent<PlayerPresentationModule>();
     }
 
     private PlayerJumpModule.JumpContext BuildJumpContext()
@@ -146,13 +118,13 @@ public class PlayerController : MonoBehaviour
             IsGrounded = IsGroundedNow,
             LastGroundedTime = LastGroundedTimeNow,
             IsFacingRight = movementModule.IsFacingRight,
-            MoveSpeed = movementModule.CurrentMoveSpeedForJump,
+            MoveSpeed = movementModule.CurrentMoveSpeed,
             FatigueSpeedMultiplier = movementModule.FatigueSpeedMultiplier,
             PlatformVX = PlatformVXNow,
             SnowMoveMul = SnowMoveMul,
             SnowJumpMul = SnowJumpMul,
             ExternalWindVX = ExternalWindVX,
-            SprintChargedJumpReady = movementModule.SprintChargedJumpReady,
+            SprintChargedJumpReady = movementModule.IsSprintReady,
             Rigidbody = rb
         };
     }
@@ -195,19 +167,32 @@ public class PlayerController : MonoBehaviour
                 jumpModule.TryPerformDedicatedShortJump(BuildJumpContext());
 
             if (shortResult.DidJump)
-                OnJumpPerformed(shortResult.TakeoffVx);
+                OnJumpPerformed(shortResult.TakeoffVx, shortResult.WasChargedJump);
         }
 
         if (snapshot.ChargeDownSource != PlayerInputModule.HoldSource.None)
         {
             jumpModule.MarkHoldJumpPressed(snapshot.ChargeDownSource, Time.time);
 
-            if (jumpModule.CanStartJumpCharge(BuildJumpContext()))
+            PlayerJumpModule.JumpContext jumpCtx = BuildJumpContext();
+
+            if (jumpModule.AllowInstantMaxChargeFromSprint && jumpCtx.SprintChargedJumpReady)
             {
-                jumpModule.BeginJumpHold(
-                    snapshot.ChargeDownSource,
-                    Time.time,
-                    movementModule.SprintChargedJumpReady);
+                PlayerJumpModule.JumpActionResult instantResult =
+                    jumpModule.TryPerformInstantMaxChargedJump(jumpCtx);
+
+                if (instantResult.DidJump)
+                {
+                    OnJumpPerformed(instantResult.TakeoffVx, instantResult.WasChargedJump);
+                }
+                else if (jumpModule.CanStartJumpCharge(jumpCtx))
+                {
+                    jumpModule.BeginJumpHold(snapshot.ChargeDownSource, Time.time, false);
+                }
+            }
+            else if (jumpModule.CanStartJumpCharge(jumpCtx))
+            {
+                jumpModule.BeginJumpHold(snapshot.ChargeDownSource, Time.time, false);
             }
         }
 
@@ -229,7 +214,7 @@ public class PlayerController : MonoBehaviour
                     jumpModule.ReleaseJumpHoldAndMaybeJump(BuildJumpContext());
 
                 if (releaseResult.DidJump)
-                    OnJumpPerformed(releaseResult.TakeoffVx);
+                    OnJumpPerformed(releaseResult.TakeoffVx, releaseResult.WasChargedJump);
             }
         }
     }
@@ -246,13 +231,24 @@ public class PlayerController : MonoBehaviour
 
         if (snapshot.JumpHeld)
         {
-            if (!jumpModule.IsJumpHoldActive && jumpModule.CanStartJumpCharge(BuildJumpContext()))
+            PlayerJumpModule.JumpContext jumpCtx = BuildJumpContext();
+
+            if (!jumpModule.IsJumpHoldActive &&
+                jumpModule.AllowInstantMaxChargeFromSprint &&
+                jumpCtx.SprintChargedJumpReady)
             {
-                jumpModule.BeginJumpHold(
-                    PlayerInputModule.HoldSource.Mobile,
-                    Time.time,
-                    movementModule.SprintChargedJumpReady);
+                PlayerJumpModule.JumpActionResult instantResult =
+                    jumpModule.TryPerformInstantMaxChargedJump(jumpCtx);
+
+                if (instantResult.DidJump)
+                {
+                    OnJumpPerformed(instantResult.TakeoffVx, instantResult.WasChargedJump);
+                    return;
+                }
             }
+
+            if (!jumpModule.IsJumpHoldActive && jumpModule.CanStartJumpCharge(jumpCtx))
+                jumpModule.BeginJumpHold(PlayerInputModule.HoldSource.Mobile, Time.time, false);
 
             if (jumpModule.IsJumpHoldActive)
             {
@@ -269,14 +265,18 @@ public class PlayerController : MonoBehaviour
                     jumpModule.ReleaseJumpHoldAndMaybeJump(BuildJumpContext());
 
                 if (releaseResult.DidJump)
-                    OnJumpPerformed(releaseResult.TakeoffVx);
+                    OnJumpPerformed(releaseResult.TakeoffVx, releaseResult.WasChargedJump);
             }
         }
     }
 
-    private void OnJumpPerformed(float takeoffVx)
+    private void OnJumpPerformed(float takeoffVx, bool wasChargedJump)
     {
         movementModule.OnJumpPerformed(takeoffVx);
+
+        if (wasChargedJump)
+            movementModule.ResetSprint();
+
         bounceModule.NotifyJumpImpulse(Time.time);
     }
 
@@ -289,9 +289,9 @@ public class PlayerController : MonoBehaviour
     {
         presentationModule.RefreshPresentation(
             jumpModule.IsFatigued(Time.time),
-            jumpModule.IsJumpHoldActive,
-            jumpModule.IsChargingJump,
-            jumpModule.CurrentBarNormalized);
+            jumpModule.IsJumpHoldActiveForPresentation,
+            jumpModule.IsChargeVisualActive,
+            jumpModule.ChargeBarNormalizedForPresentation);
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
@@ -340,6 +340,7 @@ public class PlayerController : MonoBehaviour
         inputX = 0f;
         inputModule.ResetModuleInputState(clearMobileHold);
         jumpModule.ResetJumpInputState();
+        movementModule.ResetSprint();
     }
 
     public bool IsChargingJumpPublic

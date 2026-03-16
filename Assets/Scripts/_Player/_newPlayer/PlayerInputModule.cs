@@ -26,24 +26,30 @@ public class PlayerInputModule : MonoBehaviour
         public bool JumpHeld;
     }
 
-    [Header("Назначение клавиш (PC)")]
+    [Header("Клавиатура и мышь (PC)")]
     [SerializeField, Tooltip("Клавиша движения влево (PC).\nРекоменд: A или LeftArrow.")]
     private KeyCode leftKey = KeyCode.A;
 
     [SerializeField, Tooltip("Клавиша движения вправо (PC).\nРекоменд: D или RightArrow.")]
     private KeyCode rightKey = KeyCode.D;
 
-    [SerializeField, Tooltip("Клавиша прыжка (PC).\nРекоменд: Space.")]
+    [SerializeField, Tooltip("Клавиша сильного/зарядного прыжка (PC). По умолчанию Space.")]
     private KeyCode jumpKey = KeyCode.Space;
 
-    [Header("Геймпад (прыжок)")]
-    [SerializeField, Tooltip("Если ВКЛ — в desktop-режиме (useMobileControls = false) можно прыгать с геймпада.\nДвижение у тебя уже работает отдельно, тут только кнопки прыжка.")]
+    [SerializeField, Tooltip("Клавиша отдельного слабого прыжка (PC). По умолчанию LeftShift.")]
+    private KeyCode shortJumpKey = KeyCode.LeftShift;
+
+    [SerializeField, Tooltip("Дополнительная клавиша отдельного слабого прыжка (PC). Можно оставить None.")]
+    private KeyCode alternateShortJumpKey = KeyCode.RightShift;
+
+    [Header("Геймпад (desktop)")]
+    [SerializeField, Tooltip("Если ВКЛ — в desktop-режиме (useMobileControls = false) будут работать и кнопки геймпада.")]
     private bool useGamepadJump = true;
 
-    [SerializeField, Tooltip("Кнопка геймпада для обычного прыжка:\n- тап = короткий\n- удержание = заряд/долгий\nОбычно это A / Cross (JoystickButton0).")]
+    [SerializeField, Tooltip("Кнопка геймпада для сильного/зарядного прыжка. Обычно A / Cross (JoystickButton0).")]
     private KeyCode gamepadChargeJumpKey = KeyCode.JoystickButton0;
 
-    [SerializeField, Tooltip("Отдельная кнопка геймпада для МГНОВЕННОГО короткого прыжка.\nОбычно это B / Circle (JoystickButton1).")]
+    [SerializeField, Tooltip("Отдельная кнопка геймпада для слабого прыжка. Обычно B / Circle (JoystickButton1).")]
     private KeyCode gamepadShortJumpKey = KeyCode.JoystickButton1;
 
     [Header("Legacy Rebind (KeyCode)")]
@@ -54,23 +60,23 @@ public class PlayerInputModule : MonoBehaviour
     private bool useInputManagerAxisFallback = true;
 
     [Header("Мобильное управление")]
-    [SerializeField, Tooltip("Если ВКЛ — используем мобильное управление (джойстик + кнопка), PC ввод игнорится.\nРекоменд: true для мобилки, false для ПК.")]
+    [SerializeField, Tooltip("Если ВКЛ — используются мобильные элементы управления (джойстик + кнопка), PC-ввод при этом игнорируется.\nРекоменд: true для телефона, false для ПК.")]
     private bool useMobileControls = false;
 
-    [SerializeField, Tooltip("Ссылka на Joystick (обычно из пакета Joystick).\nРекоменд: назначить, если useMobileControls = true.")]
+    [SerializeField, Tooltip("Ссылка на Joystick (обычно UI-джойстик на Canvas).\nРекоменд: назначить, если useMobileControls = true.")]
     private Joystick mobileJoystick;
 
-    [SerializeField, Tooltip("UI кнопка прыжка для мобилки (нажатие/удержание).\nРекоменд: назначить, если useMobileControls = true.")]
+    [SerializeField, Tooltip("UI-кнопка прыжка для мобилки (удержание/отпускание).\nРекоменд: назначить, если useMobileControls = true.")]
     private Button mobileJumpButton;
 
-    [Header("Блокировка игрового ввода (после меню)")]
-    [SerializeField, Tooltip("Если ВКЛ — после возврата из паузы/меню игрок не начнёт двигаться/прыгать, пока все зажатые игровые кнопки не будут отпущены.")]
+    [Header("Безопасное включение ввода (после меню)")]
+    [SerializeField, Tooltip("Если ВКЛ — после возврата из меню/паузы ввод не включится, пока игрок не отпустит уже зажатые кнопки управления/прыжка.\nЭто защищает от 'наследования' ввода после UI.")]
     private bool waitReleaseAfterInputEnable = true;
 
-    [SerializeField, Tooltip("Небольшая доп. задержка после отпускания всех игровых кнопок перед возвратом управления. Нужна как страховка от 'протекания' ввода из UI.\nРекоменд: 0.03–0.12 сек (часто 0.05–0.08).")]
+    [SerializeField, Tooltip("Задержка в секундах после разрешения ввода, прежде чем геймплей снова начнёт читать кнопки.\nНужно, чтобы избежать случайного нажатия из UI.\nРекоменд: 0.03–0.12 сек (часто 0.05–0.08).")]
     private float postMenuInputUnlockDelay = 0.06f;
 
-    [SerializeField, Tooltip("Порог нейтрального положения оси Horizontal, ниже которого считаем, что стик/ось отпущены.\nРекоменд: 0.15–0.35 (часто 0.2).")]
+    [SerializeField, Tooltip("Порог абсолютного значения для оси Horizontal, выше которого считаем, что ось/стик ещё удерживается.\nРекоменд: 0.15–0.35 (часто 0.2).")]
     private float inputReleaseAxisDeadZone = 0.2f;
 
     private bool prevUseMobileControls = false;
@@ -166,7 +172,6 @@ public class PlayerInputModule : MonoBehaviour
         }
 
         snapshot.MoveX = (dir != 0) ? dir : axis;
-        snapshot.ShortJumpDown = GetDesktopShortJumpDown();
 
         bool keyboardChargeDown = GetKeyboardChargeJumpDown();
         bool gamepadChargeDown = GetGamepadChargeJumpDown();
@@ -178,6 +183,10 @@ public class PlayerInputModule : MonoBehaviour
                 ? HoldSource.GamepadCharge
                 : HoldSource.Keyboard;
         }
+
+        // Если в ребинде кто-то повесил short и charge на одну и ту же кнопку,
+        // приоритет отдаём зарядному прыжку, чтобы Space не вызывал слабый прыжок.
+        snapshot.ShortJumpDown = !keyboardChargeDown && !gamepadChargeDown && GetDesktopShortJumpDown();
 
         return snapshot;
     }
@@ -359,7 +368,11 @@ public class PlayerInputModule : MonoBehaviour
             return kb || gp;
         }
 
-        return useGamepadJump && Input.GetKeyDown(gamepadShortJumpKey);
+        bool keyboardShort = Input.GetKeyDown(shortJumpKey) ||
+                             (alternateShortJumpKey != KeyCode.None && Input.GetKeyDown(alternateShortJumpKey));
+
+        bool gamepadShort = useGamepadJump && Input.GetKeyDown(gamepadShortJumpKey);
+        return keyboardShort || gamepadShort;
     }
 
     private bool AreAnyGameplayInputsStillHeld()
@@ -392,7 +405,10 @@ public class PlayerInputModule : MonoBehaviour
         }
         else
         {
-            if (Input.GetKey(leftKey) || Input.GetKey(rightKey) || Input.GetKey(jumpKey))
+            bool keyboardShortHeld = Input.GetKey(shortJumpKey) ||
+                                     (alternateShortJumpKey != KeyCode.None && Input.GetKey(alternateShortJumpKey));
+
+            if (Input.GetKey(leftKey) || Input.GetKey(rightKey) || Input.GetKey(jumpKey) || keyboardShortHeld)
                 return true;
 
             if (useGamepadJump && (Input.GetKey(gamepadChargeJumpKey) || Input.GetKey(gamepadShortJumpKey)))

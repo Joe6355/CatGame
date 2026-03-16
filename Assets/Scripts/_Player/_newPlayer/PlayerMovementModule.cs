@@ -20,75 +20,67 @@ public class PlayerMovementModule : MonoBehaviour
     }
 
     [Header("Движение")]
-    [SerializeField, Tooltip("Базовая скорость обычного бега по земле, до разгона в спринт.\nРекоменд: 3–8 (часто 4–6).")]
+    [SerializeField, Tooltip("Базовая скорость бега по земле без учёта спринта, льда, снега и усталости.")]
     private float moveSpeed = 5f;
 
-    [SerializeField, Tooltip("Множитель скорости при усталости (анти-спам прыжка).\n0.6 = скорость падает до 60%.\nРекоменд: 0.5–0.8 (часто 0.6–0.7).")]
+    [SerializeField, Tooltip("Множитель скорости при усталости.")]
     private float fatigueSpeedMultiplier = 0.6f;
 
-    [Header("Спринт / плавный разгон")]
-    [SerializeField, Tooltip("Если ВКЛ — при удержании направления на земле игрок постепенно разгоняется от moveSpeed до sprintMoveSpeed.")]
-    private bool enableSprintAcceleration = true;
+    [Header("Спринт")]
+    [SerializeField, Min(0f), Tooltip("Задержка перед началом спринта.\nПока это время не прошло, персонаж бежит с обычной скоростью.")]
+    private float sprintStartDelay = 0.35f;
 
-    [SerializeField, Tooltip("Пиковая скорость спринта.\nДолжна быть не меньше moveSpeed.\nРекоменд: 1.2x–2x от базовой скорости.")]
-    private float sprintMoveSpeed = 8f;
+    [SerializeField, Min(0f), Tooltip("Сколько секунд занимает плавный разгон от обычной скорости до пика спринта после sprintStartDelay.\n0 = мгновенный выход на пик после задержки.")]
+    private float sprintRampDuration = 0.35f;
 
-    [SerializeField, Tooltip("За сколько секунд непрерывного удержания направления игрок дойдёт до полного спринта.\nРекоменд: 0.4–1.5 сек.")]
-    private float sprintBuildTime = 0.8f;
+    [SerializeField, Min(1f), Tooltip("Пиковый множитель скорости спринта относительно moveSpeed.\n1.5 = на 50% быстрее обычного бега.")]
+    private float sprintSpeedMultiplier = 1.5f;
 
-    [SerializeField, Tooltip("Минимальная сила ввода по X, после которой считаем, что игрок реально держит направление для разгона.\nНужно, чтобы мелкий шум стика не накапливал спринт.\nРекоменд: 0.15–0.35.")]
+    [SerializeField, Range(0f, 1f), Tooltip("Минимальная сила горизонтального ввода, чтобы считать, что направление реально удерживается для спринта.")]
     private float sprintInputDeadZone = 0.2f;
 
-    [SerializeField, Tooltip("Если ВКЛ — при смене направления разгон в спринт сбрасывается и начинает копиться заново.")]
-    private bool resetSprintOnDirectionChange = true;
-
     [Header("Air Control")]
-    [SerializeField, Tooltip("Скорость управления в воздухе, когда air-control временно разрешён (AllowAirControlFor).\nРекоменд: 3–10 (часто 4–7).")]
+    [SerializeField, Tooltip("Скорость управления в воздухе, когда air-control разрешён.")]
     private float airControlSpeed = 5f;
 
-    [SerializeField, Tooltip("Если ВКЛ — управление в воздухе доступно всегда. Если ВЫКЛ — работает текущая логика с временным разрешением через AllowAirControlFor().")]
+    [SerializeField, Tooltip("Если ВКЛ — управление в воздухе доступно всегда.")]
     private bool enableAirControlInAir = false;
 
     [Header("Лёд (Tag = \"Ice\")")]
-    [SerializeField, Tooltip("Ускорение на льду (как быстро набираем скорость к target).\nМеньше = более скользко.\nРекоменд: 1–6 (часто 2–4).")]
+    [SerializeField, Tooltip("Ускорение на льду.")]
     private float iceAccel = 2.5f;
 
-    [SerializeField, Tooltip("Торможение на льду при смене направления.\nМеньше = более скользко.\nРекоменд: 0.5–4 (часто 1–2).")]
+    [SerializeField, Tooltip("Торможение на льду при смене направления.")]
     private float iceBrake = 1.2f;
 
-    [SerializeField, Tooltip("Максимальная скорость на льду как множитель от текущей наземной скорости.\n1.15 = на льду можно чуть быстрее.\nРекоменд: 1.0–1.4 (часто 1.1–1.25).")]
+    [SerializeField, Tooltip("Максимальная скорость на льду как множитель от moveSpeed.")]
     private float iceMaxSpeedMul = 1.15f;
 
-    [SerializeField, Tooltip("Ускорение на обычной земле. Очень большое значение делает движение почти мгновенным.\nРекоменд: 20–200 (для плавности) или 9999 (мгновенно).")]
+    [SerializeField, Tooltip("Ускорение на обычной земле.")]
     private float normalAccel = 9999f;
 
-    [SerializeField, Tooltip("Торможение/смена направления на обычной земле.\nРекоменд: 20–200 (плавно) или 9999 (мгновенно).")]
+    [SerializeField, Tooltip("Торможение/разворот на обычной земле.")]
     private float normalBrake = 9999f;
 
     [Header("Визуальный разворот")]
-    [SerializeField, Tooltip("Минимальная |скорость|/|вход| по X, после которой разрешён разворот персонажа.\nНужен, чтобы персонаж не дёргался на микроскопических значениях осей.\nРекоменд: 0.01–0.10 (часто 0.05).")]
+    [SerializeField, Tooltip("Минимальная |скорость| или |ввод| по X, после которой разрешён разворот персонажа.")]
     private float flipDeadZone = 0.05f;
 
     private bool isFacingRight = true;
     private float airVx = 0f;
     private float airControlUnlockUntil = 0f;
 
-    private float sprintProgress = 0f;      // 0..1
-    private float sprintDirectionSign = 0f; // -1 / +1 / 0
+    private float sprintHeldDirection = 0f;
+    private float sprintHeldTime = 0f;
+    private float sprintBlend = 0f;
 
     public float MoveSpeed => moveSpeed;
+    public float CurrentSprintMultiplier => Mathf.Lerp(1f, sprintSpeedMultiplier, sprintBlend);
+    public float CurrentMoveSpeed => moveSpeed * CurrentSprintMultiplier;
     public float FatigueSpeedMultiplier => fatigueSpeedMultiplier;
     public bool IsFacingRight => isFacingRight;
     public float AirVx => airVx;
-
-    public float SprintProgress => sprintProgress;
-    public bool SprintChargedJumpReady => enableSprintAcceleration && sprintProgress >= 0.999f;
-
-    /// <summary>
-    /// Текущая наземная скорость, учитывающая накопленный разгон в спринт,
-    /// но БЕЗ учёта усталости/снега. Нужна для расчёта takeoffVx в прыжке.
-    /// </summary>
-    public float CurrentMoveSpeedForJump => GetCurrentMoveSpeed();
+    public bool IsSprintReady => sprintBlend >= 0.999f;
 
     public void AllowAirControlFor(float duration)
     {
@@ -100,15 +92,18 @@ public class PlayerMovementModule : MonoBehaviour
     public void OnJumpPerformed(float takeoffVx)
     {
         airVx = takeoffVx;
-
-        // После реального прыжка начинаем копить разгон заново.
-        sprintProgress = 0f;
-        sprintDirectionSign = 0f;
     }
 
     public void SetAirVx(float vx)
     {
         airVx = vx;
+    }
+
+    public void ResetSprint()
+    {
+        sprintHeldDirection = 0f;
+        sprintHeldTime = 0f;
+        sprintBlend = 0f;
     }
 
     public void TryFaceByInput(float inputX, bool allowFlip)
@@ -153,56 +148,55 @@ public class PlayerMovementModule : MonoBehaviour
         }
 
         if (!ctx.IsGrounded)
-        {
             ApplyAirMovement(ctx);
-        }
         else
-        {
             ApplyGroundMovement(ctx);
-        }
     }
 
     private void UpdateSprintState(MovementContext ctx)
     {
-        if (!enableSprintAcceleration)
-        {
-            sprintProgress = 0f;
-            sprintDirectionSign = 0f;
-            return;
-        }
-
-        // Спринт копим только на земле.
-        if (!ctx.IsGrounded)
-        {
-            sprintProgress = 0f;
-            sprintDirectionSign = 0f;
-            return;
-        }
-
-        // Во время зарядки прыжка сохраняем уже набранный спринт,
-        // чтобы release использовал ту скорость, с которой игрок "подбежал".
-        if (ctx.IsJumpCharging)
-            return;
-
         float absInput = Mathf.Abs(ctx.InputX);
-        if (absInput < sprintInputDeadZone)
+        bool hasDirectionalInput = absInput > sprintInputDeadZone;
+        float inputDir = hasDirectionalInput ? Mathf.Sign(ctx.InputX) : 0f;
+
+        // Отпустили кнопку направления -> спринт сразу сбрасывается.
+        if (!hasDirectionalInput)
         {
-            sprintProgress = 0f;
-            sprintDirectionSign = 0f;
+            ResetSprint();
             return;
         }
 
-        float sign = Mathf.Sign(ctx.InputX);
-
-        if (resetSprintOnDirectionChange && sprintDirectionSign != 0f && sign != sprintDirectionSign)
+        // Сменили направление -> спринт сразу сбрасывается и начинается заново.
+        if (Mathf.Abs(sprintHeldDirection) > 0.001f && inputDir != sprintHeldDirection)
         {
-            sprintProgress = 0f;
+            ResetSprint();
+            sprintHeldDirection = inputDir;
+            return;
         }
 
-        sprintDirectionSign = sign;
+        if (Mathf.Abs(sprintHeldDirection) < 0.001f)
+            sprintHeldDirection = inputDir;
 
-        float safeBuildTime = Mathf.Max(0.0001f, sprintBuildTime);
-        sprintProgress = Mathf.Clamp01(sprintProgress + ctx.FixedDeltaTime / safeBuildTime);
+        // В воздухе не накапливаем спринт, но и не меняем его, если направление то же самое.
+        if (!ctx.IsGrounded)
+            return;
+
+        sprintHeldTime += Mathf.Max(0f, ctx.FixedDeltaTime);
+
+        if (sprintHeldTime < sprintStartDelay)
+        {
+            sprintBlend = 0f;
+            return;
+        }
+
+        if (sprintRampDuration <= 0f)
+        {
+            sprintBlend = 1f;
+            return;
+        }
+
+        float t = (sprintHeldTime - sprintStartDelay) / sprintRampDuration;
+        sprintBlend = Mathf.Clamp01(t);
     }
 
     private void ApplyAirMovement(MovementContext ctx)
@@ -237,16 +231,15 @@ public class PlayerMovementModule : MonoBehaviour
 
     private void ApplyGroundMovement(MovementContext ctx)
     {
-        float sprintAwareMoveSpeed = GetCurrentMoveSpeed();
         float speedMul = (ctx.IsFatigued ? fatigueSpeedMultiplier : 1f) * ctx.SnowMoveMul;
+        float sprintMul = CurrentSprintMultiplier;
+        float target = ctx.InputX * moveSpeed * sprintMul * speedMul;
 
-        float target = ctx.InputX * sprintAwareMoveSpeed * speedMul;
-
-        float maxSpeed = sprintAwareMoveSpeed * (ctx.IsOnIce ? iceMaxSpeedMul : 1f) * ctx.SnowMoveMul;
+        float maxSpeed = moveSpeed * sprintMul * (ctx.IsOnIce ? iceMaxSpeedMul : 1f) * ctx.SnowMoveMul;
         float accel = ctx.IsOnIce ? iceAccel : normalAccel;
         float brake = ctx.IsOnIce ? iceBrake : normalBrake;
 
-        float cur = ctx.Rigidbody.velocity.x;
+        float cur = ctx.Rigidbody.velocity.x - ctx.PlatformVX - ctx.ExternalWindVX;
         float rate = (Mathf.Sign(target) == Mathf.Sign(cur) || Mathf.Approximately(cur, 0f))
             ? accel
             : brake;
@@ -268,15 +261,6 @@ public class PlayerMovementModule : MonoBehaviour
         }
     }
 
-    private float GetCurrentMoveSpeed()
-    {
-        if (!enableSprintAcceleration)
-            return moveSpeed;
-
-        float clampedSprintSpeed = Mathf.Max(moveSpeed, sprintMoveSpeed);
-        return Mathf.Lerp(moveSpeed, clampedSprintSpeed, sprintProgress);
-    }
-
     private void Flip()
     {
         isFacingRight = !isFacingRight;
@@ -284,5 +268,12 @@ public class PlayerMovementModule : MonoBehaviour
         Vector3 s = transform.localScale;
         s.x *= -1f;
         transform.localScale = s;
+    }
+
+    private void OnDisable()
+    {
+        ResetSprint();
+        airVx = 0f;
+        airControlUnlockUntil = 0f;
     }
 }

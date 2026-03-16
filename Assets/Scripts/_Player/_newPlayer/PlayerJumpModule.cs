@@ -5,27 +5,41 @@ using UnityEngine;
 public class PlayerJumpModule : MonoBehaviour
 {
     [Header("Прыжок (заряд)")]
-    [SerializeField, Tooltip("Максимальная вертикальная скорость (сила) прыжка при полном заряде.\nРекоменд: 10–25 (часто 16–22).")]
+    [SerializeField, Tooltip("Максимальная вертикальная скорость (сила) прыжка при полном заряде.")]
     private float maxJumpForce = 20f;
 
-    [SerializeField, Tooltip("Время, за которое прыжок заряжается до maxJumpForce.\nРекоменд: 0.25–1.0 сек (часто 0.5–0.8).")]
+    [SerializeField, Tooltip("Время, за которое прыжок заряжается до maxJumpForce ПОСЛЕ начала накопления.")]
     private float jumpTimeLimit = 1f;
 
-    [SerializeField, Tooltip("Сила слабого прыжка, если отпустили кнопку ДО входа в режим заряда.\nРекоменд: 4–12 (зависит от gravityScale).")]
+    [SerializeField, Tooltip("Сила отдельного слабого прыжка. Используется только для dedicated short jump, а не для отпускания кнопки заряда.")]
     private float shortJumpForce = 8f;
 
-    [SerializeField, Tooltip("Задержка (сек), чтобы ВОЙТИ в режим заряда.\nЕсли отпустить раньше — будет слабый прыжок.\nРекоменд: 0.3–1.5.")]
-    private float chargeEnterDelay = 1f;
+    [Header("Старт накопления заряда")]
+    [SerializeField, Tooltip("Если ВКЛ — накопление начинается только после задержки ниже.")]
+    private bool useChargeEnterDelay = true;
 
-    [SerializeField, Tooltip("Койот-тайм: сколько секунд после схода с платформы ещё можно начать заряд прыжка.\nРекоменд: 0.05–0.15 (часто 0.08–0.12).")]
+    [SerializeField, Min(0f), Tooltip("Через сколько секунд удержания начинается накопление усиленного прыжка.")]
+    private float chargeEnterDelay = 0.3f;
+
+    [Header("Спринт + мгновенный максимум")]
+    [SerializeField, Tooltip("Если ВКЛ — при полном спринте нажатие зарядного прыжка сразу выполняет усиленный прыжок с максимальной силой.")]
+    private bool allowInstantMaxChargeFromSprint = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — после мгновенного спринт-прыжка на короткое время показывается полная полоска и максимальная траектория.")]
+    private bool showInstantSprintPreview = true;
+
+    [SerializeField, Min(0f), Tooltip("Сколько секунд держать визуальный предпросмотр полного заряда после мгновенного спринт-прыжка.")]
+    private float instantSprintPreviewDuration = 0.06f;
+
+    [Header("Койот-тайм и буфер")]
+    [SerializeField, Tooltip("Сколько секунд после схода с платформы ещё можно начать прыжок.")]
     private float coyoteTime = 0.05f;
 
-    [Header("Буферизация прыжка")]
-    [SerializeField, Tooltip("Буфер прыжка: если нажать кнопку ДО приземления, прыжок сработает автоматически.\nРекоменд: 0.08–0.15 (часто 0.1).")]
+    [SerializeField, Tooltip("Буфер прыжка: если нажать кнопку до приземления, прыжок сработает автоматически.")]
     private float jumpBufferTime = 0.1f;
 
-    [Header("Усталость (анти-спам)")]
-    [SerializeField, Tooltip("Сколько длится усталость после прыжка: нельзя начать новый заряд, скорость снижена.\nРекоменд: 0.3–1.2 сек (часто 0.6–0.9).")]
+    [Header("Усталость")]
+    [SerializeField, Tooltip("Сколько длится усталость после прыжка.")]
     private float fatigueDuration = 0.8f;
 
     private enum BufferedJumpKind
@@ -55,6 +69,7 @@ public class PlayerJumpModule : MonoBehaviour
     {
         public bool DidJump;
         public float TakeoffVx;
+        public bool WasChargedJump;
     }
 
     private float lastJumpPressedTime = -999f;
@@ -65,7 +80,6 @@ public class PlayerJumpModule : MonoBehaviour
 
     private bool isJumpHoldActive = false;
     private bool isChargingJump = false;
-    private bool isInstantFullChargeActive = false;
 
     private float jumpButtonDownTime = 0f;
     private float jumpStartHoldTime = 0f;
@@ -77,17 +91,21 @@ public class PlayerJumpModule : MonoBehaviour
 
     private float currentBarNormalized = 0f;
 
+    private float instantSprintPreviewUntilUnscaled = -999f;
+    private Vector2 instantSprintPreviewVelocity = Vector2.zero;
+
     public float CoyoteTime => coyoteTime;
     public bool IsJumpHoldActive => isJumpHoldActive;
     public bool IsChargingJump => isChargingJump;
-
-    // Наружу показываем только реальный charge.
-    public bool IsChargingJumpPublic => isChargingJump;
-
+    public bool IsChargingJumpPublic => isChargingJump || IsInstantSprintPreviewActive();
     public float CurrentBarNormalized => currentBarNormalized;
     public float LastJumpTime => lastJumpTime;
     public float LastAppliedJumpForce => lastAppliedJumpForce;
     public PlayerInputModule.HoldSource CurrentHoldSource => currentHoldJumpSource;
+    public bool AllowInstantMaxChargeFromSprint => allowInstantMaxChargeFromSprint;
+    public bool IsJumpHoldActiveForPresentation => isJumpHoldActive || IsInstantSprintPreviewActive();
+    public bool IsChargeVisualActive => isChargingJump || IsInstantSprintPreviewActive();
+    public float ChargeBarNormalizedForPresentation => IsInstantSprintPreviewActive() ? 1f : currentBarNormalized;
 
     public bool IsFatigued(float now)
     {
@@ -118,12 +136,12 @@ public class PlayerJumpModule : MonoBehaviour
         bufferedHoldSource = source;
     }
 
-    public void BeginJumpHold(PlayerInputModule.HoldSource source, float now, bool instantFullCharge)
+    public void BeginJumpHold(PlayerInputModule.HoldSource source, float now, bool startChargingImmediately = false)
     {
+        ClearInstantSprintPreview();
+
         isJumpHoldActive = true;
         isChargingJump = false;
-        isInstantFullChargeActive = false;
-
         bufferedJumpKind = BufferedJumpKind.None;
         currentHoldJumpSource = source;
         bufferedHoldSource = PlayerInputModule.HoldSource.None;
@@ -132,12 +150,11 @@ public class PlayerJumpModule : MonoBehaviour
         jumpStartHoldTime = 0f;
         currentBarNormalized = 0f;
 
-        if (instantFullCharge)
+        if (startChargingImmediately || !useChargeEnterDelay || chargeEnterDelay <= 0f)
         {
             isChargingJump = true;
-            isInstantFullChargeActive = true;
             jumpStartHoldTime = now;
-            currentBarNormalized = 1f;
+            currentBarNormalized = 0f;
         }
     }
 
@@ -149,30 +166,23 @@ public class PlayerJumpModule : MonoBehaviour
             return;
         }
 
-        if (isInstantFullChargeActive)
-        {
-            isChargingJump = true;
-            currentBarNormalized = 1f;
-            return;
-        }
-
         if (!isChargingJump)
         {
             float held = now - jumpButtonDownTime;
 
-            if (held < chargeEnterDelay)
+            if (useChargeEnterDelay && held < chargeEnterDelay)
             {
                 currentBarNormalized = 0f;
                 return;
             }
 
             isChargingJump = true;
-            jumpStartHoldTime = jumpButtonDownTime + chargeEnterDelay;
+            jumpStartHoldTime = now;
+            currentBarNormalized = 0f;
+            return;
         }
 
-        float safeTimeLimit = Mathf.Max(0.0001f, jumpTimeLimit);
-        float hold = Mathf.Clamp(now - jumpStartHoldTime, 0f, safeTimeLimit);
-        currentBarNormalized = Mathf.Clamp01(hold / safeTimeLimit);
+        currentBarNormalized = CalculateChargeNormalized(now);
     }
 
     public JumpActionResult ReleaseJumpHoldAndMaybeJump(JumpContext ctx)
@@ -180,41 +190,22 @@ public class PlayerJumpModule : MonoBehaviour
         if (!IsWithinGroundedJumpWindow(ctx))
         {
             ClearHoldState();
+            bufferedJumpKind = BufferedJumpKind.None;
+            bufferedHoldSource = PlayerInputModule.HoldSource.None;
             return default;
         }
 
-        float verticalForce;
-
         if (!isChargingJump)
         {
-            verticalForce = shortJumpForce * ctx.SnowJumpMul;
-        }
-        else if (isInstantFullChargeActive)
-        {
-            verticalForce = maxJumpForce * ctx.SnowJumpMul;
-        }
-        else
-        {
-            float safeTimeLimit = Mathf.Max(0.0001f, jumpTimeLimit);
-            float hold = Mathf.Clamp(ctx.Now - jumpStartHoldTime, 0f, safeTimeLimit);
-            verticalForce = Mathf.Clamp01(hold / safeTimeLimit) * maxJumpForce * ctx.SnowJumpMul;
+            // Слабый прыжок по отпусканию кнопки заряда отключён.
+            ClearHoldState();
+            bufferedJumpKind = BufferedJumpKind.None;
+            bufferedHoldSource = PlayerInputModule.HoldSource.None;
+            return default;
         }
 
-        ClearHoldState();
-
-        float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
-        float takeoffVx =
-            ctx.PlatformVX +
-            (ctx.IsFacingRight ? 1f : -1f) * ctx.MoveSpeed * speedMul * ctx.SnowMoveMul;
-
-        PerformJump(ctx.Rigidbody, ctx.Now, takeoffVx, verticalForce, ctx.ExternalWindVX);
-        StartFatigue(ctx.Now);
-
-        return new JumpActionResult
-        {
-            DidJump = true,
-            TakeoffVx = takeoffVx
-        };
+        float verticalForce = CalculateChargeNormalized(ctx.Now) * maxJumpForce * ctx.SnowJumpMul;
+        return PerformJumpByContext(ctx, verticalForce, true);
     }
 
     public JumpActionResult TryPerformDedicatedShortJump(JumpContext ctx)
@@ -222,26 +213,30 @@ public class PlayerJumpModule : MonoBehaviour
         if (!CanStartJumpCharge(ctx))
             return default;
 
-        ClearHoldState();
+        ClearInstantSprintPreview();
 
         float verticalForce = shortJumpForce * ctx.SnowJumpMul;
+        return PerformJumpByContext(ctx, verticalForce, false);
+    }
 
-        float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
-        float takeoffVx =
-            ctx.PlatformVX +
-            (ctx.IsFacingRight ? 1f : -1f) * ctx.MoveSpeed * speedMul * ctx.SnowMoveMul;
+    public JumpActionResult TryPerformInstantMaxChargedJump(JumpContext ctx)
+    {
+        if (!allowInstantMaxChargeFromSprint)
+            return default;
 
-        PerformJump(ctx.Rigidbody, ctx.Now, takeoffVx, verticalForce, ctx.ExternalWindVX);
-        StartFatigue(ctx.Now);
+        if (!ctx.SprintChargedJumpReady)
+            return default;
 
-        bufferedJumpKind = BufferedJumpKind.None;
-        bufferedHoldSource = PlayerInputModule.HoldSource.None;
+        if (!CanStartJumpCharge(ctx))
+            return default;
 
-        return new JumpActionResult
-        {
-            DidJump = true,
-            TakeoffVx = takeoffVx
-        };
+        if (showInstantSprintPreview && instantSprintPreviewDuration > 0f)
+            ActivateInstantSprintPreview(ctx);
+        else
+            ClearInstantSprintPreview();
+
+        float verticalForce = maxJumpForce * ctx.SnowJumpMul;
+        return PerformJumpByContext(ctx, verticalForce, true);
     }
 
     public JumpActionResult TryConsumeJumpBuffer(
@@ -275,16 +270,24 @@ public class PlayerJumpModule : MonoBehaviour
             if (source == PlayerInputModule.HoldSource.None)
                 source = PlayerInputModule.HoldSource.Keyboard;
 
+            if (allowInstantMaxChargeFromSprint && ctx.SprintChargedJumpReady)
+            {
+                JumpActionResult instantResult = TryPerformInstantMaxChargedJump(ctx);
+                bufferedJumpKind = BufferedJumpKind.None;
+                bufferedHoldSource = PlayerInputModule.HoldSource.None;
+                return instantResult;
+            }
+
             if (isHoldInputStillHeld != null && isHoldInputStillHeld(source))
             {
-                BeginJumpHold(source, ctx.Now, ctx.SprintChargedJumpReady);
+                BeginJumpHold(source, ctx.Now, false);
             }
             else
             {
-                JumpActionResult shortResult = TryPerformDedicatedShortJump(ctx);
+                // Тап по кнопке заряда без удержания больше не превращаем в слабый прыжок.
                 bufferedJumpKind = BufferedJumpKind.None;
                 bufferedHoldSource = PlayerInputModule.HoldSource.None;
-                return shortResult;
+                return default;
             }
 
             bufferedJumpKind = BufferedJumpKind.None;
@@ -312,10 +315,14 @@ public class PlayerJumpModule : MonoBehaviour
         jumpStartHoldTime = 0f;
 
         ClearHoldState();
+        ClearInstantSprintPreview();
     }
 
     public Vector2 GetPredictedJumpVelocity(JumpContext ctx)
     {
+        if (IsInstantSprintPreviewActive())
+            return instantSprintPreviewVelocity;
+
         float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
 
         float predictedVx =
@@ -329,19 +336,51 @@ public class PlayerJumpModule : MonoBehaviour
         {
             predictedVy = shortJumpForce * ctx.SnowJumpMul;
         }
-        else if (isInstantFullChargeActive)
-        {
-            predictedVy = maxJumpForce * ctx.SnowJumpMul;
-        }
         else
         {
-            float safeTimeLimit = Mathf.Max(0.0001f, jumpTimeLimit);
-            float hold = Mathf.Clamp(ctx.Now - jumpStartHoldTime, 0f, safeTimeLimit);
-            float normalized = Mathf.Clamp01(hold / safeTimeLimit);
+            float normalized = CalculateChargeNormalized(ctx.Now);
             predictedVy = normalized * maxJumpForce * ctx.SnowJumpMul;
         }
 
         return new Vector2(predictedVx, predictedVy);
+    }
+
+    private float CalculateChargeNormalized(float now)
+    {
+        float safeTimeLimit = Mathf.Max(0.0001f, jumpTimeLimit);
+        float hold = Mathf.Clamp(now - jumpStartHoldTime, 0f, safeTimeLimit);
+        return Mathf.Clamp01(hold / safeTimeLimit);
+    }
+
+    private JumpActionResult PerformJumpByContext(JumpContext ctx, float verticalForce, bool wasCharged)
+    {
+        ClearHoldState();
+        bufferedJumpKind = BufferedJumpKind.None;
+        bufferedHoldSource = PlayerInputModule.HoldSource.None;
+
+        float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
+        float takeoffVx =
+            ctx.PlatformVX +
+            (ctx.IsFacingRight ? 1f : -1f) * ctx.MoveSpeed * speedMul * ctx.SnowMoveMul;
+
+        PerformJump(ctx.Rigidbody, ctx.Now, takeoffVx, verticalForce, ctx.ExternalWindVX);
+        StartFatigue(ctx.Now);
+
+        return new JumpActionResult
+        {
+            DidJump = true,
+            TakeoffVx = takeoffVx,
+            WasChargedJump = wasCharged
+        };
+    }
+
+    private void ClearHoldState()
+    {
+        isJumpHoldActive = false;
+        isChargingJump = false;
+        currentHoldJumpSource = PlayerInputModule.HoldSource.None;
+        jumpStartHoldTime = 0f;
+        currentBarNormalized = 0f;
     }
 
     private void PerformJump(Rigidbody2D rb, float now, float vx, float vy, float externalWindVX)
@@ -358,13 +397,30 @@ public class PlayerJumpModule : MonoBehaviour
         fatigueEndTime = now + fatigueDuration;
     }
 
-    private void ClearHoldState()
+    private void ActivateInstantSprintPreview(JumpContext ctx)
     {
-        isJumpHoldActive = false;
-        isChargingJump = false;
-        isInstantFullChargeActive = false;
-        currentHoldJumpSource = PlayerInputModule.HoldSource.None;
-        currentBarNormalized = 0f;
+        float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
+
+        float predictedVx =
+            ctx.PlatformVX +
+            (ctx.IsFacingRight ? 1f : -1f) * ctx.MoveSpeed * speedMul * ctx.SnowMoveMul +
+            ctx.ExternalWindVX;
+
+        float predictedVy = maxJumpForce * ctx.SnowJumpMul;
+
+        instantSprintPreviewVelocity = new Vector2(predictedVx, predictedVy);
+        instantSprintPreviewUntilUnscaled = Time.unscaledTime + Mathf.Max(0f, instantSprintPreviewDuration);
+    }
+
+    private bool IsInstantSprintPreviewActive()
+    {
+        return Time.unscaledTime < instantSprintPreviewUntilUnscaled;
+    }
+
+    private void ClearInstantSprintPreview()
+    {
+        instantSprintPreviewUntilUnscaled = -999f;
+        instantSprintPreviewVelocity = Vector2.zero;
     }
 
     private void OnDisable()

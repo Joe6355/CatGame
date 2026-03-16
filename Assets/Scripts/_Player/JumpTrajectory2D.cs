@@ -29,48 +29,42 @@ public class JumpTrajectory2D : MonoBehaviour
     private Vector2 startOffset = new Vector2(0f, 0.8f);
 
     [Header("Столкновения")]
-    [SerializeField, Tooltip("Если ВКЛ — траектория обрывается при первом столкновении.\nРекоменд: ВКЛ (true).")]
+    [SerializeField, Tooltip("Если ВКЛ — траектория обрывается при первом столкновении.\nРекоменд: true.")]
     private bool stopOnHit = true;
 
     [SerializeField, Tooltip(
         "Слои, с которыми траектория сталкивается (Ground/Wall/Platform).\n" +
-        "ВАЖНО: если слой не выбран — линия будет проходить сквозь него.")]
+        "Если слой не выбран — линия будет проходить сквозь него.")]
     private LayerMask hitMask;
 
-    [SerializeField, Tooltip("Игнорировать триггеры при проверке.\nРекоменд: ВКЛ (true).")]
+    [SerializeField, Tooltip("Игнорировать триггеры при проверке.\nРекоменд: true.")]
     private bool ignoreTriggers = true;
 
     [Header("Отрисовка LineRenderer")]
     [SerializeField, Tooltip(
-        "Галочка:\n" +
-        "ВЫКЛ — обычная (сплошная) линия как раньше.\n" +
+        "ВЫКЛ — обычная сплошная линия.\n" +
         "ВКЛ — пунктир через LineRenderer (Tile + dash-текстура).")]
     private bool useDottedLine = false;
 
-    [SerializeField, Tooltip(
-        "Материал сплошной линии (можно оставить пустым — тогда используется текущий material у LineRenderer).")]
+    [SerializeField, Tooltip("Материал сплошной линии. Можно оставить пустым — тогда используется текущий material у LineRenderer.")]
     private Material solidMaterial;
 
-    [SerializeField, Tooltip(
-        "Материал пунктирной линии (обязательно с dash-текстурой и Wrap=Repeat).")]
+    [SerializeField, Tooltip("Материал пунктирной линии (желательно с dash-текстурой и Wrap=Repeat).")]
     private Material dottedMaterial;
 
     [SerializeField, Tooltip(
-        "Длина одного 'паттерна' пунктира в мировых единицах (dash+gap).\n" +
+        "Длина одного паттерна пунктира в мировых единицах (dash+gap).\n" +
         "Меньше = чаще штрихи, больше = реже.\n" +
-        "Рекоменд: 0.15–0.45 (под пиксели подбирай).")]
+        "Рекоменд: 0.15–0.45.")]
     private float dottedWorldPatternSize = 0.25f;
 
-    [SerializeField, Tooltip(
-        "Прокрутка пунктира по линии (0 = без анимации).\n" +
-        "Рекоменд: 0..2.")]
+    [SerializeField, Tooltip("Прокрутка пунктира по линии (0 = без анимации).\nРекоменд: 0..2.")]
     private float dottedScrollSpeed = 0f;
 
     private LineRenderer lr;
     private readonly List<Vector3> buf = new List<Vector3>(128);
     private Vector3[] tmpPositions = new Vector3[128];
 
-    // чтобы не портить sharedMaterial
     private Material solidMatInst;
     private Material dottedMatInst;
 
@@ -88,21 +82,26 @@ public class JumpTrajectory2D : MonoBehaviour
         filter.layerMask = hitMask;
         filter.useTriggers = !ignoreTriggers;
 
-        // инстансы материалов, чтобы не менять ассет
         if (solidMaterial != null) solidMatInst = new Material(solidMaterial);
         if (dottedMaterial != null) dottedMatInst = new Material(dottedMaterial);
     }
 
     private void Update()
     {
-        if (player != null && player.IsChargingJumpPublic)
-        {
-            DrawTrajectory();
-        }
-        else
+        if (player == null || !player.IsChargingJumpPublic)
         {
             ClearLine();
+            return;
         }
+
+        Vector2 predictedVelocity = player.GetPredictedJumpVelocity();
+        if (predictedVelocity.sqrMagnitude <= 0.000001f)
+        {
+            ClearLine();
+            return;
+        }
+
+        DrawTrajectory(predictedVelocity);
     }
 
     private void ClearLine()
@@ -111,7 +110,7 @@ public class JumpTrajectory2D : MonoBehaviour
             lr.positionCount = 0;
     }
 
-    private void DrawTrajectory()
+    private void DrawTrajectory(Vector2 predictedVelocity)
     {
         if (lr == null || player == null || points <= 1 || step <= 0f)
         {
@@ -120,7 +119,7 @@ public class JumpTrajectory2D : MonoBehaviour
         }
 
         Vector3 p0 = transform.position + (Vector3)startOffset;
-        Vector2 v0 = player.GetPredictedJumpVelocity();
+        Vector2 v0 = predictedVelocity;
         Vector2 g = Physics2D.gravity * player.GetGravityScale();
 
         buf.Clear();
@@ -180,29 +179,22 @@ public class JumpTrajectory2D : MonoBehaviour
     {
         if (!useDottedLine)
         {
-            // --- СПЛОШНАЯ ---
             if (solidMatInst != null) lr.material = solidMatInst;
-            else if (solidMaterial != null) lr.material = solidMaterial; // на всякий
-            // в сплошном режиме чаще лучше Stretch
+            else if (solidMaterial != null) lr.material = solidMaterial;
             lr.textureMode = LineTextureMode.Stretch;
             return;
         }
 
-        // --- ПУНКТИР ---
         if (dottedMatInst != null) lr.material = dottedMatInst;
         else if (dottedMaterial != null) lr.material = dottedMaterial;
 
-        // важно: Tile, иначе текстура растянется на всю линию
         lr.textureMode = LineTextureMode.Tile;
 
-        // Подгоняем тайлинг по длине линии, чтобы "dash+gap" был одинакового размера
         float len = ComputePolylineLength();
         float pattern = Mathf.Max(0.0001f, dottedWorldPatternSize);
         float tiles = len / pattern;
 
-        // mainTextureScale.x = сколько раз повторить текстуру на длину линии
-        // (требуется Wrap=Repeat на текстуре)
-        var mat = lr.material; // инстанс на рендерере
+        var mat = lr.material;
         if (mat != null)
         {
             mat.mainTextureScale = new Vector2(tiles, 1f);
@@ -233,13 +225,14 @@ public class JumpTrajectory2D : MonoBehaviour
 
         Vector2 dir = (Vector2)(cur - prev);
         float dist = dir.magnitude;
-        if (dist < 0.00001f) return false;
+        if (dist < 0.00001f)
+            return false;
+
         dir /= dist;
 
         filter.layerMask = hitMask;
         filter.useTriggers = !ignoreTriggers;
 
-        // Если нет коллайдера — обычный Raycast
         if (playerCollider == null)
         {
             RaycastHit2D h = Physics2D.Raycast((Vector2)prev, dir, dist, hitMask);
@@ -276,7 +269,8 @@ public class JumpTrajectory2D : MonoBehaviour
             return false;
         }
 
-        if (hitCount <= 0) return false;
+        if (hitCount <= 0)
+            return false;
 
         float best = float.MaxValue;
         for (int i = 0; i < hitCount; i++)
