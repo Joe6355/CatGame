@@ -31,6 +31,9 @@ public class PlayerJumpModule : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Сколько секунд держать визуальный предпросмотр полного заряда после мгновенного спринт-прыжка.")]
     private float instantSprintPreviewDuration = 0.06f;
 
+    [SerializeField, Tooltip("Если ВКЛ — отдельный слабый прыжок разрешён во время спринтового движения.\nСпринтовым движением считаем активный спринт, его остаточную инерцию и skid-занос.\nЕсли ВЫКЛ — слабый прыжок в этом состоянии блокируется.")]
+    private bool allowDedicatedShortJumpDuringSprint = false;
+
     [Header("Койот-тайм и буфер")]
     [SerializeField, Tooltip("Сколько секунд после схода с платформы ещё можно начать прыжок.")]
     private float coyoteTime = 0.05f;
@@ -62,6 +65,7 @@ public class PlayerJumpModule : MonoBehaviour
         public float SnowJumpMul;
         public float ExternalWindVX;
         public bool SprintChargedJumpReady;
+        public bool IsSprintMovementActive;
         public Rigidbody2D Rigidbody;
     }
 
@@ -120,6 +124,11 @@ public class PlayerJumpModule : MonoBehaviour
     public bool CanStartJumpCharge(JumpContext ctx)
     {
         return IsWithinGroundedJumpWindow(ctx) && !IsFatigued(ctx.Now);
+    }
+
+    public bool CanAcceptDedicatedShortJumpInput(JumpContext ctx)
+    {
+        return allowDedicatedShortJumpDuringSprint || !ctx.IsSprintMovementActive;
     }
 
     public void MarkShortJumpPressed(float now)
@@ -210,6 +219,9 @@ public class PlayerJumpModule : MonoBehaviour
 
     public JumpActionResult TryPerformDedicatedShortJump(JumpContext ctx)
     {
+        if (!CanAcceptDedicatedShortJumpInput(ctx))
+            return default;
+
         if (!CanStartJumpCharge(ctx))
             return default;
 

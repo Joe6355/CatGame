@@ -19,8 +19,37 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private PlayerBounceModule bounceModule;
     [SerializeField] private PlayerPresentationModule presentationModule;
 
+    [Header("Камера: отдаление при спринте")]
+    [SerializeField, Tooltip("Если ВКЛ — PlayerController будет передавать в CamController текущий уровень спринта,\nчтобы камера могла плавно отдаляться на разгоне и возвращаться обратно после спринта.")]
+    private bool enableSprintCameraFeedback = true;
+
+    [Header("Камера: тряска при жёстком приземлении")]
+    [SerializeField, Tooltip("Если ВКЛ — после сильного падения при приземлении будет вызываться лёгкая тряска камеры.")]
+    private bool enableLandingCameraShake = true;
+
+    [SerializeField, Min(0f), Tooltip("Минимальная скорость падения вниз по Y, после которой приземление уже считается достаточно жёстким для тряски камеры.\nНапример 10 = тряска начнётся примерно от скорости -10 и ниже.")]
+    private float landingShakeMinFallSpeed = 10f;
+
+    [SerializeField, Min(0f), Tooltip("Скорость падения вниз, на которой сила тряски достигает максимума.")]
+    private float landingShakeMaxFallSpeed = 20f;
+
+    [SerializeField, Min(0f), Tooltip("Минимальная сила лёгкой тряски при самом слабом подходящем жёстком приземлении.")]
+    private float landingShakeMinStrength = 0.35f;
+
+    [SerializeField, Min(0f), Tooltip("Максимальная сила тряски при очень жёстком приземлении.")]
+    private float landingShakeMaxStrength = 0.8f;
+
+    [SerializeField, Min(0f), Tooltip("Сколько секунд удерживать максимальную силу тряски перед затуханием.")]
+    private float landingShakeHoldTime = 0.02f;
+
+    [SerializeField, Min(0f), Tooltip("Сколько секунд плавно затухает тряска после жёсткого приземления.")]
+    private float landingShakeFadeTime = 0.12f;
+
     private Rigidbody2D rb;
     private float inputX = 0f;
+
+    private float trackedMinAirborneY = 0f;
+    private bool hasAirborneFallData = false;
 
     private float ExternalWindVX => environmentModule != null ? environmentModule.ExternalWindVX : 0f;
     private float SnowMoveMul => environmentModule != null ? environmentModule.SnowMoveMultiplier : 1f;
@@ -45,11 +74,18 @@ public class PlayerController : MonoBehaviour
     private void OnValidate()
     {
         CacheComponents();
+
+        landingShakeMaxFallSpeed = Mathf.Max(landingShakeMinFallSpeed + 0.01f, landingShakeMaxFallSpeed);
+        landingShakeMinStrength = Mathf.Max(0f, landingShakeMinStrength);
+        landingShakeMaxStrength = Mathf.Max(landingShakeMinStrength, landingShakeMaxStrength);
+        landingShakeHoldTime = Mathf.Max(0f, landingShakeHoldTime);
+        landingShakeFadeTime = Mathf.Max(0f, landingShakeFadeTime);
     }
 
     private void Start()
     {
         RefreshPresentation();
+        PushSprintCameraFeedback();
     }
 
     private void Update()
@@ -76,6 +112,7 @@ public class PlayerController : MonoBehaviour
             ResetGameplayInputState(false);
         }
 
+        PushSprintCameraFeedback();
         RefreshPresentation();
     }
 
@@ -85,6 +122,8 @@ public class PlayerController : MonoBehaviour
 
         if (groundModule.JustLanded)
         {
+            TryPlayLandingCameraShake();
+
             PlayerJumpModule.JumpActionResult bufferResult =
                 jumpModule.TryConsumeJumpBuffer(
                     BuildJumpContext(),
@@ -95,7 +134,14 @@ public class PlayerController : MonoBehaviour
         }
 
         movementModule.ApplyMovement(BuildMovementContext());
+        TrackAirborneLandingData();
         environmentModule.ClearFrameWind();
+    }
+
+    private void OnDisable()
+    {
+        CamController.ChangeSprintZoomBlendEvent?.Invoke(0f);
+        ResetLandingTracking();
     }
 
     private void CacheComponents()
@@ -125,6 +171,7 @@ public class PlayerController : MonoBehaviour
             SnowJumpMul = SnowJumpMul,
             ExternalWindVX = ExternalWindVX,
             SprintChargedJumpReady = movementModule.IsSprintReady,
+            IsSprintMovementActive = movementModule.IsSprintMovementActive,
             Rigidbody = rb
         };
     }
@@ -153,21 +200,28 @@ public class PlayerController : MonoBehaviour
         if (snapshot.IsRebinding)
         {
             inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
             return;
         }
 
         inputX = snapshot.MoveX;
+        movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
         movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed());
 
         if (snapshot.ShortJumpDown && !jumpModule.IsJumpHoldActive)
         {
-            jumpModule.MarkShortJumpPressed(Time.time);
+            PlayerJumpModule.JumpContext jumpCtx = BuildJumpContext();
 
-            PlayerJumpModule.JumpActionResult shortResult =
-                jumpModule.TryPerformDedicatedShortJump(BuildJumpContext());
+            if (jumpModule.CanAcceptDedicatedShortJumpInput(jumpCtx))
+            {
+                jumpModule.MarkShortJumpPressed(Time.time);
 
-            if (shortResult.DidJump)
-                OnJumpPerformed(shortResult.TakeoffVx, shortResult.WasChargedJump);
+                PlayerJumpModule.JumpActionResult shortResult =
+                    jumpModule.TryPerformDedicatedShortJump(jumpCtx);
+
+                if (shortResult.DidJump)
+                    OnJumpPerformed(shortResult.TakeoffVx, shortResult.WasChargedJump);
+            }
         }
 
         if (snapshot.ChargeDownSource != PlayerInputModule.HoldSource.None)
@@ -222,6 +276,7 @@ public class PlayerController : MonoBehaviour
     private void HandleMobileInput(PlayerInputModule.MobileInputSnapshot snapshot)
     {
         inputX = snapshot.MoveX;
+        movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
         movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed());
 
         if (snapshot.JumpHeld)
@@ -294,6 +349,70 @@ public class PlayerController : MonoBehaviour
             jumpModule.ChargeBarNormalizedForPresentation);
     }
 
+    private void PushSprintCameraFeedback()
+    {
+        float blend = 0f;
+
+        if (enableSprintCameraFeedback && movementModule != null)
+            blend = movementModule.SprintCameraBlend;
+
+        CamController.ChangeSprintZoomBlendEvent?.Invoke(blend);
+    }
+
+    private void TrackAirborneLandingData()
+    {
+        if (rb == null)
+            return;
+
+        if (!IsGroundedNow)
+        {
+            if (!hasAirborneFallData)
+            {
+                trackedMinAirborneY = rb.velocity.y;
+                hasAirborneFallData = true;
+            }
+            else
+            {
+                trackedMinAirborneY = Mathf.Min(trackedMinAirborneY, rb.velocity.y);
+            }
+
+            return;
+        }
+
+        if (!groundModule.JustLanded)
+            ResetLandingTracking();
+    }
+
+    private void TryPlayLandingCameraShake()
+    {
+        if (!enableLandingCameraShake)
+        {
+            ResetLandingTracking();
+            return;
+        }
+
+        if (!hasAirborneFallData)
+            return;
+
+        float fallSpeed = Mathf.Abs(Mathf.Min(trackedMinAirborneY, 0f));
+        ResetLandingTracking();
+
+        if (fallSpeed < landingShakeMinFallSpeed)
+            return;
+
+        float maxSpeed = Mathf.Max(landingShakeMinFallSpeed + 0.01f, landingShakeMaxFallSpeed);
+        float t = Mathf.InverseLerp(landingShakeMinFallSpeed, maxSpeed, fallSpeed);
+        float strength = Mathf.Lerp(landingShakeMinStrength, landingShakeMaxStrength, t);
+
+        CamController.CameraShake?.Invoke(strength, landingShakeHoldTime, landingShakeFadeTime);
+    }
+
+    private void ResetLandingTracking()
+    {
+        trackedMinAirborneY = 0f;
+        hasAirborneFallData = false;
+    }
+
     private void OnCollisionEnter2D(Collision2D collision)
     {
         bounceModule.HandleBounce(collision, rb, jumpModule, movementModule, ExternalWindVX, Time.time);
@@ -341,6 +460,8 @@ public class PlayerController : MonoBehaviour
         inputModule.ResetModuleInputState(clearMobileHold);
         jumpModule.ResetJumpInputState();
         movementModule.ResetSprint();
+        movementModule.RefreshImmediateSprintBlocker(false, 0f);
+        PushSprintCameraFeedback();
     }
 
     public bool IsChargingJumpPublic

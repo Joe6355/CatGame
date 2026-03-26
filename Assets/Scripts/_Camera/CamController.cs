@@ -7,16 +7,16 @@ using Cinemachine;
 [RequireComponent(typeof(CinemachineVirtualCamera))]
 public class CamController : MonoBehaviour
 {
-    // Глобальные события (можно вызывать из любых скриптов)
-    public static Action<float, float, float> CameraShake;         // strength, time, fadeTime
-    public static Action<float> ChangeCameraSizeEvent;             // new orthographic size
-    public static Action<Transform> ChangeFollowTargetEvent;       // new follow target
-    public static Action<float> ChangeCameraYOffsetEvent;          // new Y offset (TrackedObjectOffset.y)
+    public static Action<float, float, float> CameraShake;
+    public static Action<float> ChangeCameraSizeEvent;
+    public static Action<Transform> ChangeFollowTargetEvent;
+    public static Action<float> ChangeCameraYOffsetEvent;
+    public static Action<float> ChangeSprintZoomBlendEvent;
 
     [Header("ScreenX offsets (A/D)")]
-    [SerializeField] private float leftOffset = 0.35f;   // 0..1
-    [SerializeField] private float rightOffset = 0.65f;  // 0..1
-    [SerializeField] private bool enableADTest = false;  // включай только для теста
+    [SerializeField] private float leftOffset = 0.35f;
+    [SerializeField] private float rightOffset = 0.65f;
+    [SerializeField] private bool enableADTest = false;
 
     [SerializeField, Tooltip("Плавность смены ScreenX при тесте A/D (сек).")]
     private float screenXLerpTime = 0.25f;
@@ -25,14 +25,30 @@ public class CamController : MonoBehaviour
     [SerializeField, Tooltip("Сколько секунд плавно менять вертикальный сдвиг камеры (TrackedObjectOffset.y).")]
     private float yOffsetLerpTime = 0.35f;
 
+    [Header("Базовый размер камеры")]
+    [SerializeField, Min(0.01f), Tooltip("Запасной базовый orthographic size. Нужен как страховка, если runtime-база почему-то не считалась из Lens.")]
+    private float fallbackBaseOrthoSize = 5.625f;
+
+    [SerializeField, Tooltip("Если ВКЛ — при старте брать базовый размер из текущего Lens.OrthographicSize виртуальной камеры.")]
+    private bool readBaseSizeFromLensOnStart = true;
+
+    [Header("Спринт: динамическое отдаление камеры")]
+    [SerializeField, Tooltip("Если ВКЛ — камера будет плавно отдаляться по сигналу спринта и возвращаться обратно после него.")]
+    private bool enableSprintZoom = true;
+
+    [SerializeField, Min(0f), Tooltip("На сколько единиц orthographic size дополнительно отдалять камеру на полном спринте.")]
+    private float sprintZoomOutSizeDelta = 0.9f;
+
+    [SerializeField, Min(0.01f), Tooltip("Сколько секунд плавно переходить к новому уровню спринтового отдаления камеры.")]
+    private float sprintZoomLerpTime = 0.18f;
+
     [Header("Optional")]
-    [SerializeField] private bool useUnscaledTime = false; // если используешь паузу Time.timeScale=0
+    [SerializeField] private bool useUnscaledTime = false;
 
     [HideInInspector] public CinemachineFramingTransposer transposer;
 
     private CinemachineBasicMultiChannelPerlin perlin;
     private CinemachineVirtualCamera vcam;
-
     private CinemachineConfiner2D confiner2D;
     private MethodInfo confinerInvalidateMethod;
 
@@ -41,35 +57,57 @@ public class CamController : MonoBehaviour
     private Coroutine yOffsetCo;
     private Coroutine screenXCo;
 
-    private float sizeFrom;
+    private float baseSizeCurrent = 5.625f;
+    private float baseSizeTarget = 5.625f;
+    private float sprintZoomBlendCurrent = 0f;
+    private float sprintZoomBlendTarget = 0f;
+    private bool runtimeBaseInitialized = false;
+
+    private void Reset()
+    {
+        CacheComponents();
+    }
 
     private void Awake()
     {
-        vcam = GetComponent<CinemachineVirtualCamera>();
+        CacheComponents();
+        EnsureBaseSizeInitialized(false);
+    }
 
-        // FramingTransposer нужен для ScreenX и TrackedObjectOffset
-        transposer = vcam.GetCinemachineComponent<CinemachineFramingTransposer>();
+    private void Start()
+    {
+        EnsureBaseSizeInitialized(true);
+        ApplyCombinedLensSize(true);
+    }
 
-        // Perlin нужен для тряски (добавь на VirtualCamera компонент Noise!)
-        perlin = vcam.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+    private void OnValidate()
+    {
+        fallbackBaseOrthoSize = Mathf.Max(0.01f, fallbackBaseOrthoSize);
+        sprintZoomOutSizeDelta = Mathf.Max(0f, sprintZoomOutSizeDelta);
+        sprintZoomLerpTime = Mathf.Max(0.01f, sprintZoomLerpTime);
+        screenXLerpTime = Mathf.Max(0.0001f, screenXLerpTime);
+        yOffsetLerpTime = Mathf.Max(0.0001f, yOffsetLerpTime);
 
-        // Confiner2D (если есть) — чтобы при зуме/смещении не было глюков границ
-        confiner2D = GetComponent<CinemachineConfiner2D>();
-        if (confiner2D != null)
-        {
-            var t = confiner2D.GetType();
-            confinerInvalidateMethod =
-                t.GetMethod("InvalidateCache", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                ?? t.GetMethod("InvalidatePathCache", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        }
+        if (!Application.isPlaying)
+            return;
+
+        CacheComponents();
+        EnsureBaseSizeInitialized(false);
+        ApplyCombinedLensSize(true);
     }
 
     private void OnEnable()
     {
+        CacheComponents();
+        EnsureBaseSizeInitialized(false);
+        sprintZoomBlendCurrent = 0f;
+        sprintZoomBlendTarget = 0f;
+
         CameraShake += Shake;
         ChangeCameraSizeEvent += ChangeCameraSize;
         ChangeFollowTargetEvent += ChangeFollowTarget;
         ChangeCameraYOffsetEvent += ChangeCameraYOffset;
+        ChangeSprintZoomBlendEvent += ChangeSprintZoomBlend;
     }
 
     private void OnDisable()
@@ -78,20 +116,22 @@ public class CamController : MonoBehaviour
         ChangeCameraSizeEvent -= ChangeCameraSize;
         ChangeFollowTargetEvent -= ChangeFollowTarget;
         ChangeCameraYOffsetEvent -= ChangeCameraYOffset;
+        ChangeSprintZoomBlendEvent -= ChangeSprintZoomBlend;
     }
 
     private void Update()
     {
-        if (!enableADTest) return;
-        if (transposer == null) return;
+        if (!enableADTest || transposer == null)
+            return;
 
         if (Input.GetKeyDown(KeyCode.A)) SetScreenX(leftOffset, screenXLerpTime);
         if (Input.GetKeyDown(KeyCode.D)) SetScreenX(rightOffset, screenXLerpTime);
     }
 
-    // =========================
-    // Public API (через события)
-    // =========================
+    private void LateUpdate()
+    {
+        UpdateSprintZoomRuntime();
+    }
 
     private void Shake(float strength, float time, float fadeTime)
     {
@@ -103,16 +143,13 @@ public class CamController : MonoBehaviour
 
     private void ChangeCameraSize(float newSize)
     {
-        if (vcam == null) return;
+        EnsureBaseSizeInitialized(false);
 
-        // Заставляет Cinemachine пересчитать позицию и "прилипнуть" к цели
-        vcam.PreviousStateIsValid = false;
-        InvalidateConfiner();
+        if (sizeCo != null)
+            StopCoroutine(sizeCo);
 
-        if (sizeCo != null) StopCoroutine(sizeCo);
-
-        sizeFrom = vcam.m_Lens.OrthographicSize;
-        sizeCo = StartCoroutine(ChangeSizeRoutine(newSize, 1f));
+        baseSizeTarget = Mathf.Max(0.01f, newSize);
+        sizeCo = StartCoroutine(ChangeBaseSizeRoutine(baseSizeTarget, 1f));
     }
 
     private void ChangeFollowTarget(Transform followObject)
@@ -135,9 +172,10 @@ public class CamController : MonoBehaviour
         yOffsetCo = StartCoroutine(ChangeYOffsetRoutine(newYOffsetY, yOffsetLerpTime));
     }
 
-    // =========================
-    // Helpers for ScreenX test
-    // =========================
+    private void ChangeSprintZoomBlend(float blend)
+    {
+        sprintZoomBlendTarget = enableSprintZoom ? Mathf.Clamp01(blend) : 0f;
+    }
 
     private void SetScreenX(float x, float duration)
     {
@@ -165,10 +203,8 @@ public class CamController : MonoBehaviour
         {
             float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
             t += dt;
-
             float a = Mathf.Clamp01(t / dur);
             float eased = EaseInOut(a);
-
             transposer.m_ScreenX = Mathf.Lerp(from, to, eased);
             yield return null;
         }
@@ -177,29 +213,15 @@ public class CamController : MonoBehaviour
         screenXCo = null;
     }
 
-    private void InvalidateConfiner()
-    {
-        if (confiner2D == null) return;
-        if (confinerInvalidateMethod == null) return;
-        confinerInvalidateMethod.Invoke(confiner2D, null);
-    }
-
-    // =========================
-    // Coroutines
-    // =========================
-
     private IEnumerator ShakeRoutine(float strength, float time, float fadeTime)
     {
         float origin = Mathf.Max(0f, strength);
         float cur = origin;
-
         perlin.m_AmplitudeGain = cur;
 
-        // Hold time
         if (time > 0f)
             yield return useUnscaledTime ? new WaitForSecondsRealtime(time) : new WaitForSeconds(time);
 
-        // Fade out
         float t = 0f;
         float dur = Mathf.Max(0.0001f, fadeTime);
 
@@ -207,10 +229,8 @@ public class CamController : MonoBehaviour
         {
             float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
             t += dt;
-
             float k = 1f - Mathf.Clamp01(t / dur);
             cur = origin * k;
-
             perlin.m_AmplitudeGain = cur;
             yield return null;
         }
@@ -219,13 +239,15 @@ public class CamController : MonoBehaviour
         shakeCo = null;
     }
 
-    private IEnumerator ChangeSizeRoutine(float newSize, float duration)
+    private IEnumerator ChangeBaseSizeRoutine(float newBaseSize, float duration)
     {
-        float from = sizeFrom;
-        float to = newSize;
+        float from = Mathf.Max(0.01f, baseSizeCurrent);
+        float to = Mathf.Max(0.01f, newBaseSize);
 
         if (Mathf.Approximately(from, to))
         {
+            baseSizeCurrent = to;
+            ApplyCombinedLensSize(true);
             sizeCo = null;
             yield break;
         }
@@ -237,19 +259,15 @@ public class CamController : MonoBehaviour
         {
             float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
             t += dt;
-
             float a = Mathf.Clamp01(t / dur);
             float eased = EaseInOut(a);
-
-            vcam.m_Lens.OrthographicSize = Mathf.Lerp(from, to, eased);
-            InvalidateConfiner();
-
+            baseSizeCurrent = Mathf.Lerp(from, to, eased);
+            ApplyCombinedLensSize();
             yield return null;
         }
 
-        vcam.m_Lens.OrthographicSize = to;
-        InvalidateConfiner();
-
+        baseSizeCurrent = to;
+        ApplyCombinedLensSize(true);
         sizeCo = null;
     }
 
@@ -271,37 +289,118 @@ public class CamController : MonoBehaviour
         {
             float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
             t += dt;
-
             float a = Mathf.Clamp01(t / dur);
             float eased = EaseInOut(a);
-
             transposer.m_TrackedObjectOffset = Vector3.Lerp(from, to, eased);
             InvalidateConfiner();
-
             yield return null;
         }
 
         transposer.m_TrackedObjectOffset = to;
         InvalidateConfiner();
-
         yOffsetCo = null;
     }
 
-    // =========================
-    // Helpers
-    // =========================
+    private void UpdateSprintZoomRuntime()
+    {
+        if (vcam == null)
+            return;
+
+        EnsureBaseSizeInitialized(false);
+
+        float desiredBlend = enableSprintZoom ? sprintZoomBlendTarget : 0f;
+        float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+
+        sprintZoomBlendCurrent = dt > 0f
+            ? Mathf.MoveTowards(sprintZoomBlendCurrent, desiredBlend, dt / Mathf.Max(0.01f, sprintZoomLerpTime))
+            : desiredBlend;
+
+        ApplyCombinedLensSize();
+    }
+
+    private void ApplyCombinedLensSize(bool force = false)
+    {
+        if (vcam == null)
+            return;
+
+        float safeBase = Mathf.Max(0.01f, baseSizeCurrent);
+        float sprintAdd = enableSprintZoom ? sprintZoomOutSizeDelta * sprintZoomBlendCurrent : 0f;
+        float targetSize = safeBase + sprintAdd;
+
+        if (!force && Mathf.Abs(vcam.m_Lens.OrthographicSize - targetSize) < 0.0001f)
+            return;
+
+        vcam.m_Lens.OrthographicSize = targetSize;
+        InvalidateConfiner();
+    }
+
+    private void EnsureBaseSizeInitialized(bool allowLensResync)
+    {
+        if (vcam == null)
+            return;
+
+        float lensSize = Mathf.Max(0.01f, vcam.m_Lens.OrthographicSize);
+        float fallback = Mathf.Max(0.01f, fallbackBaseOrthoSize);
+
+        if (!runtimeBaseInitialized)
+        {
+            float resolved = readBaseSizeFromLensOnStart ? lensSize : fallback;
+            if (resolved <= 0.01f)
+                resolved = fallback;
+
+            baseSizeCurrent = resolved;
+            baseSizeTarget = resolved;
+            runtimeBaseInitialized = true;
+            return;
+        }
+
+        if (!allowLensResync)
+            return;
+
+        bool noSprint = Mathf.Abs(sprintZoomBlendCurrent) <= 0.0001f && Mathf.Abs(sprintZoomBlendTarget) <= 0.0001f;
+        bool noSizeTween = sizeCo == null;
+
+        if (noSprint && noSizeTween && lensSize > 0.01f)
+        {
+            baseSizeCurrent = lensSize;
+            baseSizeTarget = lensSize;
+        }
+    }
+
+    private void CacheComponents()
+    {
+        if (vcam == null)
+            vcam = GetComponent<CinemachineVirtualCamera>();
+
+        if (transposer == null && vcam != null)
+            transposer = vcam.GetCinemachineComponent<CinemachineFramingTransposer>();
+
+        if (perlin == null && vcam != null)
+            perlin = vcam.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+
+        if (confiner2D == null)
+            confiner2D = GetComponent<CinemachineConfiner2D>();
+
+        if (confiner2D != null && confinerInvalidateMethod == null)
+        {
+            var t = confiner2D.GetType();
+            confinerInvalidateMethod =
+                t.GetMethod("InvalidateCache", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                ?? t.GetMethod("InvalidatePathCache", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        }
+    }
+
+    private void InvalidateConfiner()
+    {
+        if (confiner2D == null || confinerInvalidateMethod == null)
+            return;
+
+        confinerInvalidateMethod.Invoke(confiner2D, null);
+    }
 
     private float EaseInOut(float x)
     {
         x = Mathf.Clamp01(x);
         return x < 0.5f ? x * x * 2f : (1f - (1f - x) * (1f - x) * 2f);
     }
-
-    // =========================
-    // Примеры вызова (если нужно)
-    // =========================
-    // CamController.CameraShake?.Invoke(1.2f, 0.1f, 0.25f);
-    // CamController.ChangeCameraSizeEvent?.Invoke(6.5f);
-    // CamController.ChangeCameraYOffsetEvent?.Invoke(1.5f);
-    // CamController.ChangeFollowTargetEvent?.Invoke(bossTransform);
 }
