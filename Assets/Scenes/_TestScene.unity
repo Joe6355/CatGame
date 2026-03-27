@@ -1748,7 +1748,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 358, y: 54}
+  m_AnchoredPosition: {x: 358.00003, y: 54}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &413439849
@@ -2708,7 +2708,7 @@ Camera:
   far clip plane: 1000
   field of view: 67.67275
   orthographic: 1
-  orthographic size: 5.625
+  orthographic size: 15.38
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -2741,7 +2741,7 @@ Transform:
   m_GameObject: {fileID: 616883574}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 8.352193, y: 0.88676, z: -10}
+  m_LocalPosition: {x: 19.424574, y: 0.9160006, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3863,7 +3863,7 @@ MonoBehaviour:
   m_Follow: {fileID: 1471706304}
   m_Lens:
     FieldOfView: 67.67275
-    OrthographicSize: 5.625
+    OrthographicSize: 15.38
     NearClipPlane: 0.3
     FarClipPlane: 1000
     Dutch: 0
@@ -3889,7 +3889,7 @@ Transform:
   m_GameObject: {fileID: 956994266}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 8.345262, y: -1.9849997, z: -10}
+  m_LocalPosition: {x: 19.424574, y: 0.9160006, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3933,7 +3933,7 @@ MonoBehaviour:
   readBaseSizeFromLensOnStart: 1
   enableSprintZoom: 1
   sprintZoomOutSizeDelta: 6
-  sprintZoomLerpTime: 1
+  sprintZoomLerpTime: 2
   useUnscaledTime: 0
   transposer: {fileID: 0}
 --- !u!1 &996478413
@@ -5630,8 +5630,8 @@ MonoBehaviour:
   enableLandingCameraShake: 1
   landingShakeMinFallSpeed: 1
   landingShakeMaxFallSpeed: 5
-  landingShakeMinStrength: 2
-  landingShakeMaxStrength: 5
+  landingShakeMinStrength: 0.84
+  landingShakeMaxStrength: 1.55
   landingShakeHoldTime: 0.02
   landingShakeFadeTime: 0.12
 --- !u!61 &1471706301
@@ -5767,7 +5767,7 @@ Transform:
   m_GameObject: {fileID: 1471706294}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.38, y: -3.11, z: 0}
+  m_LocalPosition: {x: 0.38, y: -2.16, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -5832,9 +5832,14 @@ MonoBehaviour:
   jumpKey: 32
   shortJumpKey: 304
   alternateShortJumpKey: 303
+  apexThrowDownKey: 115
+  alternateApexThrowDownKey: 274
   useGamepadJump: 1
   gamepadChargeJumpKey: 330
   gamepadShortJumpKey: 331
+  useVerticalAxisForApexThrow: 1
+  verticalAxisName: Vertical
+  apexThrowDownAxisThreshold: -0.65
   useLegacyKeycodeRebind: 1
   useInputManagerAxisFallback: 1
   useMobileControls: 0
@@ -5858,7 +5863,7 @@ MonoBehaviour:
   maxJumpForce: 22
   jumpTimeLimit: 0.8
   shortJumpForce: 12
-  useChargeEnterDelay: 1
+  useChargeEnterDelay: 0
   chargeEnterDelay: 0.3
   allowInstantMaxChargeFromSprint: 1
   showInstantSprintPreview: 1
@@ -5867,6 +5872,18 @@ MonoBehaviour:
   coyoteTime: 0.12
   jumpBufferTime: 0.1
   fatigueDuration: 0.8
+  enableApexThrowAfterChargedJump: 1
+  apexThrowOnlyAfterChargedJump: 0
+  apexThrowMinJumpForce: 0.1
+  apexThrowMinTimeAfterJump: 0
+  apexThrowEnterMaxUpwardSpeed: 5
+  apexThrowAvailableDuration: 2
+  apexThrowDownwardSpeed: 20
+  apexThrowHorizontalSpeed: 10
+  apexThrowNeutralHorizontalMultiplier: 0.5
+  apexThrowHorizontalInputDeadZone: 0.1
+  apexThrowUseFacingWhenNoInput: 1
+  showApexThrowTrajectoryPreview: 1
 --- !u!114 &1471706309
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5879,7 +5896,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 45335e58e29a03e4da58cb2b60d76067, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 5
+  moveSpeed: 10
   fatigueSpeedMultiplier: 0.6
   sprintStartDelay: 0.45
   sprintRampDuration: 0.35
@@ -5937,6 +5954,12 @@ MonoBehaviour:
   mainCamera: {fileID: 616883575}
   uiCanvas: {fileID: 1586208782}
   barOffset: {x: 0, y: -0.8, z: 0}
+  debugTintWhenApexThrowAvailable: 1
+  autoFindSpriteRenderersForDebugTint: 1
+  apexThrowDebugTintRenderers:
+  - {fileID: 1471706303}
+  - {fileID: 238171572}
+  apexThrowAvailableDebugColor: {r: 1, g: 0.1623537, b: 0, a: 1}
 --- !u!114 &1471706312
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6234,7 +6257,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 358, y: 101}
+  m_AnchoredPosition: {x: 358.00003, y: 101}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1546684875

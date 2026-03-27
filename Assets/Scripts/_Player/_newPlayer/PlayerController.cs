@@ -208,6 +208,23 @@ public class PlayerController : MonoBehaviour
         movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
         movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed());
 
+        PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
+        jumpModule.UpdateApexThrowState(apexCtx, inputX);
+
+        if (snapshot.ApexThrowDownPressed)
+        {
+            PlayerJumpModule.ApexThrowResult apexThrowResult =
+                jumpModule.TryPerformApexThrow(apexCtx, inputX);
+
+            if (apexThrowResult.DidThrow)
+            {
+                movementModule.SetAirVx(apexThrowResult.AirVx);
+                movementModule.ResetSprint();
+                bounceModule.NotifyJumpImpulse(Time.time);
+                return;
+            }
+        }
+
         if (snapshot.ShortJumpDown && !jumpModule.IsJumpHoldActive)
         {
             PlayerJumpModule.JumpContext jumpCtx = BuildJumpContext();
@@ -279,6 +296,23 @@ public class PlayerController : MonoBehaviour
         movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
         movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed());
 
+        PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
+        jumpModule.UpdateApexThrowState(apexCtx, inputX);
+
+        if (snapshot.ApexThrowDownPressed)
+        {
+            PlayerJumpModule.ApexThrowResult apexThrowResult =
+                jumpModule.TryPerformApexThrow(apexCtx, inputX);
+
+            if (apexThrowResult.DidThrow)
+            {
+                movementModule.SetAirVx(apexThrowResult.AirVx);
+                movementModule.ResetSprint();
+                bounceModule.NotifyJumpImpulse(Time.time);
+                return;
+            }
+        }
+
         if (snapshot.JumpHeld)
         {
             jumpModule.MarkHoldJumpPressed(PlayerInputModule.HoldSource.Mobile, Time.time);
@@ -346,7 +380,8 @@ public class PlayerController : MonoBehaviour
             jumpModule.IsFatigued(Time.time),
             jumpModule.IsJumpHoldActiveForPresentation,
             jumpModule.IsChargeVisualActive,
-            jumpModule.ChargeBarNormalizedForPresentation);
+            jumpModule.ChargeBarNormalizedForPresentation,
+            jumpModule.IsApexThrowAvailable);
     }
 
     private void PushSprintCameraFeedback()

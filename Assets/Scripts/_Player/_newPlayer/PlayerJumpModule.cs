@@ -45,6 +45,43 @@ public class PlayerJumpModule : MonoBehaviour
     [SerializeField, Tooltip("Сколько длится усталость после прыжка.")]
     private float fatigueDuration = 0.8f;
 
+    [Header("Бросок после вершины сильного прыжка")]
+    [SerializeField, Tooltip("Если ВКЛ — после выхода сильного прыжка в вершину можно выполнить одноразовый бросок вниз.")]
+    private bool enableApexThrowAfterChargedJump = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — бросок вниз доступен только после усиленного прыжка, а не после отдельного слабого.")]
+    private bool apexThrowOnlyAfterChargedJump = true;
+
+    [SerializeField, Min(0f), Tooltip("Минимальная сила последнего прыжка, чтобы вообще разрешить механику броска после вершины.")]
+    private float apexThrowMinJumpForce = 6f;
+
+    [SerializeField, Min(0f), Tooltip("Минимальная задержка после прыжка, прежде чем можно считать вершину достигнутой.")]
+    private float apexThrowMinTimeAfterJump = 0.08f;
+
+    [SerializeField, Min(0f), Tooltip("Когда вертикальная скорость станет меньше или равна этому порогу, считаем, что игрок дошёл до вершины/перешёл в спад.")]
+    private float apexThrowEnterMaxUpwardSpeed = 0.2f;
+
+    [SerializeField, Min(0f), Tooltip("Сколько секунд после входа в вершину разрешено нажать бросок вниз.")]
+    private float apexThrowAvailableDuration = 0.9f;
+
+    [SerializeField, Min(0f), Tooltip("Вертикальная скорость броска вниз.")]
+    private float apexThrowDownwardSpeed = 16f;
+
+    [SerializeField, Min(0f), Tooltip("Базовая горизонтальная скорость, с которой бросок уводит игрока в сторону.")]
+    private float apexThrowHorizontalSpeed = 8f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Если при броске нет горизонтального ввода, скорость в сторону лица будет умножена на этот коэффициент.")]
+    private float apexThrowNeutralHorizontalMultiplier = 0.35f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Минимальная сила горизонтального ввода, чтобы считать, что игрок реально выбирает траекторию броска.")]
+    private float apexThrowHorizontalInputDeadZone = 0.2f;
+
+    [SerializeField, Tooltip("Если ВКЛ — при отсутствии горизонтального ввода бросок пойдёт в сторону взгляда персонажа.")]
+    private bool apexThrowUseFacingWhenNoInput = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — существующий скрипт траектории сможет показывать траекторию броска после вершины, используя тот же публичный интерфейс, что и у зарядного прыжка.")]
+    private bool showApexThrowTrajectoryPreview = true;
+
     private enum BufferedJumpKind
     {
         None,
@@ -76,6 +113,15 @@ public class PlayerJumpModule : MonoBehaviour
         public bool WasChargedJump;
     }
 
+    public struct ApexThrowResult
+    {
+        public bool DidThrow;
+        public float AirVx;
+    }
+
+    private const float ApexThrowGroundedResetGrace = 0.12f;
+    private const float ApexThrowRecentJumpUpVelocityEpsilon = 0.01f;
+
     private float lastJumpPressedTime = -999f;
     private BufferedJumpKind bufferedJumpKind = BufferedJumpKind.None;
 
@@ -98,10 +144,17 @@ public class PlayerJumpModule : MonoBehaviour
     private float instantSprintPreviewUntilUnscaled = -999f;
     private Vector2 instantSprintPreviewVelocity = Vector2.zero;
 
+    private bool apexThrowArmed = false;
+    private bool apexThrowAvailable = false;
+    private bool apexThrowUsed = false;
+    private float apexThrowAvailableUntil = -999f;
+    private float apexThrowPreviewAimX = 0f;
+    private Vector2 apexThrowPreviewVelocity = Vector2.zero;
+
     public float CoyoteTime => coyoteTime;
     public bool IsJumpHoldActive => isJumpHoldActive;
     public bool IsChargingJump => isChargingJump;
-    public bool IsChargingJumpPublic => isChargingJump || IsInstantSprintPreviewActive();
+    public bool IsChargingJumpPublic => isChargingJump || IsInstantSprintPreviewActive() || IsApexThrowTrajectoryPreviewActive();
     public float CurrentBarNormalized => currentBarNormalized;
     public float LastJumpTime => lastJumpTime;
     public float LastAppliedJumpForce => lastAppliedJumpForce;
@@ -110,6 +163,7 @@ public class PlayerJumpModule : MonoBehaviour
     public bool IsJumpHoldActiveForPresentation => isJumpHoldActive || IsInstantSprintPreviewActive();
     public bool IsChargeVisualActive => isChargingJump || IsInstantSprintPreviewActive();
     public float ChargeBarNormalizedForPresentation => IsInstantSprintPreviewActive() ? 1f : currentBarNormalized;
+    public bool IsApexThrowAvailable => CanUseApexThrowNow(Time.time);
 
     public bool IsFatigued(float now)
     {
@@ -129,6 +183,91 @@ public class PlayerJumpModule : MonoBehaviour
     public bool CanAcceptDedicatedShortJumpInput(JumpContext ctx)
     {
         return allowDedicatedShortJumpDuringSprint || !ctx.IsSprintMovementActive;
+    }
+
+    public void UpdateApexThrowState(JumpContext ctx, float aimX)
+    {
+        if (!enableApexThrowAfterChargedJump)
+        {
+            ClearApexThrowState();
+            return;
+        }
+
+        if (ctx.Rigidbody == null)
+            return;
+
+        bool isRecentlyAfterJump = (ctx.Now - lastJumpTime) <= ApexThrowGroundedResetGrace;
+        bool isStillGoingUp = ctx.Rigidbody.velocity.y > ApexThrowRecentJumpUpVelocityEpsilon;
+
+        bool ignoreStaleGroundedRightAfterJump =
+            apexThrowArmed &&
+            !apexThrowUsed &&
+            isRecentlyAfterJump &&
+            isStillGoingUp;
+
+        if (ctx.IsGrounded && !ignoreStaleGroundedRightAfterJump)
+        {
+            ClearApexThrowState();
+            return;
+        }
+
+        if (!apexThrowArmed || apexThrowUsed)
+            return;
+
+        if (!apexThrowAvailable)
+        {
+            if (ctx.Now - lastJumpTime < apexThrowMinTimeAfterJump)
+                return;
+
+            if (Mathf.Abs(lastAppliedJumpForce) < apexThrowMinJumpForce)
+            {
+                ClearApexThrowState();
+                return;
+            }
+
+            if (ctx.Rigidbody.velocity.y > apexThrowEnterMaxUpwardSpeed)
+                return;
+
+            apexThrowAvailable = true;
+            apexThrowAvailableUntil = ctx.Now + Mathf.Max(0f, apexThrowAvailableDuration);
+        }
+
+        if (!CanUseApexThrowNow(ctx.Now))
+        {
+            ClearApexThrowState();
+            return;
+        }
+
+        apexThrowPreviewAimX = aimX;
+        apexThrowPreviewVelocity = CalculateApexThrowVelocity(ctx, aimX);
+    }
+
+    public ApexThrowResult TryPerformApexThrow(JumpContext ctx, float aimX)
+    {
+        UpdateApexThrowState(ctx, aimX);
+
+        if (!CanUseApexThrowNow(ctx.Now))
+            return default;
+
+        Vector2 velocity = CalculateApexThrowVelocity(ctx, aimX);
+
+        if (ctx.Rigidbody != null)
+            ctx.Rigidbody.velocity = velocity;
+
+        lastJumpTime = ctx.Now;
+        lastAppliedJumpForce = Mathf.Abs(velocity.y);
+
+        apexThrowUsed = true;
+        apexThrowArmed = false;
+        apexThrowAvailable = false;
+        apexThrowAvailableUntil = -999f;
+        apexThrowPreviewVelocity = Vector2.zero;
+
+        return new ApexThrowResult
+        {
+            DidThrow = true,
+            AirVx = velocity.x - ctx.ExternalWindVX
+        };
     }
 
     public void MarkShortJumpPressed(float now)
@@ -328,10 +467,14 @@ public class PlayerJumpModule : MonoBehaviour
 
         ClearHoldState();
         ClearInstantSprintPreview();
+        ClearApexThrowState();
     }
 
     public Vector2 GetPredictedJumpVelocity(JumpContext ctx)
     {
+        if (IsApexThrowTrajectoryPreviewActive())
+            return apexThrowPreviewVelocity;
+
         if (IsInstantSprintPreviewActive())
             return instantSprintPreviewVelocity;
 
@@ -377,6 +520,7 @@ public class PlayerJumpModule : MonoBehaviour
 
         PerformJump(ctx.Rigidbody, ctx.Now, takeoffVx, verticalForce, ctx.ExternalWindVX);
         StartFatigue(ctx.Now);
+        ArmApexThrowState(wasCharged, ctx.IsFacingRight);
 
         return new JumpActionResult
         {
@@ -384,6 +528,74 @@ public class PlayerJumpModule : MonoBehaviour
             TakeoffVx = takeoffVx,
             WasChargedJump = wasCharged
         };
+    }
+
+    private void ArmApexThrowState(bool wasChargedJump, bool isFacingRight)
+    {
+        bool canArm =
+            enableApexThrowAfterChargedJump &&
+            (!apexThrowOnlyAfterChargedJump || wasChargedJump);
+
+        if (!canArm)
+        {
+            ClearApexThrowState();
+            return;
+        }
+
+        apexThrowArmed = true;
+        apexThrowAvailable = false;
+        apexThrowUsed = false;
+        apexThrowAvailableUntil = -999f;
+        apexThrowPreviewAimX = isFacingRight ? 1f : -1f;
+        apexThrowPreviewVelocity = Vector2.zero;
+    }
+
+    private bool CanUseApexThrowNow(float now)
+    {
+        return enableApexThrowAfterChargedJump &&
+               apexThrowArmed &&
+               apexThrowAvailable &&
+               !apexThrowUsed &&
+               now <= apexThrowAvailableUntil;
+    }
+
+    private Vector2 CalculateApexThrowVelocity(JumpContext ctx, float aimX)
+    {
+        float aimDir = 0f;
+
+        if (Mathf.Abs(aimX) > apexThrowHorizontalInputDeadZone)
+        {
+            aimDir = Mathf.Sign(aimX);
+        }
+        else if (apexThrowUseFacingWhenNoInput)
+        {
+            aimDir = ctx.IsFacingRight ? 1f : -1f;
+        }
+
+        float horizontalSpeed = apexThrowHorizontalSpeed;
+
+        if (Mathf.Abs(aimX) <= apexThrowHorizontalInputDeadZone)
+            horizontalSpeed *= apexThrowNeutralHorizontalMultiplier;
+
+        float finalVx = ctx.PlatformVX + aimDir * horizontalSpeed + ctx.ExternalWindVX;
+        float finalVy = -Mathf.Abs(apexThrowDownwardSpeed);
+
+        return new Vector2(finalVx, finalVy);
+    }
+
+    private bool IsApexThrowTrajectoryPreviewActive()
+    {
+        return showApexThrowTrajectoryPreview && CanUseApexThrowNow(Time.time);
+    }
+
+    private void ClearApexThrowState()
+    {
+        apexThrowArmed = false;
+        apexThrowAvailable = false;
+        apexThrowUsed = false;
+        apexThrowAvailableUntil = -999f;
+        apexThrowPreviewAimX = 0f;
+        apexThrowPreviewVelocity = Vector2.zero;
     }
 
     private void ClearHoldState()
@@ -442,5 +654,6 @@ public class PlayerJumpModule : MonoBehaviour
         lastJumpTime = -999f;
         lastAppliedJumpForce = 0f;
         currentBarNormalized = 0f;
+        ClearApexThrowState();
     }
 }

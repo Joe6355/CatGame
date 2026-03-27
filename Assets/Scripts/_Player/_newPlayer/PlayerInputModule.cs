@@ -17,6 +17,7 @@ public class PlayerInputModule : MonoBehaviour
         public float MoveX;
         public bool IsRebinding;
         public bool ShortJumpDown;
+        public bool ApexThrowDownPressed;
         public HoldSource ChargeDownSource;
     }
 
@@ -24,6 +25,7 @@ public class PlayerInputModule : MonoBehaviour
     {
         public float MoveX;
         public bool JumpHeld;
+        public bool ApexThrowDownPressed;
     }
 
     [Header("Клавиатура и мышь (PC)")]
@@ -42,6 +44,12 @@ public class PlayerInputModule : MonoBehaviour
     [SerializeField, Tooltip("Дополнительная клавиша отдельного слабого прыжка (PC). Можно оставить None.")]
     private KeyCode alternateShortJumpKey = KeyCode.RightShift;
 
+    [SerializeField, Tooltip("Клавиша вниз для броска после вершины сильного прыжка. По умолчанию S.")]
+    private KeyCode apexThrowDownKey = KeyCode.S;
+
+    [SerializeField, Tooltip("Дополнительная клавиша вниз для броска после вершины сильного прыжка. По умолчанию DownArrow.")]
+    private KeyCode alternateApexThrowDownKey = KeyCode.DownArrow;
+
     [Header("Геймпад (desktop)")]
     [SerializeField, Tooltip("Если ВКЛ — в desktop-режиме (useMobileControls = false) будут работать и кнопки геймпада.")]
     private bool useGamepadJump = true;
@@ -51,6 +59,15 @@ public class PlayerInputModule : MonoBehaviour
 
     [SerializeField, Tooltip("Отдельная кнопка геймпада для слабого прыжка. Обычно B / Circle (JoystickButton1).")]
     private KeyCode gamepadShortJumpKey = KeyCode.JoystickButton1;
+
+    [SerializeField, Tooltip("Если ВКЛ — для броска после вершины сильного прыжка дополнительно читается ось Vertical.\nНужно для стика/крестовины геймпада и мобильного джойстика.")]
+    private bool useVerticalAxisForApexThrow = true;
+
+    [SerializeField, Tooltip("Имя вертикальной оси в Input Manager. Обычно Vertical.")]
+    private string verticalAxisName = "Vertical";
+
+    [SerializeField, Range(-1f, 0f), Tooltip("Насколько сильно нужно нажать вниз по оси Vertical, чтобы засчитать команду броска.\nНапример -0.65 = заметное отклонение стика вниз.")]
+    private float apexThrowDownAxisThreshold = -0.65f;
 
     [Header("Legacy Rebind (KeyCode)")]
     [SerializeField, Tooltip("If ON and LegacyKeycodeRebind exists, this module reads keys from it (UI rebind). If OFF or missing, uses local KeyCode fields below.")]
@@ -81,6 +98,8 @@ public class PlayerInputModule : MonoBehaviour
 
     private bool prevUseMobileControls = false;
     private bool mobileJumpHeld = false;
+    private bool prevDesktopApexThrowDownHeld = false;
+    private bool prevMobileApexThrowDownHeld = false;
 
     private bool gameplayInputEnabled = true;
     private bool waitForGameplayInputRelease = false;
@@ -138,6 +157,7 @@ public class PlayerInputModule : MonoBehaviour
             MoveX = 0f,
             IsRebinding = false,
             ShortJumpDown = false,
+            ApexThrowDownPressed = false,
             ChargeDownSource = HoldSource.None
         };
 
@@ -187,6 +207,7 @@ public class PlayerInputModule : MonoBehaviour
         // Если в ребинде кто-то повесил short и charge на одну и ту же кнопку,
         // приоритет отдаём зарядному прыжку, чтобы Space не вызывал слабый прыжок.
         snapshot.ShortJumpDown = !keyboardChargeDown && !gamepadChargeDown && GetDesktopShortJumpDown();
+        snapshot.ApexThrowDownPressed = GetDesktopApexThrowDownPressed();
 
         return snapshot;
     }
@@ -196,7 +217,8 @@ public class PlayerInputModule : MonoBehaviour
         MobileInputSnapshot snapshot = new MobileInputSnapshot
         {
             MoveX = mobileJoystick != null ? mobileJoystick.Horizontal : 0f,
-            JumpHeld = mobileJumpHeld
+            JumpHeld = mobileJumpHeld,
+            ApexThrowDownPressed = GetMobileApexThrowDownPressed()
         };
 
         return snapshot;
@@ -284,6 +306,9 @@ public class PlayerInputModule : MonoBehaviour
     {
         if (clearMobileHold)
             mobileJumpHeld = false;
+
+        prevDesktopApexThrowDownHeld = false;
+        prevMobileApexThrowDownHeld = false;
     }
 
     private LegacyKeycodeRebind GetLegacyRebind()
@@ -382,8 +407,14 @@ public class PlayerInputModule : MonoBehaviour
             if (mobileJumpHeld)
                 return true;
 
-            if (mobileJoystick != null && Mathf.Abs(mobileJoystick.Horizontal) > inputReleaseAxisDeadZone)
-                return true;
+            if (mobileJoystick != null)
+            {
+                if (Mathf.Abs(mobileJoystick.Horizontal) > inputReleaseAxisDeadZone)
+                    return true;
+
+                if (useVerticalAxisForApexThrow && mobileJoystick.Vertical <= apexThrowDownAxisThreshold)
+                    return true;
+            }
 
             return false;
         }
@@ -408,7 +439,11 @@ public class PlayerInputModule : MonoBehaviour
             bool keyboardShortHeld = Input.GetKey(shortJumpKey) ||
                                      (alternateShortJumpKey != KeyCode.None && Input.GetKey(alternateShortJumpKey));
 
-            if (Input.GetKey(leftKey) || Input.GetKey(rightKey) || Input.GetKey(jumpKey) || keyboardShortHeld)
+            bool apexThrowDownHeld =
+                Input.GetKey(apexThrowDownKey) ||
+                (alternateApexThrowDownKey != KeyCode.None && Input.GetKey(alternateApexThrowDownKey));
+
+            if (Input.GetKey(leftKey) || Input.GetKey(rightKey) || Input.GetKey(jumpKey) || keyboardShortHeld || apexThrowDownHeld)
                 return true;
 
             if (useGamepadJump && (Input.GetKey(gamepadChargeJumpKey) || Input.GetKey(gamepadShortJumpKey)))
@@ -418,7 +453,52 @@ public class PlayerInputModule : MonoBehaviour
         if (useInputManagerAxisFallback && Mathf.Abs(Input.GetAxisRaw("Horizontal")) > inputReleaseAxisDeadZone)
             return true;
 
+        if (useVerticalAxisForApexThrow && GetVerticalAxisValue() <= apexThrowDownAxisThreshold)
+            return true;
+
         return false;
+    }
+
+    private bool GetDesktopApexThrowDownPressed()
+    {
+        bool currentHeld = GetKeyboardApexThrowDownHeld() || GetAxisApexThrowDownHeld();
+        bool pressed = currentHeld && !prevDesktopApexThrowDownHeld;
+        prevDesktopApexThrowDownHeld = currentHeld;
+        return pressed;
+    }
+
+    private bool GetMobileApexThrowDownPressed()
+    {
+        bool currentHeld = false;
+
+        if (mobileJoystick != null)
+            currentHeld = useVerticalAxisForApexThrow && mobileJoystick.Vertical <= apexThrowDownAxisThreshold;
+
+        bool pressed = currentHeld && !prevMobileApexThrowDownHeld;
+        prevMobileApexThrowDownHeld = currentHeld;
+        return pressed;
+    }
+
+    private bool GetKeyboardApexThrowDownHeld()
+    {
+        return Input.GetKey(apexThrowDownKey) ||
+               (alternateApexThrowDownKey != KeyCode.None && Input.GetKey(alternateApexThrowDownKey));
+    }
+
+    private bool GetAxisApexThrowDownHeld()
+    {
+        if (!useVerticalAxisForApexThrow)
+            return false;
+
+        return GetVerticalAxisValue() <= apexThrowDownAxisThreshold;
+    }
+
+    private float GetVerticalAxisValue()
+    {
+        if (!useVerticalAxisForApexThrow || string.IsNullOrEmpty(verticalAxisName))
+            return 0f;
+
+        return Input.GetAxisRaw(verticalAxisName);
     }
 
     private void EnsureMobileButtonHooked()

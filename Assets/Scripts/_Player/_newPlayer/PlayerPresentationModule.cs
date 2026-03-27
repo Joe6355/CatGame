@@ -23,9 +23,27 @@ public class PlayerPresentationModule : MonoBehaviour
     [SerializeField, Tooltip("Смещение шкалы от позиции игрока в мире (в мировых единицах).\nНапр: (0,2,0) — над головой.\nРекоменд: Y 1.0–2.5 (зависит от размера спрайта).")]
     private Vector3 barOffset = new Vector3(0f, 2f, 0f);
 
+    [Header("Debug: цвет кота во время окна броска вниз")]
+    [SerializeField, Tooltip("Если ВКЛ — во время доступности броска после вершины кот временно перекрашивается в debug-цвет.\nПосле выключения окна цвет автоматически возвращается.")]
+    private bool debugTintWhenApexThrowAvailable = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — модуль сам найдёт все SpriteRenderer на игроке и дочерних объектах.\nЕсли ВЫКЛ — использует только массив ниже.")]
+    private bool autoFindSpriteRenderersForDebugTint = true;
+
+    [SerializeField, Tooltip("Какие SpriteRenderer перекрашивать для отладки.\nМожно оставить пустым, если включён auto-find.")]
+    private SpriteRenderer[] apexThrowDebugTintRenderers;
+
+    [SerializeField, Tooltip("В какой цвет временно красить кота, когда окно броска вниз открыто.\nДля теста удобно оставить яркий зелёный.")]
+    private Color apexThrowAvailableDebugColor = new Color(0.55f, 1f, 0.55f, 1f);
+
+    private Color[] cachedRendererColors = System.Array.Empty<Color>();
+    private bool debugTintApplied = false;
+
     private void Awake()
     {
         ResolveCamera();
+        CacheDebugTintTargets();
+        RestoreApexThrowDebugTint();
     }
 
     private void OnValidate()
@@ -34,16 +52,29 @@ public class PlayerPresentationModule : MonoBehaviour
             return;
 
         ResolveCamera();
+        CacheDebugTintTargets();
+
+        if (debugTintApplied)
+            ApplyApexThrowDebugTint();
+        else
+            RestoreApexThrowDebugTint();
+    }
+
+    private void OnDisable()
+    {
+        RestoreApexThrowDebugTint();
     }
 
     public void RefreshPresentation(
         bool isFatigued,
         bool isJumpHoldActive,
         bool isChargingJump,
-        float jumpBarNormalized)
+        float jumpBarNormalized,
+        bool isApexThrowAvailable)
     {
         UpdateJumpBarVisual(isJumpHoldActive, isChargingJump, jumpBarNormalized);
         UpdateFatigueUI(isFatigued);
+        UpdateApexThrowDebugTint(isApexThrowAvailable);
         UpdateJumpBarPosition();
     }
 
@@ -56,6 +87,27 @@ public class PlayerPresentationModule : MonoBehaviour
     {
         if (mainCamera == null)
             mainCamera = Camera.main;
+    }
+
+    private void CacheDebugTintTargets()
+    {
+        if (autoFindSpriteRenderersForDebugTint)
+            apexThrowDebugTintRenderers = GetComponentsInChildren<SpriteRenderer>(true);
+
+        if (apexThrowDebugTintRenderers == null)
+        {
+            apexThrowDebugTintRenderers = System.Array.Empty<SpriteRenderer>();
+            cachedRendererColors = System.Array.Empty<Color>();
+            return;
+        }
+
+        cachedRendererColors = new Color[apexThrowDebugTintRenderers.Length];
+
+        for (int i = 0; i < apexThrowDebugTintRenderers.Length; i++)
+        {
+            SpriteRenderer sr = apexThrowDebugTintRenderers[i];
+            cachedRendererColors[i] = sr != null ? sr.color : Color.white;
+        }
     }
 
     private void UpdateJumpBarVisual(bool isJumpHoldActive, bool isChargingJump, float normalized)
@@ -114,5 +166,61 @@ public class PlayerPresentationModule : MonoBehaviour
         Color c = fatigueImage.color;
         c.a = alpha;
         fatigueImage.color = c;
+    }
+
+    private void UpdateApexThrowDebugTint(bool isApexThrowAvailable)
+    {
+        if (!debugTintWhenApexThrowAvailable)
+        {
+            RestoreApexThrowDebugTint();
+            return;
+        }
+
+        if (isApexThrowAvailable)
+            ApplyApexThrowDebugTint();
+        else
+            RestoreApexThrowDebugTint();
+    }
+
+    private void ApplyApexThrowDebugTint()
+    {
+        if (apexThrowDebugTintRenderers == null || apexThrowDebugTintRenderers.Length == 0)
+            return;
+
+        for (int i = 0; i < apexThrowDebugTintRenderers.Length; i++)
+        {
+            SpriteRenderer sr = apexThrowDebugTintRenderers[i];
+            if (sr == null)
+                continue;
+
+            Color tint = apexThrowAvailableDebugColor;
+            if (i < cachedRendererColors.Length)
+                tint.a = cachedRendererColors[i].a;
+
+            sr.color = tint;
+        }
+
+        debugTintApplied = true;
+    }
+
+    private void RestoreApexThrowDebugTint()
+    {
+        if (apexThrowDebugTintRenderers == null || cachedRendererColors == null)
+        {
+            debugTintApplied = false;
+            return;
+        }
+
+        int count = Mathf.Min(apexThrowDebugTintRenderers.Length, cachedRendererColors.Length);
+        for (int i = 0; i < count; i++)
+        {
+            SpriteRenderer sr = apexThrowDebugTintRenderers[i];
+            if (sr == null)
+                continue;
+
+            sr.color = cachedRendererColors[i];
+        }
+
+        debugTintApplied = false;
     }
 }
