@@ -119,9 +119,6 @@ public class PlayerJumpModule : MonoBehaviour
         public float AirVx;
     }
 
-    private const float ApexThrowGroundedResetGrace = 0.12f;
-    private const float ApexThrowRecentJumpUpVelocityEpsilon = 0.01f;
-
     private float lastJumpPressedTime = -999f;
     private BufferedJumpKind bufferedJumpKind = BufferedJumpKind.None;
 
@@ -155,6 +152,8 @@ public class PlayerJumpModule : MonoBehaviour
     public bool IsJumpHoldActive => isJumpHoldActive;
     public bool IsChargingJump => isChargingJump;
     public bool IsChargingJumpPublic => isChargingJump || IsInstantSprintPreviewActive() || IsApexThrowTrajectoryPreviewActive();
+    public bool IsChargeTrajectoryPreviewVisible => isChargingJump || IsInstantSprintPreviewActive();
+    public bool IsApexThrowTrajectoryPreviewVisible => IsApexThrowTrajectoryPreviewActive();
     public float CurrentBarNormalized => currentBarNormalized;
     public float LastJumpTime => lastJumpTime;
     public float LastAppliedJumpForce => lastAppliedJumpForce;
@@ -184,6 +183,9 @@ public class PlayerJumpModule : MonoBehaviour
     {
         return allowDedicatedShortJumpDuringSprint || !ctx.IsSprintMovementActive;
     }
+
+    private const float ApexThrowGroundedResetGrace = 0.12f;
+    private const float ApexThrowRecentJumpUpVelocityEpsilon = 0.01f;
 
     public void UpdateApexThrowState(JumpContext ctx, float aimX)
     {
@@ -473,8 +475,13 @@ public class PlayerJumpModule : MonoBehaviour
     public Vector2 GetPredictedJumpVelocity(JumpContext ctx)
     {
         if (IsApexThrowTrajectoryPreviewActive())
-            return apexThrowPreviewVelocity;
+            return GetPredictedApexThrowTrajectoryVelocity(ctx);
 
+        return GetPredictedChargeTrajectoryVelocity(ctx);
+    }
+
+    public Vector2 GetPredictedChargeTrajectoryVelocity(JumpContext ctx)
+    {
         if (IsInstantSprintPreviewActive())
             return instantSprintPreviewVelocity;
 
@@ -498,6 +505,17 @@ public class PlayerJumpModule : MonoBehaviour
         }
 
         return new Vector2(predictedVx, predictedVy);
+    }
+
+    public Vector2 GetPredictedApexThrowTrajectoryVelocity(JumpContext ctx)
+    {
+        if (!IsApexThrowTrajectoryPreviewActive())
+            return Vector2.zero;
+
+        if (apexThrowPreviewVelocity.sqrMagnitude > 0.000001f)
+            return apexThrowPreviewVelocity;
+
+        return CalculateApexThrowVelocity(ctx, apexThrowPreviewAimX);
     }
 
     private float CalculateChargeNormalized(float now)

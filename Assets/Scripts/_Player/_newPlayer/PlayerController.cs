@@ -501,12 +501,43 @@ public class PlayerController : MonoBehaviour
 
     public bool IsChargingJumpPublic
     {
-        get { return jumpModule.IsChargingJumpPublic; }
+        get { return jumpModule != null && jumpModule.IsChargingJumpPublic; }
+    }
+
+    public bool IsChargeTrajectoryPreviewVisible
+    {
+        get { return jumpModule != null && jumpModule.IsChargeTrajectoryPreviewVisible; }
+    }
+
+    public bool IsApexThrowTrajectoryPreviewVisible
+    {
+        get { return jumpModule != null && jumpModule.IsApexThrowTrajectoryPreviewVisible; }
     }
 
     public Vector2 GetPredictedJumpVelocity()
     {
-        return jumpModule.GetPredictedJumpVelocity(BuildJumpContext());
+        return jumpModule != null
+            ? jumpModule.GetPredictedJumpVelocity(BuildJumpContext())
+            : Vector2.zero;
+    }
+
+    public Vector2 GetPredictedChargeTrajectoryVelocity()
+    {
+        return jumpModule != null
+            ? jumpModule.GetPredictedChargeTrajectoryVelocity(BuildJumpContext())
+            : Vector2.zero;
+    }
+
+    public Vector2 GetPredictedApexThrowTrajectoryVelocity()
+    {
+        return jumpModule != null
+            ? jumpModule.GetPredictedApexThrowTrajectoryVelocity(BuildJumpContext())
+            : Vector2.zero;
+    }
+
+    public Vector2 GetCurrentWorldVelocity()
+    {
+        return rb != null ? rb.velocity : Vector2.zero;
     }
 
     public float GetGravityScale()
