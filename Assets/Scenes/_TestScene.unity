@@ -5459,6 +5459,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   player: {fileID: 1471706300}
   playerCollider: {fileID: 1471706301}
+  showChargeTrajectory: 1
+  showCurrentTrajectoryDuringApex: 1
+  showSuggestedApexTrajectory: 1
+  autoCreateSuggestedRenderer: 1
+  suggestedLineRenderer: {fileID: 0}
+  copyPrimaryRendererSettingsToSuggested: 1
+  suggestedWidthMultiplier: 1
+  suggestedLineColor: {r: 0.55, g: 1, b: 0.55, a: 1}
   points: 1000
   step: 0.01
   startOffset: {x: 0, y: 0}
@@ -5472,6 +5480,8 @@ MonoBehaviour:
   dottedMaterial: {fileID: 2100000, guid: 4cc91975bdaa90e43a99517ff5d65cd4, type: 2}
   dottedWorldPatternSize: 10
   dottedScrollSpeed: -0.2
+  suggestedSolidMaterial: {fileID: 0}
+  suggestedDottedMaterial: {fileID: 0}
 --- !u!120 &1471706296
 LineRenderer:
   serializedVersion: 2
@@ -5873,7 +5883,6 @@ MonoBehaviour:
   jumpBufferTime: 0.1
   fatigueDuration: 0.8
   enableApexThrowAfterChargedJump: 1
-  apexThrowOnlyAfterChargedJump: 0
   apexThrowMinJumpForce: 0.1
   apexThrowMinTimeAfterJump: 0
   apexThrowEnterMaxUpwardSpeed: 5
@@ -5924,6 +5933,7 @@ MonoBehaviour:
   normalAccel: 9999
   normalBrake: 9999
   flipDeadZone: 0.05
+  allowFlipInAir: 0
 --- !u!114 &1471706310
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5954,12 +5964,6 @@ MonoBehaviour:
   mainCamera: {fileID: 616883575}
   uiCanvas: {fileID: 1586208782}
   barOffset: {x: 0, y: -0.8, z: 0}
-  debugTintWhenApexThrowAvailable: 1
-  autoFindSpriteRenderersForDebugTint: 1
-  apexThrowDebugTintRenderers:
-  - {fileID: 1471706303}
-  - {fileID: 238171572}
-  apexThrowAvailableDebugColor: {r: 1, g: 0.1623537, b: 0, a: 1}
 --- !u!114 &1471706312
 MonoBehaviour:
   m_ObjectHideFlags: 0
