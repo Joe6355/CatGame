@@ -112,6 +112,9 @@ public class PlayerMovementModule : MonoBehaviour
     [SerializeField, Tooltip("Минимальная |скорость| или |ввод| по X, после которой разрешён разворот персонажа.")]
     private float flipDeadZone = 0.05f;
 
+    [SerializeField, Tooltip("Если ВКЛ — персонаж может менять сторону взгляда в воздухе.\nЕсли ВЫКЛ — после отрыва от земли сторона фиксируется до следующего приземления.")]
+    private bool allowFlipInAir = false;
+
     private bool isFacingRight = true;
     private float airVx = 0f;
     private float airControlUnlockUntil = 0f;
@@ -139,6 +142,7 @@ public class PlayerMovementModule : MonoBehaviour
     public float FatigueSpeedMultiplier => fatigueSpeedMultiplier;
     public bool IsFacingRight => isFacingRight;
     public float AirVx => airVx;
+    public bool AllowFlipInAir => allowFlipInAir;
 
     public bool IsSprintReady => sprintBlend >= 0.999f && !isForwardBlockedForSprint;
     public bool IsSprintActive => sprintBlend > 0.0001f;
@@ -148,8 +152,6 @@ public class PlayerMovementModule : MonoBehaviour
     public float SprintCameraBlend => Mathf.Clamp01(GetEffectiveSprintBlend());
     public bool IsForwardBlockedForSprint => isForwardBlockedForSprint;
 
-    // Для логики прыжка считаем "спринтовым состоянием"
-    // как живой спринт, так и остаточную инерцию/занос.
     public bool IsSprintMovementActive => GetEffectiveSprintBlend() > 0.0001f || isSprintSkidActive;
 
     private void Reset()
@@ -171,6 +173,7 @@ public class PlayerMovementModule : MonoBehaviour
 
         sprintWallCheckDistance = Mathf.Max(0.01f, sprintWallCheckDistance);
         sprintWallNormalMinAbsX = Mathf.Clamp01(sprintWallNormalMinAbsX);
+        flipDeadZone = Mathf.Max(0f, flipDeadZone);
     }
 
     public void AllowAirControlFor(float duration)
@@ -199,9 +202,12 @@ public class PlayerMovementModule : MonoBehaviour
         isForwardBlockedForSprint = false;
     }
 
-    public void TryFaceByInput(float inputX, bool allowFlip)
+    public void TryFaceByInput(float inputX, bool allowFlip, bool isGrounded)
     {
         if (!allowFlip)
+            return;
+
+        if (!isGrounded && !allowFlipInAir)
             return;
 
         if (Mathf.Abs(inputX) <= flipDeadZone)
@@ -526,26 +532,14 @@ public class PlayerMovementModule : MonoBehaviour
             float vx = ctx.InputX * airControlSpeed * speedMul + ctx.ExternalWindVX;
 
             ctx.Rigidbody.velocity = new Vector2(vx, ctx.Rigidbody.velocity.y);
-
-            if (Mathf.Abs(vx) > flipDeadZone)
-            {
-                bool faceRight = vx > 0f;
-                if (faceRight != isFacingRight)
-                    Flip();
-            }
         }
         else
         {
             ctx.Rigidbody.velocity = new Vector2(airVx + ctx.ExternalWindVX, ctx.Rigidbody.velocity.y);
-
-            float vx = ctx.Rigidbody.velocity.x;
-            if (Mathf.Abs(vx) > flipDeadZone)
-            {
-                bool faceRight = vx > 0f;
-                if (faceRight != isFacingRight)
-                    Flip();
-            }
         }
+
+        // Визуальный разворот в воздухе здесь специально не делаем.
+        // Он управляется из TryFaceByInput(...) и зависит от allowFlipInAir.
     }
 
     private void ApplyGroundMovement(MovementContext ctx)
@@ -609,8 +603,6 @@ public class PlayerMovementModule : MonoBehaviour
             if (Mathf.Abs(normal.x) < sprintWallNormalMinAbsX)
                 continue;
 
-            // Для стены перед игроком normal.x смотрит ПРОТИВ направления движения:
-            // вправо -> normal.x < 0, влево -> normal.x > 0.
             if (Mathf.Sign(inputDir) == -Mathf.Sign(normal.x))
                 return true;
         }

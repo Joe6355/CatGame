@@ -20,14 +20,14 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private PlayerPresentationModule presentationModule;
 
     [Header("Камера: отдаление при спринте")]
-    [SerializeField, Tooltip("Если ВКЛ — PlayerController будет передавать в CamController текущий уровень спринта,\nчтобы камера могла плавно отдаляться на разгоне и возвращаться обратно после спринта.")]
+    [SerializeField, Tooltip("Если ВКЛ — PlayerController будет передавать в CamController текущий уровень спринта, чтобы камера могла плавно отдаляться на разгоне и возвращаться обратно после спринта.")]
     private bool enableSprintCameraFeedback = true;
 
     [Header("Камера: тряска при жёстком приземлении")]
     [SerializeField, Tooltip("Если ВКЛ — после сильного падения при приземлении будет вызываться лёгкая тряска камеры.")]
     private bool enableLandingCameraShake = true;
 
-    [SerializeField, Min(0f), Tooltip("Минимальная скорость падения вниз по Y, после которой приземление уже считается достаточно жёстким для тряски камеры.\nНапример 10 = тряска начнётся примерно от скорости -10 и ниже.")]
+    [SerializeField, Min(0f), Tooltip("Минимальная скорость падения вниз по Y, после которой приземление уже считается достаточно жёстким для тряски камеры.")]
     private float landingShakeMinFallSpeed = 10f;
 
     [SerializeField, Min(0f), Tooltip("Скорость падения вниз, на которой сила тряски достигает максимума.")]
@@ -204,17 +204,36 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        inputX = snapshot.MoveX;
-        movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
-        movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed());
+        float rawInputX = snapshot.MoveX;
+        inputX = rawInputX;
+
+        PlayerJumpModule.JumpContext preInputCtx = BuildJumpContext();
+        bool canBeginHoldThisFrame =
+            snapshot.ChargeDownSource != PlayerInputModule.HoldSource.None &&
+            (jumpModule.CanStartJumpCharge(preInputCtx) ||
+             (jumpModule.AllowInstantMaxChargeFromSprint && preInputCtx.SprintChargedJumpReady));
+
+        bool lockMovementForJumpHold = jumpModule.IsJumpHoldActive || canBeginHoldThisFrame;
+
+        if (lockMovementForJumpHold)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+        }
+        else
+        {
+            inputX = rawInputX;
+            movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
+            movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed(), IsGroundedNow);
+        }
 
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
-        jumpModule.UpdateApexThrowState(apexCtx, inputX);
+        jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
 
         if (snapshot.ApexThrowDownPressed)
         {
             PlayerJumpModule.ApexThrowResult apexThrowResult =
-                jumpModule.TryPerformApexThrow(apexCtx, inputX);
+                jumpModule.TryPerformApexThrow(apexCtx, rawInputX);
 
             if (apexThrowResult.DidThrow)
             {
@@ -254,21 +273,28 @@ public class PlayerController : MonoBehaviour
 
                 if (instantResult.DidJump)
                 {
+                    inputX = 0f;
                     OnJumpPerformed(instantResult.TakeoffVx, instantResult.WasChargedJump);
                 }
                 else if (jumpModule.CanStartJumpCharge(jumpCtx))
                 {
                     jumpModule.BeginJumpHold(snapshot.ChargeDownSource, Time.time, false);
+                    inputX = 0f;
+                    movementModule.RefreshImmediateSprintBlocker(false, 0f);
                 }
             }
             else if (jumpModule.CanStartJumpCharge(jumpCtx))
             {
                 jumpModule.BeginJumpHold(snapshot.ChargeDownSource, Time.time, false);
+                inputX = 0f;
+                movementModule.RefreshImmediateSprintBlocker(false, 0f);
             }
         }
 
         if (jumpModule.IsJumpHoldActive)
         {
+            inputX = 0f;
+
             bool held = inputModule.IsHoldInputStillHeld(jumpModule.CurrentHoldSource);
             bool released = inputModule.IsHoldInputReleased(jumpModule.CurrentHoldSource);
 
@@ -292,17 +318,36 @@ public class PlayerController : MonoBehaviour
 
     private void HandleMobileInput(PlayerInputModule.MobileInputSnapshot snapshot)
     {
-        inputX = snapshot.MoveX;
-        movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
-        movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed());
+        float rawInputX = snapshot.MoveX;
+        inputX = rawInputX;
+
+        PlayerJumpModule.JumpContext preInputCtx = BuildJumpContext();
+        bool canBeginHoldThisFrame =
+            snapshot.JumpHeld &&
+            (jumpModule.CanStartJumpCharge(preInputCtx) ||
+             (jumpModule.AllowInstantMaxChargeFromSprint && preInputCtx.SprintChargedJumpReady));
+
+        bool lockMovementForJumpHold = jumpModule.IsJumpHoldActive || canBeginHoldThisFrame;
+
+        if (lockMovementForJumpHold)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+        }
+        else
+        {
+            inputX = rawInputX;
+            movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
+            movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed(), IsGroundedNow);
+        }
 
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
-        jumpModule.UpdateApexThrowState(apexCtx, inputX);
+        jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
 
         if (snapshot.ApexThrowDownPressed)
         {
             PlayerJumpModule.ApexThrowResult apexThrowResult =
-                jumpModule.TryPerformApexThrow(apexCtx, inputX);
+                jumpModule.TryPerformApexThrow(apexCtx, rawInputX);
 
             if (apexThrowResult.DidThrow)
             {
@@ -331,16 +376,23 @@ public class PlayerController : MonoBehaviour
 
                 if (instantResult.DidJump)
                 {
+                    inputX = 0f;
                     OnJumpPerformed(instantResult.TakeoffVx, instantResult.WasChargedJump);
                     return;
                 }
             }
 
             if (!jumpModule.IsJumpHoldActive && jumpModule.CanStartJumpCharge(jumpCtx))
+            {
                 jumpModule.BeginJumpHold(PlayerInputModule.HoldSource.Mobile, Time.time, false);
+                inputX = 0f;
+                movementModule.RefreshImmediateSprintBlocker(false, 0f);
+            }
 
             if (jumpModule.IsJumpHoldActive)
             {
+                inputX = 0f;
+
                 jumpModule.UpdateJumpHold(
                     Time.time,
                     jumpModule.IsWithinGroundedJumpWindow(BuildJumpContext()));

@@ -49,8 +49,7 @@ public class PlayerJumpModule : MonoBehaviour
     [SerializeField, Tooltip("Если ВКЛ — после выхода сильного прыжка в вершину можно выполнить одноразовый бросок вниз.")]
     private bool enableApexThrowAfterChargedJump = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — бросок вниз доступен только после усиленного прыжка, а не после отдельного слабого.")]
-    private bool apexThrowOnlyAfterChargedJump = true;
+    
 
     [SerializeField, Min(0f), Tooltip("Минимальная сила последнего прыжка, чтобы вообще разрешить механику броска после вершины.")]
     private float apexThrowMinJumpForce = 6f;
@@ -147,6 +146,7 @@ public class PlayerJumpModule : MonoBehaviour
     private float apexThrowAvailableUntil = -999f;
     private float apexThrowPreviewAimX = 0f;
     private Vector2 apexThrowPreviewVelocity = Vector2.zero;
+    private float apexThrowLockedHorizontalDir = 0f;
 
     public float CoyoteTime => coyoteTime;
     public bool IsJumpHoldActive => isJumpHoldActive;
@@ -485,6 +485,11 @@ public class PlayerJumpModule : MonoBehaviour
         if (IsInstantSprintPreviewActive())
             return instantSprintPreviewVelocity;
 
+        // Вне реального charging-state никакую "старую" траекторию не рисуем.
+        // Это убирает предпросмотр на слабом прыжке.
+        if (!isChargingJump)
+            return Vector2.zero;
+
         float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
 
         float predictedVx =
@@ -492,17 +497,8 @@ public class PlayerJumpModule : MonoBehaviour
             (ctx.IsFacingRight ? 1f : -1f) * ctx.MoveSpeed * speedMul * ctx.SnowMoveMul +
             ctx.ExternalWindVX;
 
-        float predictedVy;
-
-        if (!isChargingJump)
-        {
-            predictedVy = shortJumpForce * ctx.SnowJumpMul;
-        }
-        else
-        {
-            float normalized = CalculateChargeNormalized(ctx.Now);
-            predictedVy = normalized * maxJumpForce * ctx.SnowJumpMul;
-        }
+        float normalized = CalculateChargeNormalized(ctx.Now);
+        float predictedVy = normalized * maxJumpForce * ctx.SnowJumpMul;
 
         return new Vector2(predictedVx, predictedVy);
     }
@@ -538,7 +534,7 @@ public class PlayerJumpModule : MonoBehaviour
 
         PerformJump(ctx.Rigidbody, ctx.Now, takeoffVx, verticalForce, ctx.ExternalWindVX);
         StartFatigue(ctx.Now);
-        ArmApexThrowState(wasCharged, ctx.IsFacingRight);
+        ArmApexThrowState(wasCharged, takeoffVx, ctx.IsFacingRight);
 
         return new JumpActionResult
         {
@@ -548,13 +544,11 @@ public class PlayerJumpModule : MonoBehaviour
         };
     }
 
-    private void ArmApexThrowState(bool wasChargedJump, bool isFacingRight)
+    private void ArmApexThrowState(bool wasChargedJump, float takeoffVx, bool isFacingRight)
     {
-        bool canArm =
-            enableApexThrowAfterChargedJump &&
-            (!apexThrowOnlyAfterChargedJump || wasChargedJump);
-
-        if (!canArm)
+        // Независимо от старого чекбокса в инспекторе:
+        // apex throw теперь только после charged jump.
+        if (!enableApexThrowAfterChargedJump || !wasChargedJump)
         {
             ClearApexThrowState();
             return;
@@ -564,7 +558,13 @@ public class PlayerJumpModule : MonoBehaviour
         apexThrowAvailable = false;
         apexThrowUsed = false;
         apexThrowAvailableUntil = -999f;
-        apexThrowPreviewAimX = isFacingRight ? 1f : -1f;
+
+        float lockedDir = Mathf.Abs(takeoffVx) > 0.001f
+            ? Mathf.Sign(takeoffVx)
+            : (isFacingRight ? 1f : -1f);
+
+        apexThrowLockedHorizontalDir = lockedDir;
+        apexThrowPreviewAimX = lockedDir;
         apexThrowPreviewVelocity = Vector2.zero;
     }
 
@@ -579,15 +579,23 @@ public class PlayerJumpModule : MonoBehaviour
 
     private Vector2 CalculateApexThrowVelocity(JumpContext ctx, float aimX)
     {
-        float aimDir = 0f;
+        float lockedDir = Mathf.Abs(apexThrowLockedHorizontalDir) > 0.001f
+            ? Mathf.Sign(apexThrowLockedHorizontalDir)
+            : (ctx.IsFacingRight ? 1f : -1f);
+
+        float aimDir = lockedDir;
 
         if (Mathf.Abs(aimX) > apexThrowHorizontalInputDeadZone)
         {
-            aimDir = Mathf.Sign(aimX);
+            float requestedDir = Mathf.Sign(aimX);
+
+            // Против исходного направления полёта паунс больше не разворачиваем.
+            if (requestedDir == lockedDir)
+                aimDir = lockedDir;
         }
         else if (apexThrowUseFacingWhenNoInput)
         {
-            aimDir = ctx.IsFacingRight ? 1f : -1f;
+            aimDir = lockedDir;
         }
 
         float horizontalSpeed = apexThrowHorizontalSpeed;
@@ -614,6 +622,7 @@ public class PlayerJumpModule : MonoBehaviour
         apexThrowAvailableUntil = -999f;
         apexThrowPreviewAimX = 0f;
         apexThrowPreviewVelocity = Vector2.zero;
+        apexThrowLockedHorizontalDir = 0f;
     }
 
     private void ClearHoldState()
