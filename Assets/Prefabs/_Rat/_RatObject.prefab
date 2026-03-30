@@ -118,6 +118,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7505621396265897337}
+  - {fileID: 6143628479063450375}
   m_Father: {fileID: 8185948220217076529}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!212 &7166875372420580428
@@ -384,6 +385,11 @@ MonoBehaviour:
   resetOppositeBurrowTrigger: 1
   drawGizmos: 1
   drawDetectionGizmos: 1
+  enableOneTimeItemDrop: 1
+  mainBodyCollider: {fileID: 8526110560787381622}
+  pointDrop: {fileID: 6143628479063450375}
+  dropItemPrefab: {fileID: 6719610803612849676, guid: 6b679b5147e116140ba4352a93d2ad24, type: 3}
+  disableHeldItemLogicUntilDrop: 1
 --- !u!1 &400549813628589535
 GameObject:
   m_ObjectHideFlags: 0
@@ -705,4 +711,35 @@ Transform:
   - {fileID: 4793413792202016911}
   - {fileID: 671880899439119627}
   m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &8575823645357506565
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6143628479063450375}
+  m_Layer: 0
+  m_Name: PointDrop
+  m_TagString: Untagged
+  m_Icon: {fileID: 3306451490063965843, guid: 0000000000000000d000000000000000, type: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6143628479063450375
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8575823645357506565}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.148, y: 0.228, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 381170862467370661}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

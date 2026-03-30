@@ -38,6 +38,27 @@ public class RatController : MonoBehaviour
         public Vector2 offset;
     }
 
+    private struct HeldMonoBehaviourCache
+    {
+        public MonoBehaviour behaviour;
+        public bool wasEnabled;
+    }
+
+    private struct HeldColliderCache
+    {
+        public Collider2D collider;
+        public bool wasEnabled;
+    }
+
+    private struct HeldRigidbodyCache
+    {
+        public Rigidbody2D rigidbody;
+        public bool wasSimulated;
+        public RigidbodyType2D bodyType;
+        public Vector2 velocity;
+        public float angularVelocity;
+    }
+
     [Header("Точки маршрута")]
     [SerializeField, Tooltip("Точка A. Обычно стартовая/левая точка патруля.")]
     private Transform pointA;
@@ -229,6 +250,22 @@ public class RatController : MonoBehaviour
     [SerializeField, Tooltip("Показывать в Scene View примерный прямоугольник, по которому сейчас проверяется наличие игрока рядом с норкой.")]
     private bool drawDetectionGizmos = true;
 
+    [Header("Одноразовый дроп предмета при касании крысы")]
+    [SerializeField, Tooltip("Главная галочка функции. Если включено — крыса будет держать предмет в PointDrop и уронит его один раз, когда игрок коснется основного НЕ trigger коллайдера крысы.")]
+    private bool enableOneTimeItemDrop = false;
+
+    [SerializeField, Tooltip("Основной НЕ trigger коллайдер крысы. По нему определяется касание игрока. Если не назначить — скрипт попробует взять первый solid collider автоматически.")]
+    private Collider2D mainBodyCollider;
+
+    [SerializeField, Tooltip("Точка, где предмет висит у крысы до дропа и откуда потом выпадает.")]
+    private Transform pointDrop;
+
+    [SerializeField, Tooltip("Префаб предмета, который крыса держит и потом роняет.")]
+    private GameObject dropItemPrefab;
+
+    [SerializeField, Tooltip("Если включено — пока предмет удерживается крысой, у него отключаются MonoBehaviour, Collider2D и Rigidbody2D.simulated. После дропа всё вернется.")]
+    private bool disableHeldItemLogicUntilDrop = true;
+
     private RatState currentState;
     private bool stateInitialized = false;
 
@@ -250,7 +287,18 @@ public class RatController : MonoBehaviour
     private int currentVisualFacingSign = 1;
     private RigidbodyType2D originalBodyType;
 
+    private Transform cachedPlayerRootByTag;
+    private Collider2D[] cachedPlayerCollidersByTag;
+
+    private GameObject heldItemInstance;
+    private bool heldItemDropped = false;
+    private HeldMonoBehaviourCache[] heldItemMonoCaches = new HeldMonoBehaviourCache[0];
+    private HeldColliderCache[] heldItemColliderCaches = new HeldColliderCache[0];
+    private HeldRigidbodyCache[] heldItemRigidbodyCaches = new HeldRigidbodyCache[0];
+    private Renderer[] heldItemRenderers = new Renderer[0];
+
     private Transform VisualTarget => visualRoot != null ? visualRoot : transform;
+    private bool HasUndroppedHeldItem => enableOneTimeItemDrop && !heldItemDropped && heldItemInstance != null;
 
     private void Reset()
     {
@@ -259,6 +307,10 @@ public class RatController : MonoBehaviour
         spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         ratLight = GetComponentInChildren<Light2D>(true);
         visualRoot = transform;
+
+        Collider2D rootCol = GetComponent<Collider2D>();
+        if (rootCol != null && !rootCol.isTrigger)
+            mainBodyCollider = rootCol;
     }
 
     private void Awake()
@@ -269,6 +321,7 @@ public class RatController : MonoBehaviour
         if (ratLight == null) ratLight = GetComponentInChildren<Light2D>(true);
 
         CacheComponents();
+        ResolveMainBodyCollider();
 
         if (rb != null)
         {
@@ -307,11 +360,14 @@ public class RatController : MonoBehaviour
         if (autoIgnorePlayerCollisionsOnStart && ignoreSolidCollisionWithPlayer)
             TryIgnoreCollisionWithPlayerByTag();
 
+        SetupHeldItemIfNeeded();
+
         SetState(RatState.MoveToC, true);
     }
 
     private void Update()
     {
+        TryDropHeldItemByBodyTouch();
         HandleStateLogic();
         UpdateBurrowScaleEffect();
     }
@@ -335,6 +391,13 @@ public class RatController : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
+        if (collision != null && collision.collider != null && IsPlayerCollider(collision.collider))
+        {
+            Collider2D resolvedMain = ResolveMainBodyCollider();
+            if (HasUndroppedHeldItem && resolvedMain != null && collision.otherCollider == resolvedMain)
+                DropHeldItem();
+        }
+
         if (!ignoreSolidCollisionWithPlayer) return;
         if (collision == null || collision.collider == null) return;
         if (!IsPlayerCollider(collision.collider)) return;
@@ -800,6 +863,9 @@ public class RatController : MonoBehaviour
 
         if (ratAnimator != null && disableRatAnimatorInBurrow)
             ratAnimator.enabled = !hidden;
+
+        if (HasUndroppedHeldItem)
+            SetHeldItemRenderersVisible(!hidden);
     }
 
     private void SetRatLightEnabled(bool enabledState)
@@ -1107,8 +1173,10 @@ public class RatController : MonoBehaviour
         GameObject player = GameObject.FindGameObjectWithTag(playerTag);
         if (player == null) return;
 
-        Collider2D[] playerColliders = player.GetComponentsInChildren<Collider2D>(true);
-        if (playerColliders == null || playerColliders.Length == 0) return;
+        cachedPlayerRootByTag = player.transform;
+        cachedPlayerCollidersByTag = cachedPlayerRootByTag.GetComponentsInChildren<Collider2D>(true);
+
+        if (cachedPlayerCollidersByTag == null || cachedPlayerCollidersByTag.Length == 0) return;
         if (cachedSolidColliders == null || cachedSolidColliders.Length == 0) return;
 
         for (int i = 0; i < cachedSolidColliders.Length; i++)
@@ -1116,14 +1184,270 @@ public class RatController : MonoBehaviour
             Collider2D ratCol = cachedSolidColliders[i];
             if (ratCol == null) continue;
 
-            for (int j = 0; j < playerColliders.Length; j++)
+            for (int j = 0; j < cachedPlayerCollidersByTag.Length; j++)
             {
-                Collider2D playerCol = playerColliders[j];
+                Collider2D playerCol = cachedPlayerCollidersByTag[j];
                 if (playerCol == null) continue;
 
                 Physics2D.IgnoreCollision(ratCol, playerCol, true);
             }
         }
+    }
+
+    private Collider2D ResolveMainBodyCollider()
+    {
+        if (mainBodyCollider != null && !mainBodyCollider.isTrigger)
+            return mainBodyCollider;
+
+        Collider2D rootCol = GetComponent<Collider2D>();
+        if (rootCol != null && !rootCol.isTrigger)
+        {
+            mainBodyCollider = rootCol;
+            return mainBodyCollider;
+        }
+
+        if (cachedSolidColliders != null && cachedSolidColliders.Length > 0)
+        {
+            mainBodyCollider = cachedSolidColliders[0];
+            return mainBodyCollider;
+        }
+
+        return null;
+    }
+
+    private void SetupHeldItemIfNeeded()
+    {
+        if (!enableOneTimeItemDrop) return;
+        if (heldItemDropped) return;
+        if (pointDrop == null) return;
+        if (dropItemPrefab == null) return;
+
+        if (heldItemInstance != null)
+            return;
+
+        heldItemInstance = Instantiate(dropItemPrefab, pointDrop.position, pointDrop.rotation, pointDrop);
+
+        CacheHeldItemComponents();
+
+        if (disableHeldItemLogicUntilDrop)
+            SetHeldItemAsHeld(true);
+    }
+
+    private void CacheHeldItemComponents()
+    {
+        if (heldItemInstance == null)
+        {
+            heldItemMonoCaches = new HeldMonoBehaviourCache[0];
+            heldItemColliderCaches = new HeldColliderCache[0];
+            heldItemRigidbodyCaches = new HeldRigidbodyCache[0];
+            heldItemRenderers = new Renderer[0];
+            return;
+        }
+
+        MonoBehaviour[] monos = heldItemInstance.GetComponentsInChildren<MonoBehaviour>(true);
+        heldItemMonoCaches = new HeldMonoBehaviourCache[monos.Length];
+        for (int i = 0; i < monos.Length; i++)
+        {
+            heldItemMonoCaches[i] = new HeldMonoBehaviourCache
+            {
+                behaviour = monos[i],
+                wasEnabled = monos[i] != null && monos[i].enabled
+            };
+        }
+
+        Collider2D[] cols = heldItemInstance.GetComponentsInChildren<Collider2D>(true);
+        heldItemColliderCaches = new HeldColliderCache[cols.Length];
+        for (int i = 0; i < cols.Length; i++)
+        {
+            heldItemColliderCaches[i] = new HeldColliderCache
+            {
+                collider = cols[i],
+                wasEnabled = cols[i] != null && cols[i].enabled
+            };
+        }
+
+        Rigidbody2D[] rbs = heldItemInstance.GetComponentsInChildren<Rigidbody2D>(true);
+        heldItemRigidbodyCaches = new HeldRigidbodyCache[rbs.Length];
+        for (int i = 0; i < rbs.Length; i++)
+        {
+            heldItemRigidbodyCaches[i] = new HeldRigidbodyCache
+            {
+                rigidbody = rbs[i],
+                wasSimulated = rbs[i] != null && rbs[i].simulated,
+                bodyType = rbs[i] != null ? rbs[i].bodyType : RigidbodyType2D.Dynamic,
+                velocity = rbs[i] != null ? rbs[i].velocity : Vector2.zero,
+                angularVelocity = rbs[i] != null ? rbs[i].angularVelocity : 0f
+            };
+        }
+
+        heldItemRenderers = heldItemInstance.GetComponentsInChildren<Renderer>(true);
+    }
+
+    private void SetHeldItemAsHeld(bool held)
+    {
+        if (heldItemInstance == null) return;
+
+        if (held)
+        {
+            heldItemInstance.transform.SetParent(pointDrop, true);
+            heldItemInstance.transform.position = pointDrop.position;
+            heldItemInstance.transform.rotation = pointDrop.rotation;
+
+            for (int i = 0; i < heldItemMonoCaches.Length; i++)
+            {
+                MonoBehaviour mono = heldItemMonoCaches[i].behaviour;
+                if (mono == null) continue;
+                mono.enabled = false;
+            }
+
+            for (int i = 0; i < heldItemColliderCaches.Length; i++)
+            {
+                Collider2D col = heldItemColliderCaches[i].collider;
+                if (col == null) continue;
+                col.enabled = false;
+            }
+
+            for (int i = 0; i < heldItemRigidbodyCaches.Length; i++)
+            {
+                Rigidbody2D body = heldItemRigidbodyCaches[i].rigidbody;
+                if (body == null) continue;
+
+                body.velocity = Vector2.zero;
+                body.angularVelocity = 0f;
+                body.simulated = false;
+            }
+        }
+        else
+        {
+            heldItemInstance.transform.SetParent(null, true);
+
+            for (int i = 0; i < heldItemMonoCaches.Length; i++)
+            {
+                MonoBehaviour mono = heldItemMonoCaches[i].behaviour;
+                if (mono == null) continue;
+                mono.enabled = heldItemMonoCaches[i].wasEnabled;
+            }
+
+            for (int i = 0; i < heldItemColliderCaches.Length; i++)
+            {
+                Collider2D col = heldItemColliderCaches[i].collider;
+                if (col == null) continue;
+                col.enabled = heldItemColliderCaches[i].wasEnabled;
+            }
+
+            for (int i = 0; i < heldItemRigidbodyCaches.Length; i++)
+            {
+                Rigidbody2D body = heldItemRigidbodyCaches[i].rigidbody;
+                if (body == null) continue;
+
+                body.bodyType = heldItemRigidbodyCaches[i].bodyType;
+                body.simulated = heldItemRigidbodyCaches[i].wasSimulated;
+                body.velocity = rb != null ? rb.velocity : heldItemRigidbodyCaches[i].velocity;
+                body.angularVelocity = heldItemRigidbodyCaches[i].angularVelocity;
+            }
+        }
+    }
+
+    private void SetHeldItemRenderersVisible(bool visible)
+    {
+        if (heldItemRenderers == null) return;
+
+        for (int i = 0; i < heldItemRenderers.Length; i++)
+        {
+            if (heldItemRenderers[i] == null) continue;
+            heldItemRenderers[i].enabled = visible;
+        }
+    }
+
+    private void TryDropHeldItemByBodyTouch()
+    {
+        if (!HasUndroppedHeldItem) return;
+
+        Collider2D bodyCol = ResolveMainBodyCollider();
+        if (bodyCol == null) return;
+        if (!bodyCol.enabled) return;
+
+        Collider2D[] playerCols = GetPlayerCollidersByTag();
+        if (playerCols == null || playerCols.Length == 0) return;
+
+        for (int i = 0; i < playerCols.Length; i++)
+        {
+            Collider2D playerCol = playerCols[i];
+            if (playerCol == null || !playerCol.enabled) continue;
+
+            if (!bodyCol.bounds.Intersects(playerCol.bounds))
+                continue;
+
+            ColliderDistance2D distance = bodyCol.Distance(playerCol);
+            if (distance.isOverlapped || distance.distance <= 0.001f)
+            {
+                DropHeldItem();
+                return;
+            }
+        }
+    }
+
+    private Collider2D[] GetPlayerCollidersByTag()
+    {
+        bool needRefresh = false;
+
+        if (cachedPlayerRootByTag == null)
+        {
+            needRefresh = true;
+        }
+        else if (!cachedPlayerRootByTag.gameObject.activeInHierarchy)
+        {
+            needRefresh = true;
+        }
+        else if (!cachedPlayerRootByTag.CompareTag(playerTag))
+        {
+            needRefresh = true;
+        }
+        else if (cachedPlayerCollidersByTag == null || cachedPlayerCollidersByTag.Length == 0)
+        {
+            needRefresh = true;
+        }
+        else
+        {
+            for (int i = 0; i < cachedPlayerCollidersByTag.Length; i++)
+            {
+                if (cachedPlayerCollidersByTag[i] == null)
+                {
+                    needRefresh = true;
+                    break;
+                }
+            }
+        }
+
+        if (needRefresh)
+        {
+            GameObject player = GameObject.FindGameObjectWithTag(playerTag);
+            if (player == null)
+            {
+                cachedPlayerRootByTag = null;
+                cachedPlayerCollidersByTag = null;
+                return null;
+            }
+
+            cachedPlayerRootByTag = player.transform;
+            cachedPlayerCollidersByTag = cachedPlayerRootByTag.GetComponentsInChildren<Collider2D>(true);
+        }
+
+        return cachedPlayerCollidersByTag;
+    }
+
+    private void DropHeldItem()
+    {
+        if (!HasUndroppedHeldItem) return;
+
+        heldItemDropped = true;
+
+        if (disableHeldItemLogicUntilDrop)
+            SetHeldItemAsHeld(false);
+        else
+            heldItemInstance.transform.SetParent(null, true);
+
+        SetHeldItemRenderersVisible(true);
     }
 
     private void OnDrawGizmosSelected()
@@ -1177,6 +1501,22 @@ public class RatController : MonoBehaviour
 
                 Bounds b = trigger.bounds;
                 Gizmos.DrawWireCube(b.center, b.size);
+            }
+        }
+
+        if (enableOneTimeItemDrop)
+        {
+            Collider2D bodyCol = mainBodyCollider != null ? mainBodyCollider : GetComponent<Collider2D>();
+            if (bodyCol != null)
+            {
+                Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.9f);
+                Gizmos.DrawWireCube(bodyCol.bounds.center, bodyCol.bounds.size);
+            }
+
+            if (pointDrop != null)
+            {
+                Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.95f);
+                Gizmos.DrawSphere(pointDrop.position, 0.06f);
             }
         }
     }
