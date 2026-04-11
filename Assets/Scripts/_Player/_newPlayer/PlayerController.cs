@@ -8,6 +8,7 @@
 [RequireComponent(typeof(PlayerMovementModule))]
 [RequireComponent(typeof(PlayerBounceModule))]
 [RequireComponent(typeof(PlayerPresentationModule))]
+[RequireComponent(typeof(PlayerLedgeModule))]
 public class PlayerController : MonoBehaviour
 {
     [Header("Ссылки на модули")]
@@ -18,6 +19,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private PlayerMovementModule movementModule;
     [SerializeField] private PlayerBounceModule bounceModule;
     [SerializeField] private PlayerPresentationModule presentationModule;
+    [SerializeField] private PlayerLedgeModule ledgeModule;
 
     [Header("Камера: отдаление при спринте")]
     [SerializeField, Tooltip("Если ВКЛ — PlayerController будет передавать в CamController текущий уровень спринта, чтобы камера могла плавно отдаляться на разгоне и возвращаться обратно после спринта.")]
@@ -100,11 +102,14 @@ public class PlayerController : MonoBehaviour
             else
                 HandleMobileInput(inputModule.ReadMobileInputFrame());
 
-            UpdateControlledJumpHold();
+            if (ledgeModule == null || !ledgeModule.BlocksStandardController)
+            {
+                UpdateControlledJumpHold();
 
-            PlayerJumpModule.JumpActionResult bufferResult = jumpModule.TryConsumeJumpBuffer(BuildJumpContext());
-            if (bufferResult.DidJump)
-                OnJumpPerformed(bufferResult.TakeoffVx, bufferResult.WasChargedJump);
+                PlayerJumpModule.JumpActionResult bufferResult = jumpModule.TryConsumeJumpBuffer(BuildJumpContext());
+                if (bufferResult.DidJump)
+                    OnJumpPerformed(bufferResult.TakeoffVx, bufferResult.WasChargedJump);
+            }
         }
         else
         {
@@ -117,21 +122,33 @@ public class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        groundModule.EvaluateGround(rb, Time.time, jumpModule.CoyoteTime);
+        bool ledgeActive = ledgeModule != null && ledgeModule.BlocksStandardController;
 
-        if (groundModule.JustLanded)
+        if (!ledgeActive)
         {
-            if (resetSprintAfterLanding)
+            groundModule.EvaluateGround(rb, Time.time, jumpModule.CoyoteTime);
+
+            if (groundModule.JustLanded)
             {
-                movementModule.ResetSprint();
-                resetSprintAfterLanding = false;
+                if (resetSprintAfterLanding)
+                {
+                    movementModule.ResetSprint();
+                    resetSprintAfterLanding = false;
+                }
+
+                TryPlayLandingCameraShake();
+
+                PlayerJumpModule.JumpActionResult bufferResult = jumpModule.TryConsumeJumpBuffer(BuildJumpContext());
+                if (bufferResult.DidJump)
+                    OnJumpPerformed(bufferResult.TakeoffVx, bufferResult.WasChargedJump);
             }
+        }
 
-            TryPlayLandingCameraShake();
-
-            PlayerJumpModule.JumpActionResult bufferResult = jumpModule.TryConsumeJumpBuffer(BuildJumpContext());
-            if (bufferResult.DidJump)
-                OnJumpPerformed(bufferResult.TakeoffVx, bufferResult.WasChargedJump);
+        bool ledgeControlled = ledgeModule != null && ledgeModule.ApplyLedgeMotion(rb, movementModule);
+        if (ledgeControlled)
+        {
+            environmentModule.ClearFrameWind();
+            return;
         }
 
         movementModule.ApplyMovement(BuildMovementContext());
@@ -144,6 +161,7 @@ public class PlayerController : MonoBehaviour
         CamController.ChangeSprintZoomBlendEvent?.Invoke(0f);
         ResetLandingTracking();
         resetSprintAfterLanding = false;
+        ledgeModule?.ForceCancel();
     }
 
     private void CacheComponents()
@@ -156,6 +174,7 @@ public class PlayerController : MonoBehaviour
         if (movementModule == null) movementModule = GetComponent<PlayerMovementModule>();
         if (bounceModule == null) bounceModule = GetComponent<PlayerBounceModule>();
         if (presentationModule == null) presentationModule = GetComponent<PlayerPresentationModule>();
+        if (ledgeModule == null) ledgeModule = GetComponent<PlayerLedgeModule>();
     }
 
     private PlayerJumpModule.JumpContext BuildJumpContext()
@@ -200,6 +219,15 @@ public class PlayerController : MonoBehaviour
         {
             inputX = 0f;
             movementModule.RefreshImmediateSprintBlocker(false, 0f);
+            ledgeModule?.TickLedge(0f, IsGroundedNow, snapshot.LedgeUpPressed, snapshot.ApexThrowDownPressed, movementModule, jumpModule);
+            return;
+        }
+
+        if (ledgeModule != null && ledgeModule.BlocksStandardController)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+            ledgeModule.TickLedge(0f, IsGroundedNow, snapshot.LedgeUpPressed, snapshot.ApexThrowDownPressed, movementModule, jumpModule);
             return;
         }
 
@@ -208,6 +236,14 @@ public class PlayerController : MonoBehaviour
 
         movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
         movementModule.TryFaceByInput(inputX, true, IsGroundedNow);
+
+        ledgeModule?.TickLedge(inputX, IsGroundedNow, snapshot.LedgeUpPressed, snapshot.ApexThrowDownPressed, movementModule, jumpModule);
+        if (ledgeModule != null && ledgeModule.BlocksStandardController)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+            return;
+        }
 
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
         jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
@@ -228,11 +264,27 @@ public class PlayerController : MonoBehaviour
 
     private void HandleMobileInput(PlayerInputModule.MobileInputSnapshot snapshot)
     {
+        if (ledgeModule != null && ledgeModule.BlocksStandardController)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+            ledgeModule.TickLedge(0f, IsGroundedNow, snapshot.LedgeUpPressed, snapshot.ApexThrowDownPressed, movementModule, jumpModule);
+            return;
+        }
+
         float rawInputX = snapshot.MoveX;
         inputX = rawInputX;
 
         movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
         movementModule.TryFaceByInput(inputX, true, IsGroundedNow);
+
+        ledgeModule?.TickLedge(inputX, IsGroundedNow, snapshot.LedgeUpPressed, snapshot.ApexThrowDownPressed, movementModule, jumpModule);
+        if (ledgeModule != null && ledgeModule.BlocksStandardController)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+            return;
+        }
 
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
         jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
@@ -338,11 +390,17 @@ public class PlayerController : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
+        if (ledgeModule != null && ledgeModule.IsActive)
+            return;
+
         bounceModule.HandleBounce(collision, rb, jumpModule, movementModule, ExternalWindVX, Time.time);
     }
 
     private void OnCollisionStay2D(Collision2D collision)
     {
+        if (ledgeModule != null && ledgeModule.IsActive)
+            return;
+
         bounceModule.HandleBounce(collision, rb, jumpModule, movementModule, ExternalWindVX, Time.time);
     }
 

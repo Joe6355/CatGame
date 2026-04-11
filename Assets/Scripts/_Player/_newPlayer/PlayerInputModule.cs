@@ -17,6 +17,7 @@ public class PlayerInputModule : MonoBehaviour
         public float MoveX;
         public bool IsRebinding;
         public bool ApexThrowDownPressed;
+        public bool LedgeUpPressed;
         public HoldSource JumpDownSource;
     }
 
@@ -27,6 +28,7 @@ public class PlayerInputModule : MonoBehaviour
         public bool JumpHeld;
         public bool JumpReleased;
         public bool ApexThrowDownPressed;
+        public bool LedgeUpPressed;
     }
 
     [Header("Клавиатура и мышь (PC)")]
@@ -39,11 +41,17 @@ public class PlayerInputModule : MonoBehaviour
     [SerializeField, Tooltip("Главная клавиша прыжка (PC). Прыжок срабатывает сразу по нажатию.")]
     private KeyCode jumpKey = KeyCode.Space;
 
-    [SerializeField, Tooltip("Клавиша вниз для броска после вершины прыжка.")]
+    [SerializeField, Tooltip("Клавиша вниз для броска после вершины прыжка и спрыга с ledge.")]
     private KeyCode apexThrowDownKey = KeyCode.S;
 
-    [SerializeField, Tooltip("Дополнительная клавиша вниз для броска после вершины прыжка.")]
+    [SerializeField, Tooltip("Дополнительная клавиша вниз для броска после вершины прыжка и спрыга с ledge.")]
     private KeyCode alternateApexThrowDownKey = KeyCode.DownArrow;
+
+    [SerializeField, Tooltip("Клавиша вверх для подтягивания на платформу с ledge.")]
+    private KeyCode ledgeClimbUpKey = KeyCode.W;
+
+    [SerializeField, Tooltip("Дополнительная клавиша вверх для подтягивания на платформу с ledge.")]
+    private KeyCode alternateLedgeClimbUpKey = KeyCode.UpArrow;
 
     [Header("Геймпад (desktop)")]
     [SerializeField, Tooltip("Если ВКЛ — в desktop-режиме дополнительно читается геймпад.")]
@@ -52,17 +60,23 @@ public class PlayerInputModule : MonoBehaviour
     [SerializeField, Tooltip("Кнопка геймпада для обычного прыжка. Обычно A / Cross (JoystickButton0).")]
     private KeyCode gamepadJumpKey = KeyCode.JoystickButton0;
 
-    [SerializeField, Tooltip("Если ВКЛ — для броска после вершины дополнительно читается ось Vertical.")]
+    [SerializeField, Tooltip("Если ВКЛ — для броска вниз и ledge-команд дополнительно читается ось Vertical.")]
     private bool useVerticalAxisForApexThrow = true;
 
     [SerializeField, Tooltip("Имя вертикальной оси в Input Manager. Обычно Vertical.")]
     private string verticalAxisName = "Vertical";
 
-    [SerializeField, Range(-1f, 0f), Tooltip("Порог нажатия вниз по оси Vertical для команды apex throw.")]
+    [SerializeField, Range(-1f, 0f), Tooltip("Порог нажатия вниз по оси Vertical для команды apex throw / спрыга с ledge.")]
     private float apexThrowDownAxisThreshold = -0.65f;
 
+    [SerializeField, Tooltip("Если ВКЛ — ledge climb также может срабатывать от вертикальной оси вверх.")]
+    private bool useVerticalAxisForLedgeClimb = true;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Порог нажатия вверх по оси Vertical для подтягивания с ledge.")]
+    private float ledgeClimbUpAxisThreshold = 0.65f;
+
     [Header("Legacy Rebind (KeyCode)")]
-    [SerializeField, Tooltip("Если ВКЛ и LegacyKeycodeRebind существует, бинды берутся из него.")]
+    [SerializeField, Tooltip("Если ВКЛ и LegacyKeycodeRebind существует, бинды прыжка/движения берутся из него.")]
     private bool useLegacyKeycodeRebind = true;
 
     [SerializeField, Tooltip("Если ВКЛ и цифровые клавиши движения не нажаты, читается ось Horizontal из Input Manager.")]
@@ -93,6 +107,8 @@ public class PlayerInputModule : MonoBehaviour
     private bool prevMobileJumpHeld = false;
     private bool prevDesktopApexThrowDownHeld = false;
     private bool prevMobileApexThrowDownHeld = false;
+    private bool prevDesktopLedgeUpHeld = false;
+    private bool prevMobileLedgeUpHeld = false;
 
     private bool gameplayInputEnabled = true;
     private bool waitForGameplayInputRelease = false;
@@ -150,6 +166,7 @@ public class PlayerInputModule : MonoBehaviour
             MoveX = 0f,
             IsRebinding = false,
             ApexThrowDownPressed = false,
+            LedgeUpPressed = false,
             JumpDownSource = HoldSource.None
         };
 
@@ -196,6 +213,7 @@ public class PlayerInputModule : MonoBehaviour
         }
 
         snapshot.ApexThrowDownPressed = GetDesktopApexThrowDownPressed();
+        snapshot.LedgeUpPressed = GetDesktopLedgeUpPressed();
         return snapshot;
     }
 
@@ -209,7 +227,8 @@ public class PlayerInputModule : MonoBehaviour
             JumpDown = currentHeld && !prevMobileJumpHeld,
             JumpHeld = currentHeld,
             JumpReleased = !currentHeld && prevMobileJumpHeld,
-            ApexThrowDownPressed = GetMobileApexThrowDownPressed()
+            ApexThrowDownPressed = GetMobileApexThrowDownPressed(),
+            LedgeUpPressed = GetMobileLedgeUpPressed()
         };
 
         prevMobileJumpHeld = currentHeld;
@@ -302,6 +321,8 @@ public class PlayerInputModule : MonoBehaviour
         prevMobileJumpHeld = false;
         prevDesktopApexThrowDownHeld = false;
         prevMobileApexThrowDownHeld = false;
+        prevDesktopLedgeUpHeld = false;
+        prevMobileLedgeUpHeld = false;
     }
 
     private LegacyKeycodeRebind GetLegacyRebind()
@@ -389,6 +410,9 @@ public class PlayerInputModule : MonoBehaviour
 
                 if (useVerticalAxisForApexThrow && mobileJoystick.Vertical <= apexThrowDownAxisThreshold)
                     return true;
+
+                if (useVerticalAxisForLedgeClimb && mobileJoystick.Vertical >= ledgeClimbUpAxisThreshold)
+                    return true;
             }
 
             return false;
@@ -407,11 +431,10 @@ public class PlayerInputModule : MonoBehaviour
         }
         else
         {
-            bool apexThrowDownHeld =
-                Input.GetKey(apexThrowDownKey) ||
-                (alternateApexThrowDownKey != KeyCode.None && Input.GetKey(alternateApexThrowDownKey));
+            bool apexThrowDownHeld = GetKeyboardApexThrowDownHeld();
+            bool ledgeUpHeld = GetKeyboardLedgeUpHeld();
 
-            if (Input.GetKey(leftKey) || Input.GetKey(rightKey) || Input.GetKey(jumpKey) || apexThrowDownHeld)
+            if (Input.GetKey(leftKey) || Input.GetKey(rightKey) || Input.GetKey(jumpKey) || apexThrowDownHeld || ledgeUpHeld)
                 return true;
 
             if (useGamepadJump && Input.GetKey(gamepadJumpKey))
@@ -422,6 +445,9 @@ public class PlayerInputModule : MonoBehaviour
             return true;
 
         if (useVerticalAxisForApexThrow && GetVerticalAxisValue() <= apexThrowDownAxisThreshold)
+            return true;
+
+        if (useVerticalAxisForLedgeClimb && GetVerticalAxisValue() >= ledgeClimbUpAxisThreshold)
             return true;
 
         return false;
@@ -447,6 +473,26 @@ public class PlayerInputModule : MonoBehaviour
         return pressed;
     }
 
+    private bool GetDesktopLedgeUpPressed()
+    {
+        bool currentHeld = GetKeyboardLedgeUpHeld() || GetAxisLedgeUpHeld();
+        bool pressed = currentHeld && !prevDesktopLedgeUpHeld;
+        prevDesktopLedgeUpHeld = currentHeld;
+        return pressed;
+    }
+
+    private bool GetMobileLedgeUpPressed()
+    {
+        bool currentHeld = false;
+
+        if (mobileJoystick != null)
+            currentHeld = useVerticalAxisForLedgeClimb && mobileJoystick.Vertical >= ledgeClimbUpAxisThreshold;
+
+        bool pressed = currentHeld && !prevMobileLedgeUpHeld;
+        prevMobileLedgeUpHeld = currentHeld;
+        return pressed;
+    }
+
     private bool GetKeyboardApexThrowDownHeld()
     {
         return Input.GetKey(apexThrowDownKey) ||
@@ -461,9 +507,23 @@ public class PlayerInputModule : MonoBehaviour
         return GetVerticalAxisValue() <= apexThrowDownAxisThreshold;
     }
 
+    private bool GetKeyboardLedgeUpHeld()
+    {
+        return Input.GetKey(ledgeClimbUpKey) ||
+               (alternateLedgeClimbUpKey != KeyCode.None && Input.GetKey(alternateLedgeClimbUpKey));
+    }
+
+    private bool GetAxisLedgeUpHeld()
+    {
+        if (!useVerticalAxisForLedgeClimb)
+            return false;
+
+        return GetVerticalAxisValue() >= ledgeClimbUpAxisThreshold;
+    }
+
     private float GetVerticalAxisValue()
     {
-        if (!useVerticalAxisForApexThrow || string.IsNullOrEmpty(verticalAxisName))
+        if (string.IsNullOrEmpty(verticalAxisName))
             return 0f;
 
         return Input.GetAxisRaw(verticalAxisName);

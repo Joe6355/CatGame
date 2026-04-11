@@ -83,12 +83,12 @@ public class PlayerGroundModule : MonoBehaviour
 
         if (useBoxGroundCheck)
         {
-            col = Physics2D.OverlapBox(checkCenter, groundBoxSize, 0f, groundMask);
+            col = FindNonTriggerOverlapBox(checkCenter, groundBoxSize, groundMask);
             grounded = col != null;
         }
         else
         {
-            col = Physics2D.OverlapCircle(checkCenter, groundCheckRadius, groundMask);
+            col = FindNonTriggerOverlapCircle(checkCenter, groundCheckRadius, groundMask);
             grounded = col != null;
         }
 
@@ -108,16 +108,14 @@ public class PlayerGroundModule : MonoBehaviour
 
                 Vector2 probeSize = new Vector2(probeWidth, probeHeight);
 
-                Collider2D leftProbe = Physics2D.OverlapBox(
+                Collider2D leftProbe = FindNonTriggerOverlapBox(
                     new Vector2(checkCenter.x - half, probeCenterY),
                     probeSize,
-                    0f,
                     groundMask);
 
-                Collider2D rightProbe = Physics2D.OverlapBox(
+                Collider2D rightProbe = FindNonTriggerOverlapBox(
                     new Vector2(checkCenter.x + half, probeCenterY),
                     probeSize,
-                    0f,
                     groundMask);
 
                 if (leftProbe != null || rightProbe != null)
@@ -125,7 +123,7 @@ public class PlayerGroundModule : MonoBehaviour
                     float dist = Mathf.Min(snapProbeDistance, snapProbeDistanceMax);
                     float rayStartY = feetBottomY + EdgeAssistSkin;
 
-                    RaycastHit2D hit = Physics2D.Raycast(
+                    RaycastHit2D hit = FindNonTriggerRaycast(
                         new Vector2(checkCenter.x, rayStartY),
                         Vector2.down,
                         dist + EdgeAssistSkin,
@@ -138,7 +136,7 @@ public class PlayerGroundModule : MonoBehaviour
                     }
                     else
                     {
-                        RaycastHit2D hitL = Physics2D.Raycast(
+                        RaycastHit2D hitL = FindNonTriggerRaycast(
                             new Vector2(checkCenter.x - half, rayStartY),
                             Vector2.down,
                             dist + EdgeAssistSkin,
@@ -152,7 +150,7 @@ public class PlayerGroundModule : MonoBehaviour
 
                         if (!grounded)
                         {
-                            RaycastHit2D hitR = Physics2D.Raycast(
+                            RaycastHit2D hitR = FindNonTriggerRaycast(
                                 new Vector2(checkCenter.x + half, rayStartY),
                                 Vector2.down,
                                 dist + EdgeAssistSkin,
@@ -229,7 +227,56 @@ public class PlayerGroundModule : MonoBehaviour
 
     private bool IsValidSnapHit(RaycastHit2D hit)
     {
-        return hit.collider != null && hit.normal.y >= snapMinNormalY;
+        return hit.collider != null &&
+               !hit.collider.isTrigger &&
+               hit.normal.y >= snapMinNormalY;
+    }
+
+    private Collider2D FindNonTriggerOverlapBox(Vector2 center, Vector2 size, LayerMask mask)
+    {
+        Collider2D[] hits = Physics2D.OverlapBoxAll(center, size, 0f, mask);
+        if (hits == null || hits.Length == 0)
+            return null;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider2D c = hits[i];
+            if (c != null && !c.isTrigger)
+                return c;
+        }
+
+        return null;
+    }
+
+    private Collider2D FindNonTriggerOverlapCircle(Vector2 center, float radius, LayerMask mask)
+    {
+        Collider2D[] hits = Physics2D.OverlapCircleAll(center, radius, mask);
+        if (hits == null || hits.Length == 0)
+            return null;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider2D c = hits[i];
+            if (c != null && !c.isTrigger)
+                return c;
+        }
+
+        return null;
+    }
+
+    private RaycastHit2D FindNonTriggerRaycast(Vector2 origin, Vector2 direction, float distance, LayerMask mask)
+    {
+        RaycastHit2D[] hits = Physics2D.RaycastAll(origin, direction, distance, mask);
+        if (hits == null || hits.Length == 0)
+            return default;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i].collider != null && !hits[i].collider.isTrigger)
+                return hits[i];
+        }
+
+        return default;
     }
 
     private void OnDisable()

@@ -44,6 +44,13 @@ public class PlayerJumpModule : MonoBehaviour
     [SerializeField, Tooltip("Если кнопку прыжка нажали чуть раньше приземления, прыжок сработает автоматически.")]
     private float jumpBufferTime = 0.1f;
 
+    [Header("Orb: рефреш обычного прыжка")]
+    [SerializeField, Tooltip("Если ВКЛ — специальные орбы могут в воздухе выдавать ещё один обычный прыжок.")]
+    private bool enableOrbJumpRefresh = true;
+
+    [SerializeField, Min(1), Tooltip("Максимум зарядов orb-рефреша, которые можно держать одновременно.")]
+    private int maxOrbJumpRefreshCharges = 1;
+
     [Header("Бросок после вершины прыжка")]
     [SerializeField, Tooltip("Если ВКЛ — после выхода в вершину прыжка можно выполнить одноразовый бросок вниз.")]
     private bool enableApexThrowAfterJump = true;
@@ -109,6 +116,9 @@ public class PlayerJumpModule : MonoBehaviour
     private float controlledJumpAcceleration = 0f;
     private bool controlledJumpCutConsumed = false;
 
+    private int orbJumpRefreshCharges = 0;
+    private float orbRefreshGrantedAt = -999f;
+
     private bool apexThrowArmed = false;
     private bool apexThrowAvailable = false;
     private bool apexThrowUsed = false;
@@ -136,6 +146,12 @@ public class PlayerJumpModule : MonoBehaviour
     public float ChargeBarNormalizedForPresentation => 0f;
     public bool IsApexThrowAvailable => CanUseApexThrowNow(Time.time);
 
+    public int OrbJumpRefreshCharges => orbJumpRefreshCharges;
+    public bool HasOrbJumpRefresh => enableOrbJumpRefresh && orbJumpRefreshCharges > 0;
+    public bool CanReceiveOrbJumpRefresh =>
+        enableOrbJumpRefresh &&
+        orbJumpRefreshCharges < Mathf.Max(1, maxOrbJumpRefreshCharges);
+
     private void OnValidate()
     {
         jumpForce = Mathf.Max(0f, jumpForce);
@@ -153,6 +169,8 @@ public class PlayerJumpModule : MonoBehaviour
         coyoteTime = Mathf.Max(0f, coyoteTime);
         jumpBufferTime = Mathf.Max(0f, jumpBufferTime);
 
+        maxOrbJumpRefreshCharges = Mathf.Max(1, maxOrbJumpRefreshCharges);
+
         apexThrowMinJumpForce = Mathf.Max(0f, apexThrowMinJumpForce);
         apexThrowMinTimeAfterJump = Mathf.Max(0f, apexThrowMinTimeAfterJump);
         apexThrowEnterMaxUpwardSpeed = Mathf.Max(0f, apexThrowEnterMaxUpwardSpeed);
@@ -163,6 +181,21 @@ public class PlayerJumpModule : MonoBehaviour
     public bool IsWithinGroundedJumpWindow(JumpContext ctx)
     {
         return ctx.IsGrounded || (ctx.Now - ctx.LastGroundedTime) <= coyoteTime;
+    }
+
+    public bool GrantOrbJumpRefresh(float now, int amount = 1)
+    {
+        if (!enableOrbJumpRefresh)
+            return false;
+
+        int maxCharges = Mathf.Max(1, maxOrbJumpRefreshCharges);
+        if (orbJumpRefreshCharges >= maxCharges)
+            return false;
+
+        amount = Mathf.Max(1, amount);
+        orbJumpRefreshCharges = Mathf.Clamp(orbJumpRefreshCharges + amount, 0, maxCharges);
+        orbRefreshGrantedAt = now;
+        return true;
     }
 
     public void MarkJumpPressed(PlayerInputModule.HoldSource source, float now)
@@ -176,6 +209,8 @@ public class PlayerJumpModule : MonoBehaviour
 
     public JumpActionResult TryConsumeJumpBuffer(JumpContext ctx)
     {
+        TryClearOrbJumpRefreshOnGround(ctx);
+
         if (!hasBufferedJump)
             return default;
 
@@ -189,15 +224,19 @@ public class PlayerJumpModule : MonoBehaviour
         if (!CanStartMainJump(ctx))
             return default;
 
+        bool consumeOrbRefresh = ShouldConsumeOrbRefreshForThisJump(ctx);
+
         PlayerInputModule.HoldSource source = bufferedHoldSource;
         hasBufferedJump = false;
         bufferedHoldSource = PlayerInputModule.HoldSource.None;
 
-        return PerformMainJumpByContext(ctx, source);
+        return PerformMainJumpByContext(ctx, source, consumeOrbRefresh);
     }
 
     public void UpdateJumpHold(JumpContext ctx, bool isButtonStillHeld, float deltaTime)
     {
+        TryClearOrbJumpRefreshOnGround(ctx);
+
         if (!controlledJumpActive)
             return;
 
@@ -246,6 +285,8 @@ public class PlayerJumpModule : MonoBehaviour
 
     public void UpdateApexThrowState(JumpContext ctx, float aimX)
     {
+        TryClearOrbJumpRefreshOnGround(ctx);
+
         if (!enableApexThrowAfterJump)
         {
             ClearApexThrowState();
@@ -372,16 +413,45 @@ public class PlayerJumpModule : MonoBehaviour
 
     private bool CanStartMainJump(JumpContext ctx)
     {
-        if (!IsWithinGroundedJumpWindow(ctx))
+        if ((ctx.Now - lastJumpTime) < jumpRepeatCooldown)
             return false;
 
-        if ((ctx.Now - lastJumpTime) < jumpRepeatCooldown)
+        if (IsWithinGroundedJumpWindow(ctx))
+            return true;
+
+        if (CanUseOrbRefreshWithCurrentPress(ctx))
+            return true;
+
+        return false;
+    }
+
+    private bool CanUseOrbRefreshWithCurrentPress(JumpContext ctx)
+    {
+        if (!enableOrbJumpRefresh)
+            return false;
+
+        if (orbJumpRefreshCharges <= 0)
+            return false;
+
+        if (IsWithinGroundedJumpWindow(ctx))
+            return false;
+
+        // Важно: орб не должен срабатывать от прыжка, который был нажат ДО касания орба.
+        if (lastJumpPressedTime < orbRefreshGrantedAt)
             return false;
 
         return true;
     }
 
-    private JumpActionResult PerformMainJumpByContext(JumpContext ctx, PlayerInputModule.HoldSource source)
+    private bool ShouldConsumeOrbRefreshForThisJump(JumpContext ctx)
+    {
+        return !IsWithinGroundedJumpWindow(ctx) && CanUseOrbRefreshWithCurrentPress(ctx);
+    }
+
+    private JumpActionResult PerformMainJumpByContext(
+        JumpContext ctx,
+        PlayerInputModule.HoldSource source,
+        bool consumeOrbRefresh)
     {
         if (ctx.Rigidbody == null)
             return default;
@@ -395,6 +465,9 @@ public class PlayerJumpModule : MonoBehaviour
 
         float verticalForce = jumpForce * ctx.SnowJumpMul * sprintMul;
 
+        if (consumeOrbRefresh)
+            ConsumeOneOrbRefresh();
+
         PerformJump(ctx.Rigidbody, ctx.Now, currentWorldVx, verticalForce);
         StartControlledJump(source, verticalForce);
         ArmApexThrowState(currentWorldVx, ctx.IsFacingRight);
@@ -405,6 +478,34 @@ public class PlayerJumpModule : MonoBehaviour
             TakeoffVx = takeoffVx,
             WasChargedJump = false
         };
+    }
+
+    private void ConsumeOneOrbRefresh()
+    {
+        if (orbJumpRefreshCharges <= 0)
+            return;
+
+        orbJumpRefreshCharges = Mathf.Max(0, orbJumpRefreshCharges - 1);
+        if (orbJumpRefreshCharges == 0)
+            orbRefreshGrantedAt = -999f;
+    }
+
+    private void ClearOrbRefresh()
+    {
+        orbJumpRefreshCharges = 0;
+        orbRefreshGrantedAt = -999f;
+    }
+
+    private void TryClearOrbJumpRefreshOnGround(JumpContext ctx)
+    {
+        if (!enableOrbJumpRefresh)
+            return;
+
+        float timeSinceJump = ctx.Now - lastJumpTime;
+        bool ignoreGroundedBecauseJustJumped = timeSinceJump <= jumpHoldGroundedIgnoreTime;
+
+        if (ctx.IsGrounded && !ignoreGroundedBecauseJustJumped)
+            ClearOrbRefresh();
     }
 
     private void StartControlledJump(PlayerInputModule.HoldSource source, float takeoffUpSpeed)
@@ -534,6 +635,7 @@ public class PlayerJumpModule : MonoBehaviour
         ResetJumpInputState();
         lastJumpTime = -999f;
         lastAppliedJumpForce = 0f;
+        ClearOrbRefresh();
         StopControlledJump();
         ClearApexThrowState();
     }
