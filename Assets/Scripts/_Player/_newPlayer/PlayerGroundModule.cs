@@ -38,11 +38,13 @@ public class PlayerGroundModule : MonoBehaviour
     [SerializeField, Tooltip("Максимальная эффективная дистанция снап-лучей. Даже если snapProbeDistance больше, будет использовано не больше этого значения.\nНужен, чтобы Edge Assist не считал игрока 'на земле' слишком высоко и не ломал отскоки.\nРекоменд: 0.12–0.22 (часто 0.18).")]
     private float snapProbeDistanceMax = 0.18f;
 
-    [SerializeField, Tooltip("Снап-лучи вниз срабатывают только когда игрок НЕ летит вверх.\nЕсли rb.velocity.y выше этого порога — снап-лучи игнорируются, чтобы не ломать прыжки/отскоки.\nРекоменд: 0.0–0.05 (часто 0.02).")]
+    [SerializeField, Tooltip("Edge Assist включается только когда игрок уже реально падает вниз.\nЕсли скорость по Y выше -этого значения, снап-лучи не сработают.\nРекоменд: 0.02–0.12 (часто 0.04–0.08).")]
     private float snapOnlyWhenFallingY = 0.02f;
 
     [SerializeField, Range(0f, 1f), Tooltip("Минимальная вертикальная компонента нормали (normal.y), чтобы считать поверхность землёй.\nЧем больше — тем меньше шанс 'прилипнуть' к стенам.\nРекоменд: 0.3–0.6 (часто 0.35–0.45).")]
     private float snapMinNormalY = 0.35f;
+
+    private const float EdgeAssistSkin = 0.005f;
 
     // ===== Runtime state =====
     private bool isGrounded = false;
@@ -74,40 +76,62 @@ public class PlayerGroundModule : MonoBehaviour
         wasGroundedLastFrame = isGrounded;
         justLanded = false;
 
-        Vector2 origin = (Vector2)transform.position + groundBoxOffset;
+        Vector2 checkCenter = GetGroundCheckCenter();
 
         bool grounded = false;
         Collider2D col = null;
 
         if (useBoxGroundCheck)
         {
-            col = Physics2D.OverlapBox(origin, groundBoxSize, 0f, groundMask);
+            col = Physics2D.OverlapBox(checkCenter, groundBoxSize, 0f, groundMask);
             grounded = col != null;
         }
         else
         {
-            Vector2 p = groundCheck ? (Vector2)groundCheck.position : origin;
-            col = Physics2D.OverlapCircle(p, groundCheckRadius, groundMask);
+            col = Physics2D.OverlapCircle(checkCenter, groundCheckRadius, groundMask);
             grounded = col != null;
         }
 
         if (!grounded && useEdgeAssist)
         {
-            if (rb.velocity.y <= snapOnlyWhenFallingY)
+            float fallThreshold = Mathf.Max(0f, snapOnlyWhenFallingY);
+
+            // Важно: edge assist теперь работает только когда игрок реально уже снижается.
+            if (rb.velocity.y <= -fallThreshold)
             {
                 float half = Mathf.Max(0.05f, edgeProbeHalfWidth);
-                float y = origin.y - 0.001f;
-                Vector2 size = new Vector2(half * 0.9f, edgeProbeHeight);
+                float probeHeight = Mathf.Max(0.01f, edgeProbeHeight);
+                float probeWidth = Mathf.Max(0.05f, half * 0.9f);
 
-                Collider2D leftProbe = Physics2D.OverlapBox(new Vector2(origin.x - half, y), size, 0f, groundMask);
-                Collider2D rightProbe = Physics2D.OverlapBox(new Vector2(origin.x + half, y), size, 0f, groundMask);
+                float feetBottomY = GetGroundCheckBottomY(checkCenter);
+                float probeCenterY = feetBottomY - (probeHeight * 0.5f) - EdgeAssistSkin;
+
+                Vector2 probeSize = new Vector2(probeWidth, probeHeight);
+
+                Collider2D leftProbe = Physics2D.OverlapBox(
+                    new Vector2(checkCenter.x - half, probeCenterY),
+                    probeSize,
+                    0f,
+                    groundMask);
+
+                Collider2D rightProbe = Physics2D.OverlapBox(
+                    new Vector2(checkCenter.x + half, probeCenterY),
+                    probeSize,
+                    0f,
+                    groundMask);
 
                 if (leftProbe != null || rightProbe != null)
                 {
                     float dist = Mathf.Min(snapProbeDistance, snapProbeDistanceMax);
+                    float rayStartY = feetBottomY + EdgeAssistSkin;
 
-                    RaycastHit2D hit = Physics2D.Raycast(transform.position, Vector2.down, dist, groundMask);
-                    if (hit.collider != null && hit.normal.y >= snapMinNormalY)
+                    RaycastHit2D hit = Physics2D.Raycast(
+                        new Vector2(checkCenter.x, rayStartY),
+                        Vector2.down,
+                        dist + EdgeAssistSkin,
+                        groundMask);
+
+                    if (IsValidSnapHit(hit))
                     {
                         grounded = true;
                         col = hit.collider;
@@ -115,12 +139,12 @@ public class PlayerGroundModule : MonoBehaviour
                     else
                     {
                         RaycastHit2D hitL = Physics2D.Raycast(
-                            new Vector2(origin.x - half, transform.position.y),
+                            new Vector2(checkCenter.x - half, rayStartY),
                             Vector2.down,
-                            dist,
+                            dist + EdgeAssistSkin,
                             groundMask);
 
-                        if (hitL.collider != null && hitL.normal.y >= snapMinNormalY)
+                        if (IsValidSnapHit(hitL))
                         {
                             grounded = true;
                             col = hitL.collider;
@@ -129,12 +153,12 @@ public class PlayerGroundModule : MonoBehaviour
                         if (!grounded)
                         {
                             RaycastHit2D hitR = Physics2D.Raycast(
-                                new Vector2(origin.x + half, transform.position.y),
+                                new Vector2(checkCenter.x + half, rayStartY),
                                 Vector2.down,
-                                dist,
+                                dist + EdgeAssistSkin,
                                 groundMask);
 
-                            if (hitR.collider != null && hitR.normal.y >= snapMinNormalY)
+                            if (IsValidSnapHit(hitR))
                             {
                                 grounded = true;
                                 col = hitR.collider;
@@ -187,6 +211,27 @@ public class PlayerGroundModule : MonoBehaviour
         platformVX = 0f;
     }
 
+    private Vector2 GetGroundCheckCenter()
+    {
+        if (useBoxGroundCheck)
+            return (Vector2)transform.position + groundBoxOffset;
+
+        return groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position + groundBoxOffset;
+    }
+
+    private float GetGroundCheckBottomY(Vector2 checkCenter)
+    {
+        if (useBoxGroundCheck)
+            return checkCenter.y - (groundBoxSize.y * 0.5f);
+
+        return checkCenter.y - groundCheckRadius;
+    }
+
+    private bool IsValidSnapHit(RaycastHit2D hit)
+    {
+        return hit.collider != null && hit.normal.y >= snapMinNormalY;
+    }
+
     private void OnDisable()
     {
         ResetGroundState();
@@ -194,45 +239,50 @@ public class PlayerGroundModule : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
+        Vector2 checkCenter = GetGroundCheckCenter();
+
         Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.6f);
 
         if (useBoxGroundCheck)
         {
-            Vector2 origin = (Vector2)transform.position + groundBoxOffset;
-            Gizmos.DrawWireCube(origin, groundBoxSize);
+            Gizmos.DrawWireCube(checkCenter, groundBoxSize);
         }
         else
         {
-            Vector2 p = groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position;
-            Gizmos.DrawWireSphere(p, groundCheckRadius);
+            Gizmos.DrawWireSphere(checkCenter, groundCheckRadius);
         }
 
         if (useEdgeAssist)
         {
-            Gizmos.color = new Color(1f, 0.7f, 0.2f, 0.6f);
-
-            Vector2 feetCenter = useBoxGroundCheck
-                ? (Vector2)transform.position + groundBoxOffset
-                : (groundCheck ? (Vector2)groundCheck.position : (Vector2)transform.position);
-
             float half = Mathf.Max(0.05f, edgeProbeHalfWidth);
-            float y = feetCenter.y - 0.001f;
-            Vector2 probeSize = new Vector2(half * 0.9f, edgeProbeHeight);
+            float probeHeight = Mathf.Max(0.01f, edgeProbeHeight);
+            float probeWidth = Mathf.Max(0.05f, half * 0.9f);
+            float feetBottomY = GetGroundCheckBottomY(checkCenter);
+            float probeCenterY = feetBottomY - (probeHeight * 0.5f) - EdgeAssistSkin;
 
-            Gizmos.DrawWireCube(new Vector3(feetCenter.x - half, y, 0f), new Vector3(probeSize.x, probeSize.y, 0f));
-            Gizmos.DrawWireCube(new Vector3(feetCenter.x + half, y, 0f), new Vector3(probeSize.x, probeSize.y, 0f));
+            Gizmos.color = new Color(1f, 0.7f, 0.2f, 0.6f);
+            Gizmos.DrawWireCube(
+                new Vector3(checkCenter.x - half, probeCenterY, 0f),
+                new Vector3(probeWidth, probeHeight, 0f));
+            Gizmos.DrawWireCube(
+                new Vector3(checkCenter.x + half, probeCenterY, 0f),
+                new Vector3(probeWidth, probeHeight, 0f));
 
             Gizmos.color = new Color(0.2f, 0.6f, 1f, 0.6f);
             float gizSnap = Mathf.Min(snapProbeDistance, snapProbeDistanceMax);
-
-            Gizmos.DrawLine(transform.position, transform.position + Vector3.down * gizSnap);
-            Gizmos.DrawLine(
-                new Vector3(feetCenter.x - half, transform.position.y, 0f),
-                new Vector3(feetCenter.x - half, transform.position.y - gizSnap, 0f));
+            float rayStartY = feetBottomY + EdgeAssistSkin;
 
             Gizmos.DrawLine(
-                new Vector3(feetCenter.x + half, transform.position.y, 0f),
-                new Vector3(feetCenter.x + half, transform.position.y - gizSnap, 0f));
+                new Vector3(checkCenter.x, rayStartY, 0f),
+                new Vector3(checkCenter.x, rayStartY - gizSnap, 0f));
+
+            Gizmos.DrawLine(
+                new Vector3(checkCenter.x - half, rayStartY, 0f),
+                new Vector3(checkCenter.x - half, rayStartY - gizSnap, 0f));
+
+            Gizmos.DrawLine(
+                new Vector3(checkCenter.x + half, rayStartY, 0f),
+                new Vector3(checkCenter.x + half, rayStartY - gizSnap, 0f));
         }
     }
 }

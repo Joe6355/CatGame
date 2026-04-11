@@ -1,92 +1,70 @@
-using System;
-using UnityEngine;
+п»їusing UnityEngine;
 
 [DisallowMultipleComponent]
 public class PlayerJumpModule : MonoBehaviour
 {
-    [Header("Прыжок (заряд)")]
-    [SerializeField, Tooltip("Максимальная вертикальная скорость (сила) прыжка при полном заряде.")]
-    private float maxJumpForce = 20f;
+    [Header("РћСЃРЅРѕРІРЅРѕР№ РїСЂС‹Р¶РѕРє")]
+    [SerializeField, Tooltip("РќР°С‡Р°Р»СЊРЅР°СЏ РІРµСЂС‚РёРєР°Р»СЊРЅР°СЏ СЃРєРѕСЂРѕСЃС‚СЊ РїСЂС‹Р¶РєР°.")]
+    private float jumpForce = 12f;
 
-    [SerializeField, Tooltip("Время, за которое прыжок заряжается до maxJumpForce ПОСЛЕ начала накопления.")]
-    private float jumpTimeLimit = 1f;
+    [Header("РљРѕРЅС‚СЂРѕР»РёСЂСѓРµРјР°СЏ РІС‹СЃРѕС‚Р° РїСЂС‹Р¶РєР°")]
+    [SerializeField, Range(0f, 1f), Tooltip("Р’Рѕ СЃРєРѕР»СЊРєРѕ СЂР°Р· СЂРµР¶РµС‚СЃСЏ С‚РµРєСѓС‰Р°СЏ СЃРєРѕСЂРѕСЃС‚СЊ РІРІРµСЂС…, РµСЃР»Рё РєРЅРѕРїРєСѓ РѕС‚РїСѓСЃС‚РёР»Рё СЂР°РЅРѕ.\nРќРёР¶Рµ = РєРѕСЂРѕС‡Рµ С‚Р°Рї-РїСЂС‹Р¶РѕРє.")]
+    private float jumpReleaseVerticalMultiplier = 0.5f;
 
-    [SerializeField, Tooltip("Сила отдельного слабого прыжка. Используется только для dedicated short jump, а не для отпускания кнопки заряда.")]
-    private float shortJumpForce = 8f;
+    [SerializeField, Min(0f), Tooltip("РњР°РєСЃРёРјР°Р»СЊРЅРѕРµ РІСЂРµРјСЏ, СЃРєРѕР»СЊРєРѕ СѓРґРµСЂР¶Р°РЅРёРµ РјРѕР¶РµС‚ РїСЂРѕРґР»РµРІР°С‚СЊ РїРѕРґСЉС‘Рј.")]
+    private float maxJumpHoldTime = 0.16f;
 
-    [Header("Старт накопления заряда")]
-    [SerializeField, Tooltip("Если ВКЛ — накопление начинается только после задержки ниже.")]
-    private bool useChargeEnterDelay = true;
+    [SerializeField, Min(0f), Tooltip("РќР°СЃРєРѕР»СЊРєРѕ Р°РєС‚РёРІРЅРѕ РІРѕ РІСЂРµРјСЏ СѓРґРµСЂР¶Р°РЅРёСЏ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ РІРµСЂС‚РёРєР°Р»СЊРЅР°СЏ СЃРєРѕСЂРѕСЃС‚СЊ РІРІРµСЂС….")]
+    private float jumpHoldAcceleration = 110f;
 
-    [SerializeField, Min(0f), Tooltip("Через сколько секунд удержания начинается накопление усиленного прыжка.")]
-    private float chargeEnterDelay = 0.3f;
+    [SerializeField, Min(0f), Tooltip("Рљ РєР°РєРѕР№ РґРѕР»Рµ СЃС‚Р°СЂС‚РѕРІРѕР№ СЃРєРѕСЂРѕСЃС‚Рё С‚СЏРЅРµРј РїСЂС‹Р¶РѕРє РІРѕ РІСЂРµРјСЏ СѓРґРµСЂР¶Р°РЅРёСЏ.")]
+    private float jumpHoldTargetVelocityMultiplier = 1.08f;
 
-    [Header("Спринт + мгновенный максимум")]
-    [SerializeField, Tooltip("Если ВКЛ — при полном спринте нажатие зарядного прыжка сразу выполняет усиленный прыжок с максимальной силой.")]
-    private bool allowInstantMaxChargeFromSprint = true;
+    [SerializeField, Min(0f), Tooltip("Р•СЃР»Рё СЃРєРѕСЂРѕСЃС‚СЊ РІРІРµСЂС… СЃС‚Р°Р»Р° РјРµРЅСЊС€Рµ СЌС‚РѕРіРѕ РїРѕСЂРѕРіР°, С„Р°Р·Р° СѓРґРµСЂР¶Р°РЅРёСЏ Р·Р°РІРµСЂС€Р°РµС‚СЃСЏ.")]
+    private float minUpwardSpeedForHeldJump = 0.15f;
 
-    [SerializeField, Tooltip("Если ВКЛ — после мгновенного спринт-прыжка на короткое время показывается полная полоска и максимальная траектория.")]
-    private bool showInstantSprintPreview = true;
+    [SerializeField, Min(0f), Tooltip("РЎРєРѕР»СЊРєРѕ СЃРµРєСѓРЅРґ РїРѕСЃР»Рµ СЃС‚Р°СЂС‚Р° РїСЂС‹Р¶РєР° РёРіРЅРѕСЂРёСЂСѓРµРј СѓСЃС‚Р°СЂРµРІС€РµРµ grounded-СЃРѕСЃС‚РѕСЏРЅРёРµ.\nРќСѓР¶РЅРѕ, С‡С‚РѕР±С‹ РєРѕРЅС‚СЂРѕР»РёСЂСѓРµРјР°СЏ РІС‹СЃРѕС‚Р° РЅРµ СѓРјРёСЂР°Р»Р° РІ РїРµСЂРІС‹Р№ Р¶Рµ РјРѕРјРµРЅС‚ РїРѕСЃР»Рµ РѕС‚СЂС‹РІР°.")]
+    private float jumpHoldGroundedIgnoreTime = 0.1f;
 
-    [SerializeField, Min(0f), Tooltip("Сколько секунд держать визуальный предпросмотр полного заряда после мгновенного спринт-прыжка.")]
-    private float instantSprintPreviewDuration = 0.06f;
+    [Header("Р—Р°РґРµСЂР¶РєР° РјРµР¶РґСѓ РїСЂС‹Р¶РєР°РјРё")]
+    [SerializeField, Range(0f, 5f), Tooltip("РњРёРЅРёРјР°Р»СЊРЅР°СЏ Р·Р°РґРµСЂР¶РєР° РјРµР¶РґСѓ СЃС‚Р°СЂС‚Р°РјРё РґРІСѓС… РїСЂС‹Р¶РєРѕРІ.")]
+    private float jumpRepeatCooldown = 0.08f;
 
-    [SerializeField, Tooltip("Если ВКЛ — отдельный слабый прыжок разрешён во время спринтового движения.\nСпринтовым движением считаем активный спринт, его остаточную инерцию и skid-занос.\nЕсли ВЫКЛ — слабый прыжок в этом состоянии блокируется.")]
-    private bool allowDedicatedShortJumpDuringSprint = false;
+    [Header("РЎРїСЂРёРЅС‚ -> СѓСЃРёР»РµРЅРЅС‹Р№ РїСЂС‹Р¶РѕРє")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РІРѕ РІСЂРµРјСЏ СЃРїСЂРёРЅС‚РѕРІРѕРіРѕ РґРІРёР¶РµРЅРёСЏ РѕСЃРЅРѕРІРЅРѕР№ РїСЂС‹Р¶РѕРє СѓСЃРёР»РёРІР°РµС‚СЃСЏ.")]
+    private bool boostJumpDuringSprint = true;
 
-    [Header("Койот-тайм и буфер")]
-    [SerializeField, Tooltip("Сколько секунд после схода с платформы ещё можно начать прыжок.")]
-    private float coyoteTime = 0.05f;
+    [SerializeField, Min(1f), Tooltip("РњРЅРѕР¶РёС‚РµР»СЊ СЃРёР»С‹ РїСЂС‹Р¶РєР° РІРѕ РІСЂРµРјСЏ СЃРїСЂРёРЅС‚Р°.")]
+    private float sprintJumpMultiplier = 1.2f;
 
-    [SerializeField, Tooltip("Буфер прыжка: если нажать кнопку до приземления, прыжок сработает автоматически.")]
+    [Header("РљРѕР№РѕС‚-С‚Р°Р№Рј Рё Р±СѓС„РµСЂ")]
+    [SerializeField, Tooltip("РЎРєРѕР»СЊРєРѕ СЃРµРєСѓРЅРґ РїРѕСЃР»Рµ СЃС…РѕРґР° СЃ РїР»Р°С‚С„РѕСЂРјС‹ РµС‰С‘ РјРѕР¶РЅРѕ РЅР°Р¶Р°С‚СЊ РїСЂС‹Р¶РѕРє.")]
+    private float coyoteTime = 0.12f;
+
+    [SerializeField, Tooltip("Р•СЃР»Рё РєРЅРѕРїРєСѓ РїСЂС‹Р¶РєР° РЅР°Р¶Р°Р»Рё С‡СѓС‚СЊ СЂР°РЅСЊС€Рµ РїСЂРёР·РµРјР»РµРЅРёСЏ, РїСЂС‹Р¶РѕРє СЃСЂР°Р±РѕС‚Р°РµС‚ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.")]
     private float jumpBufferTime = 0.1f;
 
-    [Header("Усталость")]
-    [SerializeField, Tooltip("Сколько длится усталость после прыжка.")]
-    private float fatigueDuration = 0.8f;
+    [Header("Р‘СЂРѕСЃРѕРє РїРѕСЃР»Рµ РІРµСЂС€РёРЅС‹ РїСЂС‹Р¶РєР°")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїРѕСЃР»Рµ РІС‹С…РѕРґР° РІ РІРµСЂС€РёРЅСѓ РїСЂС‹Р¶РєР° РјРѕР¶РЅРѕ РІС‹РїРѕР»РЅРёС‚СЊ РѕРґРЅРѕСЂР°Р·РѕРІС‹Р№ Р±СЂРѕСЃРѕРє РІРЅРёР·.")]
+    private bool enableApexThrowAfterJump = true;
 
-    [Header("Бросок после вершины сильного прыжка")]
-    [SerializeField, Tooltip("Если ВКЛ — после выхода сильного прыжка в вершину можно выполнить одноразовый бросок вниз.")]
-    private bool enableApexThrowAfterChargedJump = true;
+    [SerializeField, Min(0f), Tooltip("РњРёРЅРёРјР°Р»СЊРЅР°СЏ СЃРёР»Р° РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂС‹Р¶РєР°, С‡С‚РѕР±С‹ СЂР°Р·СЂРµС€РёС‚СЊ apex throw.")]
+    private float apexThrowMinJumpForce = 0.1f;
 
-    
+    [SerializeField, Min(0f), Tooltip("РњРёРЅРёРјР°Р»СЊРЅР°СЏ Р·Р°РґРµСЂР¶РєР° РїРѕСЃР»Рµ РїСЂС‹Р¶РєР°, РїСЂРµР¶РґРµ С‡РµРј РјРѕР¶РЅРѕ РёСЃРєР°С‚СЊ РІРµСЂС€РёРЅСѓ.")]
+    private float apexThrowMinTimeAfterJump = 0f;
 
-    [SerializeField, Min(0f), Tooltip("Минимальная сила последнего прыжка, чтобы вообще разрешить механику броска после вершины.")]
-    private float apexThrowMinJumpForce = 6f;
+    [SerializeField, Min(0f), Tooltip("РљРѕРіРґР° РІРµСЂС‚РёРєР°Р»СЊРЅР°СЏ СЃРєРѕСЂРѕСЃС‚СЊ СЃС‚Р°РЅРµС‚ РјРµРЅСЊС€Рµ РёР»Рё СЂР°РІРЅР° СЌС‚РѕРјСѓ РїРѕСЂРѕРіСѓ, СЃС‡РёС‚Р°РµРј, С‡С‚Рѕ РґРѕСЃС‚РёРіРЅСѓС‚Р° РІРµСЂС€РёРЅР°/РЅР°С‡Р°Р»СЃСЏ СЃРїР°Рґ.")]
+    private float apexThrowEnterMaxUpwardSpeed = 5f;
 
-    [SerializeField, Min(0f), Tooltip("Минимальная задержка после прыжка, прежде чем можно считать вершину достигнутой.")]
-    private float apexThrowMinTimeAfterJump = 0.08f;
+    [SerializeField, Min(0f), Tooltip("РЎРєРѕР»СЊРєРѕ СЃРµРєСѓРЅРґ РїРѕСЃР»Рµ РІС…РѕРґР° РІ РІРµСЂС€РёРЅСѓ СЂР°Р·СЂРµС€РµРЅРѕ РЅР°Р¶Р°С‚СЊ Р±СЂРѕСЃРѕРє РІРЅРёР·.")]
+    private float apexThrowAvailableDuration = 2f;
 
-    [SerializeField, Min(0f), Tooltip("Когда вертикальная скорость станет меньше или равна этому порогу, считаем, что игрок дошёл до вершины/перешёл в спад.")]
-    private float apexThrowEnterMaxUpwardSpeed = 0.2f;
+    [SerializeField, Min(0f), Tooltip("Р’РµСЂС‚РёРєР°Р»СЊРЅР°СЏ СЃРєРѕСЂРѕСЃС‚СЊ Р±СЂРѕСЃРєР° РІРЅРёР·.")]
+    private float apexThrowDownwardSpeed = 20f;
 
-    [SerializeField, Min(0f), Tooltip("Сколько секунд после входа в вершину разрешено нажать бросок вниз.")]
-    private float apexThrowAvailableDuration = 0.9f;
-
-    [SerializeField, Min(0f), Tooltip("Вертикальная скорость броска вниз.")]
-    private float apexThrowDownwardSpeed = 16f;
-
-    [SerializeField, Min(0f), Tooltip("Базовая горизонтальная скорость, с которой бросок уводит игрока в сторону.")]
-    private float apexThrowHorizontalSpeed = 8f;
-
-    [SerializeField, Range(0f, 1f), Tooltip("Если при броске нет горизонтального ввода, скорость в сторону лица будет умножена на этот коэффициент.")]
-    private float apexThrowNeutralHorizontalMultiplier = 0.35f;
-
-    [SerializeField, Range(0f, 1f), Tooltip("Минимальная сила горизонтального ввода, чтобы считать, что игрок реально выбирает траекторию броска.")]
-    private float apexThrowHorizontalInputDeadZone = 0.2f;
-
-    [SerializeField, Tooltip("Если ВКЛ — при отсутствии горизонтального ввода бросок пойдёт в сторону взгляда персонажа.")]
-    private bool apexThrowUseFacingWhenNoInput = true;
-
-    [SerializeField, Tooltip("Если ВКЛ — существующий скрипт траектории сможет показывать траекторию броска после вершины, используя тот же публичный интерфейс, что и у зарядного прыжка.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” JumpTrajectory2D СЃРјРѕР¶РµС‚ РїРѕРєР°Р·С‹РІР°С‚СЊ РЅРѕРІСѓСЋ С‚СЂР°РµРєС‚РѕСЂРёСЋ apex throw.")]
     private bool showApexThrowTrajectoryPreview = true;
-
-    private enum BufferedJumpKind
-    {
-        None,
-        Hold,
-        Short
-    }
 
     public struct JumpContext
     {
@@ -95,12 +73,10 @@ public class PlayerJumpModule : MonoBehaviour
         public float LastGroundedTime;
         public bool IsFacingRight;
         public float MoveSpeed;
-        public float FatigueSpeedMultiplier;
         public float PlatformVX;
         public float SnowMoveMul;
         public float SnowJumpMul;
         public float ExternalWindVX;
-        public bool SprintChargedJumpReady;
         public bool IsSprintMovementActive;
         public Rigidbody2D Rigidbody;
     }
@@ -119,26 +95,19 @@ public class PlayerJumpModule : MonoBehaviour
     }
 
     private float lastJumpPressedTime = -999f;
-    private BufferedJumpKind bufferedJumpKind = BufferedJumpKind.None;
-
-    private PlayerInputModule.HoldSource currentHoldJumpSource = PlayerInputModule.HoldSource.None;
+    private bool hasBufferedJump = false;
     private PlayerInputModule.HoldSource bufferedHoldSource = PlayerInputModule.HoldSource.None;
-
-    private bool isJumpHoldActive = false;
-    private bool isChargingJump = false;
-
-    private float jumpButtonDownTime = 0f;
-    private float jumpStartHoldTime = 0f;
-
-    private float fatigueEndTime = -999f;
 
     private float lastJumpTime = -999f;
     private float lastAppliedJumpForce = 0f;
 
-    private float currentBarNormalized = 0f;
-
-    private float instantSprintPreviewUntilUnscaled = -999f;
-    private Vector2 instantSprintPreviewVelocity = Vector2.zero;
+    private bool controlledJumpActive = false;
+    private PlayerInputModule.HoldSource activeJumpHoldSource = PlayerInputModule.HoldSource.None;
+    private float controlledJumpElapsed = 0f;
+    private float controlledJumpMaxDuration = 0f;
+    private float controlledJumpTargetUpSpeed = 0f;
+    private float controlledJumpAcceleration = 0f;
+    private bool controlledJumpCutConsumed = false;
 
     private bool apexThrowArmed = false;
     private bool apexThrowAvailable = false;
@@ -148,25 +117,47 @@ public class PlayerJumpModule : MonoBehaviour
     private Vector2 apexThrowPreviewVelocity = Vector2.zero;
     private float apexThrowLockedHorizontalDir = 0f;
 
+    private const float ApexThrowGroundedResetGrace = 0.12f;
+    private const float ApexThrowRecentJumpUpVelocityEpsilon = 0.01f;
+
     public float CoyoteTime => coyoteTime;
-    public bool IsJumpHoldActive => isJumpHoldActive;
-    public bool IsChargingJump => isChargingJump;
-    public bool IsChargingJumpPublic => isChargingJump || IsInstantSprintPreviewActive() || IsApexThrowTrajectoryPreviewActive();
-    public bool IsChargeTrajectoryPreviewVisible => isChargingJump || IsInstantSprintPreviewActive();
+    public bool IsJumpHoldActive => controlledJumpActive;
+    public bool IsChargingJump => false;
+    public bool IsChargingJumpPublic => false;
+    public bool IsChargeTrajectoryPreviewVisible => false;
     public bool IsApexThrowTrajectoryPreviewVisible => IsApexThrowTrajectoryPreviewActive();
-    public float CurrentBarNormalized => currentBarNormalized;
+    public float CurrentBarNormalized => 0f;
     public float LastJumpTime => lastJumpTime;
     public float LastAppliedJumpForce => lastAppliedJumpForce;
-    public PlayerInputModule.HoldSource CurrentHoldSource => currentHoldJumpSource;
-    public bool AllowInstantMaxChargeFromSprint => allowInstantMaxChargeFromSprint;
-    public bool IsJumpHoldActiveForPresentation => isJumpHoldActive || IsInstantSprintPreviewActive();
-    public bool IsChargeVisualActive => isChargingJump || IsInstantSprintPreviewActive();
-    public float ChargeBarNormalizedForPresentation => IsInstantSprintPreviewActive() ? 1f : currentBarNormalized;
+    public PlayerInputModule.HoldSource CurrentHoldSource => activeJumpHoldSource;
+    public bool AllowInstantMaxChargeFromSprint => false;
+    public bool IsJumpHoldActiveForPresentation => controlledJumpActive;
+    public bool IsChargeVisualActive => false;
+    public float ChargeBarNormalizedForPresentation => 0f;
     public bool IsApexThrowAvailable => CanUseApexThrowNow(Time.time);
 
-    public bool IsFatigued(float now)
+    private void OnValidate()
     {
-        return now < fatigueEndTime;
+        jumpForce = Mathf.Max(0f, jumpForce);
+
+        jumpReleaseVerticalMultiplier = Mathf.Clamp01(jumpReleaseVerticalMultiplier);
+        maxJumpHoldTime = Mathf.Max(0f, maxJumpHoldTime);
+        jumpHoldAcceleration = Mathf.Max(0f, jumpHoldAcceleration);
+        jumpHoldTargetVelocityMultiplier = Mathf.Max(1f, jumpHoldTargetVelocityMultiplier);
+        minUpwardSpeedForHeldJump = Mathf.Max(0f, minUpwardSpeedForHeldJump);
+        jumpHoldGroundedIgnoreTime = Mathf.Max(0f, jumpHoldGroundedIgnoreTime);
+
+        jumpRepeatCooldown = Mathf.Max(0f, jumpRepeatCooldown);
+        sprintJumpMultiplier = Mathf.Max(1f, sprintJumpMultiplier);
+
+        coyoteTime = Mathf.Max(0f, coyoteTime);
+        jumpBufferTime = Mathf.Max(0f, jumpBufferTime);
+
+        apexThrowMinJumpForce = Mathf.Max(0f, apexThrowMinJumpForce);
+        apexThrowMinTimeAfterJump = Mathf.Max(0f, apexThrowMinTimeAfterJump);
+        apexThrowEnterMaxUpwardSpeed = Mathf.Max(0f, apexThrowEnterMaxUpwardSpeed);
+        apexThrowAvailableDuration = Mathf.Max(0f, apexThrowAvailableDuration);
+        apexThrowDownwardSpeed = Mathf.Max(0f, apexThrowDownwardSpeed);
     }
 
     public bool IsWithinGroundedJumpWindow(JumpContext ctx)
@@ -174,22 +165,88 @@ public class PlayerJumpModule : MonoBehaviour
         return ctx.IsGrounded || (ctx.Now - ctx.LastGroundedTime) <= coyoteTime;
     }
 
-    public bool CanStartJumpCharge(JumpContext ctx)
+    public void MarkJumpPressed(PlayerInputModule.HoldSource source, float now)
     {
-        return IsWithinGroundedJumpWindow(ctx) && !IsFatigued(ctx.Now);
+        lastJumpPressedTime = now;
+        hasBufferedJump = true;
+        bufferedHoldSource = source == PlayerInputModule.HoldSource.None
+            ? PlayerInputModule.HoldSource.Keyboard
+            : source;
     }
 
-    public bool CanAcceptDedicatedShortJumpInput(JumpContext ctx)
+    public JumpActionResult TryConsumeJumpBuffer(JumpContext ctx)
     {
-        return allowDedicatedShortJumpDuringSprint || !ctx.IsSprintMovementActive;
+        if (!hasBufferedJump)
+            return default;
+
+        if (ctx.Now - lastJumpPressedTime > jumpBufferTime)
+        {
+            hasBufferedJump = false;
+            bufferedHoldSource = PlayerInputModule.HoldSource.None;
+            return default;
+        }
+
+        if (!CanStartMainJump(ctx))
+            return default;
+
+        PlayerInputModule.HoldSource source = bufferedHoldSource;
+        hasBufferedJump = false;
+        bufferedHoldSource = PlayerInputModule.HoldSource.None;
+
+        return PerformMainJumpByContext(ctx, source);
     }
 
-    private const float ApexThrowGroundedResetGrace = 0.12f;
-    private const float ApexThrowRecentJumpUpVelocityEpsilon = 0.01f;
+    public void UpdateJumpHold(JumpContext ctx, bool isButtonStillHeld, float deltaTime)
+    {
+        if (!controlledJumpActive)
+            return;
+
+        Rigidbody2D rb = ctx.Rigidbody;
+        if (rb == null)
+        {
+            StopControlledJump();
+            return;
+        }
+
+        float dt = Mathf.Max(0f, deltaTime);
+        float timeSinceJump = ctx.Now - lastJumpTime;
+        bool ignoreGroundedBecauseJustJumped = timeSinceJump <= jumpHoldGroundedIgnoreTime;
+
+        if (ctx.IsGrounded && !ignoreGroundedBecauseJustJumped)
+        {
+            StopControlledJump();
+            return;
+        }
+
+        float currentVy = rb.velocity.y;
+        if (currentVy <= minUpwardSpeedForHeldJump)
+        {
+            StopControlledJump();
+            return;
+        }
+
+        controlledJumpElapsed += dt;
+        bool withinHoldWindow = controlledJumpElapsed <= controlledJumpMaxDuration;
+
+        if (!isButtonStillHeld)
+        {
+            TryCutControlledJump(rb, currentVy);
+            StopControlledJump();
+            return;
+        }
+
+        if (!withinHoldWindow)
+        {
+            StopControlledJump();
+            return;
+        }
+
+        SustainControlledJump(rb, currentVy, dt);
+    }
 
     public void UpdateApexThrowState(JumpContext ctx, float aimX)
     {
-        if (!enableApexThrowAfterChargedJump)
+        if (!enableApexThrowAfterJump)
         {
             ClearApexThrowState();
             return;
@@ -259,6 +316,8 @@ public class PlayerJumpModule : MonoBehaviour
         lastJumpTime = ctx.Now;
         lastAppliedJumpForce = Mathf.Abs(velocity.y);
 
+        StopControlledJump();
+
         apexThrowUsed = true;
         apexThrowArmed = false;
         apexThrowAvailable = false;
@@ -272,203 +331,18 @@ public class PlayerJumpModule : MonoBehaviour
         };
     }
 
-    public void MarkShortJumpPressed(float now)
-    {
-        lastJumpPressedTime = now;
-        bufferedJumpKind = BufferedJumpKind.Short;
-        bufferedHoldSource = PlayerInputModule.HoldSource.None;
-    }
-
-    public void MarkHoldJumpPressed(PlayerInputModule.HoldSource source, float now)
-    {
-        lastJumpPressedTime = now;
-        bufferedJumpKind = BufferedJumpKind.Hold;
-        bufferedHoldSource = source;
-    }
-
-    public void BeginJumpHold(PlayerInputModule.HoldSource source, float now, bool startChargingImmediately = false)
-    {
-        ClearInstantSprintPreview();
-
-        isJumpHoldActive = true;
-        isChargingJump = false;
-        bufferedJumpKind = BufferedJumpKind.None;
-        currentHoldJumpSource = source;
-        bufferedHoldSource = PlayerInputModule.HoldSource.None;
-
-        jumpButtonDownTime = now;
-        jumpStartHoldTime = 0f;
-        currentBarNormalized = 0f;
-
-        if (startChargingImmediately || !useChargeEnterDelay || chargeEnterDelay <= 0f)
-        {
-            isChargingJump = true;
-            jumpStartHoldTime = now;
-            currentBarNormalized = 0f;
-        }
-    }
-
-    public void UpdateJumpHold(float now, bool isStillWithinGroundedWindow)
-    {
-        if (!isStillWithinGroundedWindow)
-        {
-            CancelJumpCharge();
-            return;
-        }
-
-        if (!isChargingJump)
-        {
-            float held = now - jumpButtonDownTime;
-
-            if (useChargeEnterDelay && held < chargeEnterDelay)
-            {
-                currentBarNormalized = 0f;
-                return;
-            }
-
-            isChargingJump = true;
-            jumpStartHoldTime = now;
-            currentBarNormalized = 0f;
-            return;
-        }
-
-        currentBarNormalized = CalculateChargeNormalized(now);
-    }
-
-    public JumpActionResult ReleaseJumpHoldAndMaybeJump(JumpContext ctx)
-    {
-        if (!IsWithinGroundedJumpWindow(ctx))
-        {
-            ClearHoldState();
-            bufferedJumpKind = BufferedJumpKind.None;
-            bufferedHoldSource = PlayerInputModule.HoldSource.None;
-            return default;
-        }
-
-        if (!isChargingJump)
-        {
-            // Слабый прыжок по отпусканию кнопки заряда отключён.
-            ClearHoldState();
-            bufferedJumpKind = BufferedJumpKind.None;
-            bufferedHoldSource = PlayerInputModule.HoldSource.None;
-            return default;
-        }
-
-        float verticalForce = CalculateChargeNormalized(ctx.Now) * maxJumpForce * ctx.SnowJumpMul;
-        return PerformJumpByContext(ctx, verticalForce, true);
-    }
-
-    public JumpActionResult TryPerformDedicatedShortJump(JumpContext ctx)
-    {
-        if (!CanAcceptDedicatedShortJumpInput(ctx))
-            return default;
-
-        if (!CanStartJumpCharge(ctx))
-            return default;
-
-        ClearInstantSprintPreview();
-
-        float verticalForce = shortJumpForce * ctx.SnowJumpMul;
-        return PerformJumpByContext(ctx, verticalForce, false);
-    }
-
-    public JumpActionResult TryPerformInstantMaxChargedJump(JumpContext ctx)
-    {
-        if (!allowInstantMaxChargeFromSprint)
-            return default;
-
-        if (!ctx.SprintChargedJumpReady)
-            return default;
-
-        if (!CanStartJumpCharge(ctx))
-            return default;
-
-        if (showInstantSprintPreview && instantSprintPreviewDuration > 0f)
-            ActivateInstantSprintPreview(ctx);
-        else
-            ClearInstantSprintPreview();
-
-        float verticalForce = maxJumpForce * ctx.SnowJumpMul;
-        return PerformJumpByContext(ctx, verticalForce, true);
-    }
-
-    public JumpActionResult TryConsumeJumpBuffer(
-        JumpContext ctx,
-        Func<PlayerInputModule.HoldSource, bool> isHoldInputStillHeld)
-    {
-        if (bufferedJumpKind == BufferedJumpKind.None)
-            return default;
-
-        if (ctx.Now - lastJumpPressedTime > jumpBufferTime)
-        {
-            bufferedJumpKind = BufferedJumpKind.None;
-            bufferedHoldSource = PlayerInputModule.HoldSource.None;
-            return default;
-        }
-
-        if (!CanStartJumpCharge(ctx))
-            return default;
-
-        if (bufferedJumpKind == BufferedJumpKind.Short)
-        {
-            JumpActionResult shortResult = TryPerformDedicatedShortJump(ctx);
-            bufferedJumpKind = BufferedJumpKind.None;
-            bufferedHoldSource = PlayerInputModule.HoldSource.None;
-            return shortResult;
-        }
-
-        if (bufferedJumpKind == BufferedJumpKind.Hold)
-        {
-            PlayerInputModule.HoldSource source = bufferedHoldSource;
-            if (source == PlayerInputModule.HoldSource.None)
-                source = PlayerInputModule.HoldSource.Keyboard;
-
-            if (allowInstantMaxChargeFromSprint && ctx.SprintChargedJumpReady)
-            {
-                JumpActionResult instantResult = TryPerformInstantMaxChargedJump(ctx);
-                bufferedJumpKind = BufferedJumpKind.None;
-                bufferedHoldSource = PlayerInputModule.HoldSource.None;
-                return instantResult;
-            }
-
-            if (isHoldInputStillHeld != null && isHoldInputStillHeld(source))
-            {
-                BeginJumpHold(source, ctx.Now, false);
-            }
-            else
-            {
-                // Тап по кнопке заряда без удержания больше не превращаем в слабый прыжок.
-                bufferedJumpKind = BufferedJumpKind.None;
-                bufferedHoldSource = PlayerInputModule.HoldSource.None;
-                return default;
-            }
-
-            bufferedJumpKind = BufferedJumpKind.None;
-            bufferedHoldSource = PlayerInputModule.HoldSource.None;
-        }
-
-        return default;
-    }
-
     public void CancelJumpCharge()
     {
-        if (!isJumpHoldActive && !isChargingJump)
-            return;
-
-        ClearHoldState();
+        // Р—Р°СЂСЏРґР° Р±РѕР»СЊС€Рµ РЅРµС‚.
     }
 
     public void ResetJumpInputState()
     {
         lastJumpPressedTime = -999f;
-        bufferedJumpKind = BufferedJumpKind.None;
+        hasBufferedJump = false;
         bufferedHoldSource = PlayerInputModule.HoldSource.None;
 
-        jumpButtonDownTime = 0f;
-        jumpStartHoldTime = 0f;
-
-        ClearHoldState();
-        ClearInstantSprintPreview();
+        StopControlledJump();
         ClearApexThrowState();
     }
 
@@ -477,30 +351,12 @@ public class PlayerJumpModule : MonoBehaviour
         if (IsApexThrowTrajectoryPreviewActive())
             return GetPredictedApexThrowTrajectoryVelocity(ctx);
 
-        return GetPredictedChargeTrajectoryVelocity(ctx);
+        return Vector2.zero;
     }
 
     public Vector2 GetPredictedChargeTrajectoryVelocity(JumpContext ctx)
     {
-        if (IsInstantSprintPreviewActive())
-            return instantSprintPreviewVelocity;
-
-        // Вне реального charging-state никакую "старую" траекторию не рисуем.
-        // Это убирает предпросмотр на слабом прыжке.
-        if (!isChargingJump)
-            return Vector2.zero;
-
-        float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
-
-        float predictedVx =
-            ctx.PlatformVX +
-            (ctx.IsFacingRight ? 1f : -1f) * ctx.MoveSpeed * speedMul * ctx.SnowMoveMul +
-            ctx.ExternalWindVX;
-
-        float normalized = CalculateChargeNormalized(ctx.Now);
-        float predictedVy = normalized * maxJumpForce * ctx.SnowJumpMul;
-
-        return new Vector2(predictedVx, predictedVy);
+        return Vector2.zero;
     }
 
     public Vector2 GetPredictedApexThrowTrajectoryVelocity(JumpContext ctx)
@@ -514,41 +370,105 @@ public class PlayerJumpModule : MonoBehaviour
         return CalculateApexThrowVelocity(ctx, apexThrowPreviewAimX);
     }
 
-    private float CalculateChargeNormalized(float now)
+    private bool CanStartMainJump(JumpContext ctx)
     {
-        float safeTimeLimit = Mathf.Max(0.0001f, jumpTimeLimit);
-        float hold = Mathf.Clamp(now - jumpStartHoldTime, 0f, safeTimeLimit);
-        return Mathf.Clamp01(hold / safeTimeLimit);
+        if (!IsWithinGroundedJumpWindow(ctx))
+            return false;
+
+        if ((ctx.Now - lastJumpTime) < jumpRepeatCooldown)
+            return false;
+
+        return true;
     }
 
-    private JumpActionResult PerformJumpByContext(JumpContext ctx, float verticalForce, bool wasCharged)
+    private JumpActionResult PerformMainJumpByContext(JumpContext ctx, PlayerInputModule.HoldSource source)
     {
-        ClearHoldState();
-        bufferedJumpKind = BufferedJumpKind.None;
-        bufferedHoldSource = PlayerInputModule.HoldSource.None;
+        if (ctx.Rigidbody == null)
+            return default;
 
-        float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
-        float takeoffVx =
-            ctx.PlatformVX +
-            (ctx.IsFacingRight ? 1f : -1f) * ctx.MoveSpeed * speedMul * ctx.SnowMoveMul;
+        float currentWorldVx = ctx.Rigidbody.velocity.x;
+        float takeoffVx = currentWorldVx - ctx.ExternalWindVX;
 
-        PerformJump(ctx.Rigidbody, ctx.Now, takeoffVx, verticalForce, ctx.ExternalWindVX);
-        StartFatigue(ctx.Now);
-        ArmApexThrowState(wasCharged, takeoffVx, ctx.IsFacingRight);
+        float sprintMul = boostJumpDuringSprint && ctx.IsSprintMovementActive
+            ? sprintJumpMultiplier
+            : 1f;
+
+        float verticalForce = jumpForce * ctx.SnowJumpMul * sprintMul;
+
+        PerformJump(ctx.Rigidbody, ctx.Now, currentWorldVx, verticalForce);
+        StartControlledJump(source, verticalForce);
+        ArmApexThrowState(currentWorldVx, ctx.IsFacingRight);
 
         return new JumpActionResult
         {
             DidJump = true,
             TakeoffVx = takeoffVx,
-            WasChargedJump = wasCharged
+            WasChargedJump = false
         };
     }
 
-    private void ArmApexThrowState(bool wasChargedJump, float takeoffVx, bool isFacingRight)
+    private void StartControlledJump(PlayerInputModule.HoldSource source, float takeoffUpSpeed)
     {
-        // Независимо от старого чекбокса в инспекторе:
-        // apex throw теперь только после charged jump.
-        if (!enableApexThrowAfterChargedJump || !wasChargedJump)
+        controlledJumpActive = true;
+        activeJumpHoldSource = source == PlayerInputModule.HoldSource.None
+            ? PlayerInputModule.HoldSource.Keyboard
+            : source;
+
+        controlledJumpElapsed = 0f;
+        controlledJumpMaxDuration = Mathf.Max(0f, maxJumpHoldTime);
+        controlledJumpTargetUpSpeed = Mathf.Max(takeoffUpSpeed, takeoffUpSpeed * jumpHoldTargetVelocityMultiplier);
+        controlledJumpAcceleration = Mathf.Max(0f, jumpHoldAcceleration);
+        controlledJumpCutConsumed = false;
+    }
+
+    private void SustainControlledJump(Rigidbody2D rb, float currentVy, float deltaTime)
+    {
+        float targetVy = Mathf.Max(0f, controlledJumpTargetUpSpeed);
+        float accel = Mathf.Max(0f, controlledJumpAcceleration);
+
+        if (targetVy <= 0f || accel <= 0f || deltaTime <= 0f)
+            return;
+
+        if (currentVy >= targetVy)
+            return;
+
+        float newVy = Mathf.Min(targetVy, currentVy + accel * deltaTime);
+        rb.velocity = new Vector2(rb.velocity.x, newVy);
+        lastAppliedJumpForce = Mathf.Max(lastAppliedJumpForce, newVy);
+    }
+
+    private void TryCutControlledJump(Rigidbody2D rb, float currentVy)
+    {
+        if (rb == null)
+            return;
+
+        if (controlledJumpCutConsumed)
+            return;
+
+        if (currentVy <= 0f)
+            return;
+
+        float cutMul = Mathf.Clamp01(jumpReleaseVerticalMultiplier);
+        float newVy = currentVy * cutMul;
+
+        rb.velocity = new Vector2(rb.velocity.x, newVy);
+        controlledJumpCutConsumed = true;
+    }
+
+    private void StopControlledJump()
+    {
+        controlledJumpActive = false;
+        activeJumpHoldSource = PlayerInputModule.HoldSource.None;
+        controlledJumpElapsed = 0f;
+        controlledJumpMaxDuration = 0f;
+        controlledJumpTargetUpSpeed = 0f;
+        controlledJumpAcceleration = 0f;
+        controlledJumpCutConsumed = false;
+    }
+
+    private void ArmApexThrowState(float takeoffWorldVx, bool isFacingRight)
+    {
+        if (!enableApexThrowAfterJump)
         {
             ClearApexThrowState();
             return;
@@ -559,8 +479,8 @@ public class PlayerJumpModule : MonoBehaviour
         apexThrowUsed = false;
         apexThrowAvailableUntil = -999f;
 
-        float lockedDir = Mathf.Abs(takeoffVx) > 0.001f
-            ? Mathf.Sign(takeoffVx)
+        float lockedDir = Mathf.Abs(takeoffWorldVx) > 0.001f
+            ? Mathf.Sign(takeoffWorldVx)
             : (isFacingRight ? 1f : -1f);
 
         apexThrowLockedHorizontalDir = lockedDir;
@@ -570,7 +490,7 @@ public class PlayerJumpModule : MonoBehaviour
 
     private bool CanUseApexThrowNow(float now)
     {
-        return enableApexThrowAfterChargedJump &&
+        return enableApexThrowAfterJump &&
                apexThrowArmed &&
                apexThrowAvailable &&
                !apexThrowUsed &&
@@ -579,33 +499,8 @@ public class PlayerJumpModule : MonoBehaviour
 
     private Vector2 CalculateApexThrowVelocity(JumpContext ctx, float aimX)
     {
-        float lockedDir = Mathf.Abs(apexThrowLockedHorizontalDir) > 0.001f
-            ? Mathf.Sign(apexThrowLockedHorizontalDir)
-            : (ctx.IsFacingRight ? 1f : -1f);
-
-        float aimDir = lockedDir;
-
-        if (Mathf.Abs(aimX) > apexThrowHorizontalInputDeadZone)
-        {
-            float requestedDir = Mathf.Sign(aimX);
-
-            // Против исходного направления полёта паунс больше не разворачиваем.
-            if (requestedDir == lockedDir)
-                aimDir = lockedDir;
-        }
-        else if (apexThrowUseFacingWhenNoInput)
-        {
-            aimDir = lockedDir;
-        }
-
-        float horizontalSpeed = apexThrowHorizontalSpeed;
-
-        if (Mathf.Abs(aimX) <= apexThrowHorizontalInputDeadZone)
-            horizontalSpeed *= apexThrowNeutralHorizontalMultiplier;
-
-        float finalVx = ctx.PlatformVX + aimDir * horizontalSpeed + ctx.ExternalWindVX;
+        float finalVx = ctx.ExternalWindVX;
         float finalVy = -Mathf.Abs(apexThrowDownwardSpeed);
-
         return new Vector2(finalVx, finalVy);
     }
 
@@ -625,62 +520,21 @@ public class PlayerJumpModule : MonoBehaviour
         apexThrowLockedHorizontalDir = 0f;
     }
 
-    private void ClearHoldState()
-    {
-        isJumpHoldActive = false;
-        isChargingJump = false;
-        currentHoldJumpSource = PlayerInputModule.HoldSource.None;
-        jumpStartHoldTime = 0f;
-        currentBarNormalized = 0f;
-    }
-
-    private void PerformJump(Rigidbody2D rb, float now, float vx, float vy, float externalWindVX)
+    private void PerformJump(Rigidbody2D rb, float now, float worldVx, float vy)
     {
         lastJumpTime = now;
         lastAppliedJumpForce = vy;
 
         if (rb != null)
-            rb.velocity = new Vector2(vx + externalWindVX, vy);
-    }
-
-    private void StartFatigue(float now)
-    {
-        fatigueEndTime = now + fatigueDuration;
-    }
-
-    private void ActivateInstantSprintPreview(JumpContext ctx)
-    {
-        float speedMul = IsFatigued(ctx.Now) ? ctx.FatigueSpeedMultiplier : 1f;
-
-        float predictedVx =
-            ctx.PlatformVX +
-            (ctx.IsFacingRight ? 1f : -1f) * ctx.MoveSpeed * speedMul * ctx.SnowMoveMul +
-            ctx.ExternalWindVX;
-
-        float predictedVy = maxJumpForce * ctx.SnowJumpMul;
-
-        instantSprintPreviewVelocity = new Vector2(predictedVx, predictedVy);
-        instantSprintPreviewUntilUnscaled = Time.unscaledTime + Mathf.Max(0f, instantSprintPreviewDuration);
-    }
-
-    private bool IsInstantSprintPreviewActive()
-    {
-        return Time.unscaledTime < instantSprintPreviewUntilUnscaled;
-    }
-
-    private void ClearInstantSprintPreview()
-    {
-        instantSprintPreviewUntilUnscaled = -999f;
-        instantSprintPreviewVelocity = Vector2.zero;
+            rb.velocity = new Vector2(worldVx, vy);
     }
 
     private void OnDisable()
     {
         ResetJumpInputState();
-        fatigueEndTime = -999f;
         lastJumpTime = -999f;
         lastAppliedJumpForce = 0f;
-        currentBarNormalized = 0f;
+        StopControlledJump();
         ClearApexThrowState();
     }
 }

@@ -15,38 +15,68 @@ public class PlayerMovementModule : MonoBehaviour
         public float PlatformVX;
         public float ExternalWindVX;
         public float SnowMoveMul;
+
+        // Оставлено только для совместимости со старыми вызовами.
+        // Больше нигде не используется.
         public bool IsFatigued;
+
         public bool IsJumpCharging;
     }
 
     [Header("Движение")]
-    [SerializeField, Tooltip("Базовая скорость бега по земле без учёта спринта, льда, снега и усталости.")]
-    private float moveSpeed = 5f;
+    [SerializeField, Tooltip("Базовая скорость бега по земле без учёта спринта, льда и снега.")]
+    private float moveSpeed = 10f;
 
-    [SerializeField, Tooltip("Множитель скорости при усталости.")]
-    private float fatigueSpeedMultiplier = 0.6f;
+    [Header("Управление в воздухе")]
+    [SerializeField, Tooltip("Если ВКЛ — в воздухе можно корректировать движение влево/вправо.")]
+    private bool enableAirControl = true;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Максимальная скорость в воздухе как ползунок.\nЛевее = слабее, правее = быстрее.")]
+    private float airSpeedSlider = 0.72f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Насколько быстро персонаж добирает скорость в воздухе в ту же сторону.")]
+    private float airSameDirectionResponse = 0.42f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Насколько быстро разрешён разворот в другую сторону в воздухе.\nНиже = меньше резких разворотов.")]
+    private float airReverseResponse = 0.20f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Насколько быстро в воздухе гасится горизонтальная скорость, когда игрок отпустил A/D.")]
+    private float airNoInputDamping = 0.16f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Сколько собственной инерции сохраняется в воздухе.\nПравее = больше сохраняем старую скорость.")]
+    private float airMomentumPreservation = 0.78f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Мёртвая зона горизонтального ввода для воздуха.")]
+    private float airControlInputDeadZone = 0.05f;
+
+    [Header("Инерция сразу после отрыва")]
+    [SerializeField, Min(0f), Tooltip("Сколько времени после старта прыжка управление в воздухе остаётся слегка приглушённым.")]
+    private float jumpAirInertiaDuration = 0.10f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Насколько сильно приглушать air control сразу после отрыва.\nНиже = больше инерции в начале прыжка.")]
+    private float jumpAirInertiaControlMultiplier = 0.45f;
 
     [Header("Спринт")]
-    [SerializeField, Min(0f), Tooltip("Задержка перед началом спринта.\nПока это время не прошло, персонаж бежит с обычной скоростью.")]
+    [SerializeField, Min(0f), Tooltip("Задержка перед началом спринта.")]
     private float sprintStartDelay = 0.35f;
 
-    [SerializeField, Min(0f), Tooltip("Сколько секунд занимает плавный разгон от обычной скорости до пика спринта после sprintStartDelay.\n0 = мгновенный выход на пик после задержки.")]
+    [SerializeField, Min(0f), Tooltip("Сколько секунд занимает плавный разгон от обычной скорости до пика спринта после задержки.")]
     private float sprintRampDuration = 0.35f;
 
-    [SerializeField, Min(1f), Tooltip("Пиковый множитель скорости спринта относительно moveSpeed.\n1.5 = на 50% быстрее обычного бега.")]
+    [SerializeField, Min(1f), Tooltip("Пиковый множитель скорости спринта относительно moveSpeed.")]
     private float sprintSpeedMultiplier = 1.5f;
 
     [SerializeField, Range(0f, 1f), Tooltip("Минимальная сила горизонтального ввода, чтобы считать, что направление реально удерживается для спринта.")]
     private float sprintInputDeadZone = 0.2f;
 
     [Header("Анти-спринт в стену")]
-    [SerializeField, Tooltip("Если ВКЛ — спринт не будет накапливаться, пока перед персонажем по ходу движения есть стена.\nОбычный беговой ввод при этом остаётся как есть: блокируется именно выход в спринт.")]
+    [SerializeField, Tooltip("Если ВКЛ — спринт не будет накапливаться, пока перед персонажем по ходу движения есть стена.")]
     private bool blockSprintIntoWall = true;
 
-    [SerializeField, Min(0.01f), Tooltip("На сколько далеко вперёд от коллайдера проверять стену для блокировки спринта.\nОбычно хватает 0.04–0.12.")]
+    [SerializeField, Min(0.01f), Tooltip("На сколько далеко вперёд от коллайдера проверять стену для блокировки спринта.")]
     private float sprintWallCheckDistance = 0.08f;
 
-    [SerializeField, Range(0f, 1f), Tooltip("Насколько 'боковой' должна быть нормаль препятствия, чтобы считать его стеной для блокировки спринта.\nЧем выше значение — тем меньше ложных срабатываний на наклонных поверхностях.")]
+    [SerializeField, Range(0f, 1f), Tooltip("Насколько 'боковой' должна быть нормаль препятствия, чтобы считать его стеной для блокировки спринта.")]
     private float sprintWallNormalMinAbsX = 0.45f;
 
     [Header("Debug Gizmos")]
@@ -60,37 +90,30 @@ public class PlayerMovementModule : MonoBehaviour
     [SerializeField, Tooltip("Если ВКЛ — после спринта персонаж не останавливается мгновенно, а продолжает катиться по инерции.")]
     private bool enableSprintInertia = true;
 
-    [SerializeField, Min(0f), Tooltip("Сколько секунд примерно длится затухание остаточного импульса спринта после отпускания кнопки направления.\nМеньше = быстрее остановка, больше = дольше катится вперёд.")]
+    [SerializeField, Min(0f), Tooltip("Сколько секунд примерно длится затухание остаточного импульса спринта после отпускания кнопки направления.")]
     private float sprintReleaseInertiaDuration = 0.28f;
 
-    [SerializeField, Min(0f), Tooltip("Сколько секунд примерно гасится старый импульс спринта, если во время спринта нажали противоположное направление.\nПока этот импульс не погаснет, персонаж ещё немного продолжит движение в старую сторону и только потом развернётся.")]
+    [SerializeField, Min(0f), Tooltip("Сколько секунд примерно гасится старый импульс спринта, если во время спринта нажали противоположное направление.")]
     private float sprintReverseInertiaDuration = 0.18f;
 
-    [SerializeField, Range(0f, 1f), Tooltip("Минимальный уровень набранного спринта, после которого вообще разрешено оставлять остаточную инерцию.\n0 = почти любая фаза спринта даёт инерцию, 1 = только почти полный спринт.")]
+    [SerializeField, Range(0f, 1f), Tooltip("Минимальный уровень набранного спринта, после которого вообще разрешено оставлять остаточную инерцию.")]
     private float sprintInertiaMinBlend = 0.2f;
 
     [Header("Skid / занос (заглушка)")]
-    [SerializeField, Tooltip("Если ВКЛ — модуль будет вычислять состояние заноса/торможения со спринта.\nСейчас это заглушка под будущие анимации, пыль и звук.")]
+    [SerializeField, Tooltip("Если ВКЛ — модуль будет вычислять состояние заноса/торможения со спринта.")]
     private bool enableSprintSkidPlaceholder = true;
 
     [SerializeField, Range(0f, 1f), Tooltip("Минимальный уровень спринта/инерции, с которого вообще разрешено входить в skid state.")]
     private float skidMinEnterBlend = 0.35f;
 
-    [SerializeField, Min(0f), Tooltip("Минимальная доля от базовой скорости moveSpeed, чтобы считать торможение 'настоящим заносом'.\n0.65 = скорость должна быть хотя бы 65% от moveSpeed.")]
+    [SerializeField, Min(0f), Tooltip("Минимальная доля от базовой скорости moveSpeed, чтобы считать торможение 'настоящим заносом'.")]
     private float skidMinSpeedRatio = 0.65f;
 
-    [SerializeField, Min(0f), Tooltip("Минимальное время удержания skid state после входа.\nНужно, чтобы состояние не мигало один кадр.")]
+    [SerializeField, Min(0f), Tooltip("Минимальное время удержания skid state после входа.")]
     private float skidMinHoldTime = 0.08f;
 
-    [SerializeField, Min(0f), Tooltip("При какой доле от moveSpeed можно окончательно выйти из skid state, если инерция уже почти погасла.")]
+    [SerializeField, Min(0f), Tooltip("При какой доле от moveSpeed можно окончательно выйти из skid state.")]
     private float skidExitSpeedRatio = 0.15f;
-
-    [Header("Air Control")]
-    [SerializeField, Tooltip("Скорость управления в воздухе, когда air-control разрешён.")]
-    private float airControlSpeed = 5f;
-
-    [SerializeField, Tooltip("Если ВКЛ — управление в воздухе доступно всегда.")]
-    private bool enableAirControlInAir = false;
 
     [Header("Лёд (Tag = \"Ice\")")]
     [SerializeField, Tooltip("Ускорение на льду.")]
@@ -112,12 +135,10 @@ public class PlayerMovementModule : MonoBehaviour
     [SerializeField, Tooltip("Минимальная |скорость| или |ввод| по X, после которой разрешён разворот персонажа.")]
     private float flipDeadZone = 0.05f;
 
-    [SerializeField, Tooltip("Если ВКЛ — персонаж может менять сторону взгляда в воздухе.\nЕсли ВЫКЛ — после отрыва от земли сторона фиксируется до следующего приземления.")]
-    private bool allowFlipInAir = false;
+    [SerializeField, Tooltip("Если ВКЛ — персонаж может менять сторону взгляда в воздухе.")]
+    private bool allowFlipInAir = true;
 
     private bool isFacingRight = true;
-    private float airVx = 0f;
-    private float airControlUnlockUntil = 0f;
 
     private float sprintHeldDirection = 0f;
     private float sprintHeldTime = 0f;
@@ -132,6 +153,8 @@ public class PlayerMovementModule : MonoBehaviour
 
     private bool isForwardBlockedForSprint = false;
 
+    private float jumpAirInertiaUntil = -999f;
+
     private Collider2D bodyCollider;
     private readonly RaycastHit2D[] sprintWallHits = new RaycastHit2D[8];
     private ContactFilter2D sprintWallFilter;
@@ -139,9 +162,11 @@ public class PlayerMovementModule : MonoBehaviour
     public float MoveSpeed => moveSpeed;
     public float CurrentSprintMultiplier => Mathf.Lerp(1f, sprintSpeedMultiplier, GetEffectiveSprintBlend());
     public float CurrentMoveSpeed => moveSpeed * CurrentSprintMultiplier;
-    public float FatigueSpeedMultiplier => fatigueSpeedMultiplier;
+
+    // Совместимость со старым кодом/ссылками.
+    public float FatigueSpeedMultiplier => 1f;
+
     public bool IsFacingRight => isFacingRight;
-    public float AirVx => airVx;
     public bool AllowFlipInAir => allowFlipInAir;
 
     public bool IsSprintReady => sprintBlend >= 0.999f && !isForwardBlockedForSprint;
@@ -151,7 +176,6 @@ public class PlayerMovementModule : MonoBehaviour
     public float SprintSkidDirection => sprintSkidDirection;
     public float SprintCameraBlend => Mathf.Clamp01(GetEffectiveSprintBlend());
     public bool IsForwardBlockedForSprint => isForwardBlockedForSprint;
-
     public bool IsSprintMovementActive => GetEffectiveSprintBlend() > 0.0001f || isSprintSkidActive;
 
     private void Reset()
@@ -174,24 +198,32 @@ public class PlayerMovementModule : MonoBehaviour
         sprintWallCheckDistance = Mathf.Max(0.01f, sprintWallCheckDistance);
         sprintWallNormalMinAbsX = Mathf.Clamp01(sprintWallNormalMinAbsX);
         flipDeadZone = Mathf.Max(0f, flipDeadZone);
+
+        airSpeedSlider = Mathf.Clamp01(airSpeedSlider);
+        airSameDirectionResponse = Mathf.Clamp01(airSameDirectionResponse);
+        airReverseResponse = Mathf.Clamp01(airReverseResponse);
+        airNoInputDamping = Mathf.Clamp01(airNoInputDamping);
+        airMomentumPreservation = Mathf.Clamp01(airMomentumPreservation);
+        airControlInputDeadZone = Mathf.Clamp01(airControlInputDeadZone);
+
+        jumpAirInertiaDuration = Mathf.Max(0f, jumpAirInertiaDuration);
+        jumpAirInertiaControlMultiplier = Mathf.Clamp01(jumpAirInertiaControlMultiplier);
     }
 
     public void AllowAirControlFor(float duration)
     {
-        airControlUnlockUntil = Mathf.Max(
-            airControlUnlockUntil,
-            Time.time + Mathf.Max(0f, duration));
+        // Совместимый stub оставлен намеренно.
     }
 
     public void OnJumpPerformed(float takeoffVx)
     {
-        airVx = takeoffVx;
+        jumpAirInertiaUntil = Time.time + Mathf.Max(0f, jumpAirInertiaDuration);
         ClearSprintSkid();
     }
 
     public void SetAirVx(float vx)
     {
-        airVx = vx;
+        // Совместимый stub оставлен намеренно.
     }
 
     public void ResetSprint()
@@ -200,6 +232,7 @@ public class PlayerMovementModule : MonoBehaviour
         ClearSprintMomentum();
         ClearSprintSkid();
         isForwardBlockedForSprint = false;
+        jumpAirInertiaUntil = -999f;
     }
 
     public void TryFaceByInput(float inputX, bool allowFlip, bool isGrounded)
@@ -526,25 +559,56 @@ public class PlayerMovementModule : MonoBehaviour
 
     private void ApplyAirMovement(MovementContext ctx)
     {
-        if (enableAirControlInAir || ctx.Now < airControlUnlockUntil)
-        {
-            float speedMul = (ctx.IsFatigued ? fatigueSpeedMultiplier : 1f) * ctx.SnowMoveMul;
-            float vx = ctx.InputX * airControlSpeed * speedMul + ctx.ExternalWindVX;
+        float dt = Mathf.Max(0f, ctx.FixedDeltaTime);
+        float localVx = ctx.Rigidbody.velocity.x - ctx.ExternalWindVX;
+        float inputX = Mathf.Clamp(ctx.InputX, -1f, 1f);
+        float absInput = Mathf.Abs(inputX);
 
-            ctx.Rigidbody.velocity = new Vector2(vx, ctx.Rigidbody.velocity.y);
+        if (!enableAirControl)
+        {
+            ctx.Rigidbody.velocity = new Vector2(localVx + ctx.ExternalWindVX, ctx.Rigidbody.velocity.y);
+            return;
+        }
+
+        float targetSpeed = GetAirTargetSpeed() * ctx.SnowMoveMul;
+        float sameDirRate = GetAirSameDirectionRate();
+        float reverseRate = GetAirReverseRate();
+        float noInputRate = GetAirNoInputDampingRate();
+
+        float jumpInertiaMul = GetJumpAirInertiaMultiplier(ctx.Now);
+        sameDirRate *= jumpInertiaMul;
+        reverseRate *= jumpInertiaMul;
+        noInputRate *= jumpInertiaMul;
+
+        if (absInput > airControlInputDeadZone)
+        {
+            float desired = Mathf.Sign(inputX) * targetSpeed;
+            bool sameDirection = Mathf.Abs(localVx) <= 0.0001f || Mathf.Sign(localVx) == Mathf.Sign(desired);
+
+            if (sameDirection)
+            {
+                if (Mathf.Abs(localVx) > Mathf.Abs(desired))
+                    desired = Mathf.Lerp(desired, localVx, airMomentumPreservation);
+
+                localVx = Mathf.MoveTowards(localVx, desired, sameDirRate * dt);
+            }
+            else
+            {
+                localVx = Mathf.MoveTowards(localVx, desired, reverseRate * dt);
+            }
         }
         else
         {
-            ctx.Rigidbody.velocity = new Vector2(airVx + ctx.ExternalWindVX, ctx.Rigidbody.velocity.y);
+            float preservedNoInputRate = Mathf.Lerp(noInputRate, noInputRate * 0.18f, airMomentumPreservation);
+            localVx = Mathf.MoveTowards(localVx, 0f, preservedNoInputRate * dt);
         }
 
-        // Визуальный разворот в воздухе здесь специально не делаем.
-        // Он управляется из TryFaceByInput(...) и зависит от allowFlipInAir.
+        ctx.Rigidbody.velocity = new Vector2(localVx + ctx.ExternalWindVX, ctx.Rigidbody.velocity.y);
     }
 
     private void ApplyGroundMovement(MovementContext ctx)
     {
-        float speedMul = (ctx.IsFatigued ? fatigueSpeedMultiplier : 1f) * ctx.SnowMoveMul;
+        float speedMul = ctx.SnowMoveMul;
         float sprintMul = CurrentSprintMultiplier;
         float target = GetGroundTargetVelocity(ctx.InputX, speedMul);
 
@@ -572,6 +636,36 @@ public class PlayerMovementModule : MonoBehaviour
             if (faceRight != isFacingRight)
                 Flip();
         }
+    }
+
+    private float GetAirTargetSpeed()
+    {
+        return Mathf.Lerp(moveSpeed * 0.65f, moveSpeed * 1.30f, airSpeedSlider);
+    }
+
+    private float GetAirSameDirectionRate()
+    {
+        return Mathf.Lerp(8f, 85f, airSameDirectionResponse);
+    }
+
+    private float GetAirReverseRate()
+    {
+        return Mathf.Lerp(3f, 38f, airReverseResponse);
+    }
+
+    private float GetAirNoInputDampingRate()
+    {
+        return Mathf.Lerp(0.5f, 18f, airNoInputDamping);
+    }
+
+    private float GetJumpAirInertiaMultiplier(float now)
+    {
+        if (jumpAirInertiaDuration <= 0f || now >= jumpAirInertiaUntil)
+            return 1f;
+
+        float remaining = Mathf.Clamp01((jumpAirInertiaUntil - now) / jumpAirInertiaDuration);
+        float t = 1f - remaining;
+        return Mathf.Lerp(jumpAirInertiaControlMultiplier, 1f, t);
     }
 
     private bool IsForwardBlockedByWall(float inputDir)
@@ -704,7 +798,5 @@ public class PlayerMovementModule : MonoBehaviour
     private void OnDisable()
     {
         ResetSprint();
-        airVx = 0f;
-        airControlUnlockUntil = 0f;
     }
 }

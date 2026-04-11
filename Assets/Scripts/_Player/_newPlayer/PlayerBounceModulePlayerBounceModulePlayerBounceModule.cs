@@ -27,18 +27,11 @@ public class PlayerBounceModule : MonoBehaviour
 
     private float lastBounceTime = -999f;
 
-    /// <summary>
-    /// Сообщить модулю, что только что был выполнен прыжок / резкий импульс.
-    /// Нужен, чтобы не получить мгновенный повторный bounce в тот же момент.
-    /// </summary>
     public void NotifyJumpImpulse(float now)
     {
         lastBounceTime = now;
     }
 
-    /// <summary>
-    /// Обработать столкновение и при необходимости выполнить bounce.
-    /// </summary>
     public void HandleBounce(
         Collision2D collision,
         Rigidbody2D rb,
@@ -86,19 +79,11 @@ public class PlayerBounceModule : MonoBehaviour
             float bouncedVx = bounce * dir;
 
             rb.velocity = new Vector2(bouncedVx, rb.velocity.y);
-
-            if (movementModule != null)
-                movementModule.SetAirVx(bouncedVx);
-
             lastBounceTime = now;
         }
         else if (isCeil)
         {
             rb.velocity = new Vector2(rb.velocity.x, -Mathf.Abs(rb.velocity.y));
-
-            if (movementModule != null)
-                movementModule.SetAirVx(rb.velocity.x - externalWindVX);
-
             lastBounceTime = now;
         }
     }

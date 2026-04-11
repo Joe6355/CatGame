@@ -47,6 +47,7 @@ public class PlayerController : MonoBehaviour
 
     private Rigidbody2D rb;
     private float inputX = 0f;
+    private bool resetSprintAfterLanding = false;
 
     private float trackedMinAirborneY = 0f;
     private bool hasAirborneFallData = false;
@@ -99,11 +100,9 @@ public class PlayerController : MonoBehaviour
             else
                 HandleMobileInput(inputModule.ReadMobileInputFrame());
 
-            PlayerJumpModule.JumpActionResult bufferResult =
-                jumpModule.TryConsumeJumpBuffer(
-                    BuildJumpContext(),
-                    source => inputModule.IsHoldInputStillHeld(source));
+            UpdateControlledJumpHold();
 
+            PlayerJumpModule.JumpActionResult bufferResult = jumpModule.TryConsumeJumpBuffer(BuildJumpContext());
             if (bufferResult.DidJump)
                 OnJumpPerformed(bufferResult.TakeoffVx, bufferResult.WasChargedJump);
         }
@@ -122,13 +121,15 @@ public class PlayerController : MonoBehaviour
 
         if (groundModule.JustLanded)
         {
+            if (resetSprintAfterLanding)
+            {
+                movementModule.ResetSprint();
+                resetSprintAfterLanding = false;
+            }
+
             TryPlayLandingCameraShake();
 
-            PlayerJumpModule.JumpActionResult bufferResult =
-                jumpModule.TryConsumeJumpBuffer(
-                    BuildJumpContext(),
-                    source => inputModule.IsHoldInputStillHeld(source));
-
+            PlayerJumpModule.JumpActionResult bufferResult = jumpModule.TryConsumeJumpBuffer(BuildJumpContext());
             if (bufferResult.DidJump)
                 OnJumpPerformed(bufferResult.TakeoffVx, bufferResult.WasChargedJump);
         }
@@ -142,6 +143,7 @@ public class PlayerController : MonoBehaviour
     {
         CamController.ChangeSprintZoomBlendEvent?.Invoke(0f);
         ResetLandingTracking();
+        resetSprintAfterLanding = false;
     }
 
     private void CacheComponents()
@@ -165,12 +167,10 @@ public class PlayerController : MonoBehaviour
             LastGroundedTime = LastGroundedTimeNow,
             IsFacingRight = movementModule.IsFacingRight,
             MoveSpeed = movementModule.CurrentMoveSpeed,
-            FatigueSpeedMultiplier = movementModule.FatigueSpeedMultiplier,
             PlatformVX = PlatformVXNow,
             SnowMoveMul = SnowMoveMul,
             SnowJumpMul = SnowJumpMul,
             ExternalWindVX = ExternalWindVX,
-            SprintChargedJumpReady = movementModule.IsSprintReady,
             IsSprintMovementActive = movementModule.IsSprintMovementActive,
             Rigidbody = rb
         };
@@ -190,7 +190,6 @@ public class PlayerController : MonoBehaviour
             PlatformVX = PlatformVXNow,
             ExternalWindVX = ExternalWindVX,
             SnowMoveMul = SnowMoveMul,
-            IsFatigued = jumpModule.IsFatigued(Time.time),
             IsJumpCharging = jumpModule.IsChargingJump
         };
     }
@@ -207,113 +206,24 @@ public class PlayerController : MonoBehaviour
         float rawInputX = snapshot.MoveX;
         inputX = rawInputX;
 
-        PlayerJumpModule.JumpContext preInputCtx = BuildJumpContext();
-        bool canBeginHoldThisFrame =
-            snapshot.ChargeDownSource != PlayerInputModule.HoldSource.None &&
-            (jumpModule.CanStartJumpCharge(preInputCtx) ||
-             (jumpModule.AllowInstantMaxChargeFromSprint && preInputCtx.SprintChargedJumpReady));
-
-        bool lockMovementForJumpHold = jumpModule.IsJumpHoldActive || canBeginHoldThisFrame;
-
-        if (lockMovementForJumpHold)
-        {
-            inputX = 0f;
-            movementModule.RefreshImmediateSprintBlocker(false, 0f);
-        }
-        else
-        {
-            inputX = rawInputX;
-            movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
-            movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed(), IsGroundedNow);
-        }
+        movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
+        movementModule.TryFaceByInput(inputX, true, IsGroundedNow);
 
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
         jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
 
         if (snapshot.ApexThrowDownPressed)
         {
-            PlayerJumpModule.ApexThrowResult apexThrowResult =
-                jumpModule.TryPerformApexThrow(apexCtx, rawInputX);
-
+            PlayerJumpModule.ApexThrowResult apexThrowResult = jumpModule.TryPerformApexThrow(apexCtx, rawInputX);
             if (apexThrowResult.DidThrow)
             {
-                movementModule.SetAirVx(apexThrowResult.AirVx);
-                movementModule.ResetSprint();
                 bounceModule.NotifyJumpImpulse(Time.time);
                 return;
             }
         }
 
-        if (snapshot.ShortJumpDown && !jumpModule.IsJumpHoldActive)
-        {
-            PlayerJumpModule.JumpContext jumpCtx = BuildJumpContext();
-
-            if (jumpModule.CanAcceptDedicatedShortJumpInput(jumpCtx))
-            {
-                jumpModule.MarkShortJumpPressed(Time.time);
-
-                PlayerJumpModule.JumpActionResult shortResult =
-                    jumpModule.TryPerformDedicatedShortJump(jumpCtx);
-
-                if (shortResult.DidJump)
-                    OnJumpPerformed(shortResult.TakeoffVx, shortResult.WasChargedJump);
-            }
-        }
-
-        if (snapshot.ChargeDownSource != PlayerInputModule.HoldSource.None)
-        {
-            jumpModule.MarkHoldJumpPressed(snapshot.ChargeDownSource, Time.time);
-
-            PlayerJumpModule.JumpContext jumpCtx = BuildJumpContext();
-
-            if (jumpModule.AllowInstantMaxChargeFromSprint && jumpCtx.SprintChargedJumpReady)
-            {
-                PlayerJumpModule.JumpActionResult instantResult =
-                    jumpModule.TryPerformInstantMaxChargedJump(jumpCtx);
-
-                if (instantResult.DidJump)
-                {
-                    inputX = 0f;
-                    OnJumpPerformed(instantResult.TakeoffVx, instantResult.WasChargedJump);
-                }
-                else if (jumpModule.CanStartJumpCharge(jumpCtx))
-                {
-                    jumpModule.BeginJumpHold(snapshot.ChargeDownSource, Time.time, false);
-                    inputX = 0f;
-                    movementModule.RefreshImmediateSprintBlocker(false, 0f);
-                }
-            }
-            else if (jumpModule.CanStartJumpCharge(jumpCtx))
-            {
-                jumpModule.BeginJumpHold(snapshot.ChargeDownSource, Time.time, false);
-                inputX = 0f;
-                movementModule.RefreshImmediateSprintBlocker(false, 0f);
-            }
-        }
-
-        if (jumpModule.IsJumpHoldActive)
-        {
-            inputX = 0f;
-
-            bool held = inputModule.IsHoldInputStillHeld(jumpModule.CurrentHoldSource);
-            bool released = inputModule.IsHoldInputReleased(jumpModule.CurrentHoldSource);
-
-            if (held)
-            {
-                jumpModule.UpdateJumpHold(
-                    Time.time,
-                    jumpModule.IsWithinGroundedJumpWindow(BuildJumpContext()));
-            }
-
-            if (released)
-            {
-                PlayerJumpModule.JumpActionResult releaseResult =
-                    jumpModule.ReleaseJumpHoldAndMaybeJump(BuildJumpContext());
-
-                if (releaseResult.DidJump)
-                    OnJumpPerformed(releaseResult.TakeoffVx, releaseResult.WasChargedJump);
-            }
-        }
+        if (snapshot.JumpDownSource != PlayerInputModule.HoldSource.None)
+            jumpModule.MarkJumpPressed(snapshot.JumpDownSource, Time.time);
     }
 
     private void HandleMobileInput(PlayerInputModule.MobileInputSnapshot snapshot)
@@ -321,115 +231,43 @@ public class PlayerController : MonoBehaviour
         float rawInputX = snapshot.MoveX;
         inputX = rawInputX;
 
-        PlayerJumpModule.JumpContext preInputCtx = BuildJumpContext();
-        bool canBeginHoldThisFrame =
-            snapshot.JumpHeld &&
-            (jumpModule.CanStartJumpCharge(preInputCtx) ||
-             (jumpModule.AllowInstantMaxChargeFromSprint && preInputCtx.SprintChargedJumpReady));
-
-        bool lockMovementForJumpHold = jumpModule.IsJumpHoldActive || canBeginHoldThisFrame;
-
-        if (lockMovementForJumpHold)
-        {
-            inputX = 0f;
-            movementModule.RefreshImmediateSprintBlocker(false, 0f);
-        }
-        else
-        {
-            inputX = rawInputX;
-            movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
-            movementModule.TryFaceByInput(inputX, IsGroundMovementAllowed(), IsGroundedNow);
-        }
+        movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
+        movementModule.TryFaceByInput(inputX, true, IsGroundedNow);
 
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
         jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
 
         if (snapshot.ApexThrowDownPressed)
         {
-            PlayerJumpModule.ApexThrowResult apexThrowResult =
-                jumpModule.TryPerformApexThrow(apexCtx, rawInputX);
-
+            PlayerJumpModule.ApexThrowResult apexThrowResult = jumpModule.TryPerformApexThrow(apexCtx, rawInputX);
             if (apexThrowResult.DidThrow)
             {
-                movementModule.SetAirVx(apexThrowResult.AirVx);
-                movementModule.ResetSprint();
                 bounceModule.NotifyJumpImpulse(Time.time);
                 return;
             }
         }
 
-        if (snapshot.JumpHeld)
-        {
-            jumpModule.MarkHoldJumpPressed(PlayerInputModule.HoldSource.Mobile, Time.time);
-        }
+        if (snapshot.JumpDown)
+            jumpModule.MarkJumpPressed(PlayerInputModule.HoldSource.Mobile, Time.time);
+    }
 
-        if (snapshot.JumpHeld)
-        {
-            PlayerJumpModule.JumpContext jumpCtx = BuildJumpContext();
-
-            if (!jumpModule.IsJumpHoldActive &&
-                jumpModule.AllowInstantMaxChargeFromSprint &&
-                jumpCtx.SprintChargedJumpReady)
-            {
-                PlayerJumpModule.JumpActionResult instantResult =
-                    jumpModule.TryPerformInstantMaxChargedJump(jumpCtx);
-
-                if (instantResult.DidJump)
-                {
-                    inputX = 0f;
-                    OnJumpPerformed(instantResult.TakeoffVx, instantResult.WasChargedJump);
-                    return;
-                }
-            }
-
-            if (!jumpModule.IsJumpHoldActive && jumpModule.CanStartJumpCharge(jumpCtx))
-            {
-                jumpModule.BeginJumpHold(PlayerInputModule.HoldSource.Mobile, Time.time, false);
-                inputX = 0f;
-                movementModule.RefreshImmediateSprintBlocker(false, 0f);
-            }
-
-            if (jumpModule.IsJumpHoldActive)
-            {
-                inputX = 0f;
-
-                jumpModule.UpdateJumpHold(
-                    Time.time,
-                    jumpModule.IsWithinGroundedJumpWindow(BuildJumpContext()));
-            }
-        }
-        else
-        {
-            if (jumpModule.IsJumpHoldActive)
-            {
-                PlayerJumpModule.JumpActionResult releaseResult =
-                    jumpModule.ReleaseJumpHoldAndMaybeJump(BuildJumpContext());
-
-                if (releaseResult.DidJump)
-                    OnJumpPerformed(releaseResult.TakeoffVx, releaseResult.WasChargedJump);
-            }
-        }
+    private void UpdateControlledJumpHold()
+    {
+        PlayerInputModule.HoldSource source = jumpModule.CurrentHoldSource;
+        bool isHeld = source != PlayerInputModule.HoldSource.None && inputModule.IsHoldInputStillHeld(source);
+        jumpModule.UpdateJumpHold(BuildJumpContext(), isHeld, Time.deltaTime);
     }
 
     private void OnJumpPerformed(float takeoffVx, bool wasChargedJump)
     {
         movementModule.OnJumpPerformed(takeoffVx);
-
-        if (wasChargedJump)
-            movementModule.ResetSprint();
-
+        resetSprintAfterLanding = true;
         bounceModule.NotifyJumpImpulse(Time.time);
-    }
-
-    private bool IsGroundMovementAllowed()
-    {
-        return !jumpModule.IsJumpHoldActive && !jumpModule.IsChargingJump;
     }
 
     private void RefreshPresentation()
     {
         presentationModule.RefreshPresentation(
-            jumpModule.IsFatigued(Time.time),
             jumpModule.IsJumpHoldActiveForPresentation,
             jumpModule.IsChargeVisualActive,
             jumpModule.ChargeBarNormalizedForPresentation,
@@ -462,36 +300,34 @@ public class PlayerController : MonoBehaviour
             {
                 trackedMinAirborneY = Mathf.Min(trackedMinAirborneY, rb.velocity.y);
             }
-
-            return;
         }
-
-        if (!groundModule.JustLanded)
-            ResetLandingTracking();
+        else if (hasAirborneFallData)
+        {
+            trackedMinAirborneY = Mathf.Min(trackedMinAirborneY, rb.velocity.y);
+        }
     }
 
     private void TryPlayLandingCameraShake()
     {
-        if (!enableLandingCameraShake)
+        if (!enableLandingCameraShake || !hasAirborneFallData)
         {
             ResetLandingTracking();
             return;
         }
 
-        if (!hasAirborneFallData)
-            return;
-
-        float fallSpeed = Mathf.Abs(Mathf.Min(trackedMinAirborneY, 0f));
-        ResetLandingTracking();
-
+        float fallSpeed = Mathf.Abs(Mathf.Min(0f, trackedMinAirborneY));
         if (fallSpeed < landingShakeMinFallSpeed)
+        {
+            ResetLandingTracking();
             return;
+        }
 
-        float maxSpeed = Mathf.Max(landingShakeMinFallSpeed + 0.01f, landingShakeMaxFallSpeed);
-        float t = Mathf.InverseLerp(landingShakeMinFallSpeed, maxSpeed, fallSpeed);
+        float denom = Mathf.Max(0.0001f, landingShakeMaxFallSpeed - landingShakeMinFallSpeed);
+        float t = Mathf.Clamp01((fallSpeed - landingShakeMinFallSpeed) / denom);
         float strength = Mathf.Lerp(landingShakeMinStrength, landingShakeMaxStrength, t);
 
         CamController.CameraShake?.Invoke(strength, landingShakeHoldTime, landingShakeFadeTime);
+        ResetLandingTracking();
     }
 
     private void ResetLandingTracking()
@@ -544,6 +380,7 @@ public class PlayerController : MonoBehaviour
     private void ResetGameplayInputState(bool clearMobileHold)
     {
         inputX = 0f;
+        resetSprintAfterLanding = false;
         inputModule.ResetModuleInputState(clearMobileHold);
         jumpModule.ResetJumpInputState();
         movementModule.ResetSprint();

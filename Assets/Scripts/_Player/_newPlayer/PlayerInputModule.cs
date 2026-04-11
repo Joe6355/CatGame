@@ -16,88 +16,81 @@ public class PlayerInputModule : MonoBehaviour
     {
         public float MoveX;
         public bool IsRebinding;
-        public bool ShortJumpDown;
         public bool ApexThrowDownPressed;
-        public HoldSource ChargeDownSource;
+        public HoldSource JumpDownSource;
     }
 
     public struct MobileInputSnapshot
     {
         public float MoveX;
+        public bool JumpDown;
         public bool JumpHeld;
+        public bool JumpReleased;
         public bool ApexThrowDownPressed;
     }
 
     [Header("Клавиатура и мышь (PC)")]
-    [SerializeField, Tooltip("Клавиша движения влево (PC).\nРекоменд: A или LeftArrow.")]
+    [SerializeField, Tooltip("Клавиша движения влево (PC).")]
     private KeyCode leftKey = KeyCode.A;
 
-    [SerializeField, Tooltip("Клавиша движения вправо (PC).\nРекоменд: D или RightArrow.")]
+    [SerializeField, Tooltip("Клавиша движения вправо (PC).")]
     private KeyCode rightKey = KeyCode.D;
 
-    [SerializeField, Tooltip("Клавиша сильного/зарядного прыжка (PC). По умолчанию Space.")]
+    [SerializeField, Tooltip("Главная клавиша прыжка (PC). Прыжок срабатывает сразу по нажатию.")]
     private KeyCode jumpKey = KeyCode.Space;
 
-    [SerializeField, Tooltip("Клавиша отдельного слабого прыжка (PC). По умолчанию LeftShift.")]
-    private KeyCode shortJumpKey = KeyCode.LeftShift;
-
-    [SerializeField, Tooltip("Дополнительная клавиша отдельного слабого прыжка (PC). Можно оставить None.")]
-    private KeyCode alternateShortJumpKey = KeyCode.RightShift;
-
-    [SerializeField, Tooltip("Клавиша вниз для броска после вершины сильного прыжка. По умолчанию S.")]
+    [SerializeField, Tooltip("Клавиша вниз для броска после вершины прыжка.")]
     private KeyCode apexThrowDownKey = KeyCode.S;
 
-    [SerializeField, Tooltip("Дополнительная клавиша вниз для броска после вершины сильного прыжка. По умолчанию DownArrow.")]
+    [SerializeField, Tooltip("Дополнительная клавиша вниз для броска после вершины прыжка.")]
     private KeyCode alternateApexThrowDownKey = KeyCode.DownArrow;
 
     [Header("Геймпад (desktop)")]
-    [SerializeField, Tooltip("Если ВКЛ — в desktop-режиме (useMobileControls = false) будут работать и кнопки геймпада.")]
+    [SerializeField, Tooltip("Если ВКЛ — в desktop-режиме дополнительно читается геймпад.")]
     private bool useGamepadJump = true;
 
-    [SerializeField, Tooltip("Кнопка геймпада для сильного/зарядного прыжка. Обычно A / Cross (JoystickButton0).")]
-    private KeyCode gamepadChargeJumpKey = KeyCode.JoystickButton0;
+    [SerializeField, Tooltip("Кнопка геймпада для обычного прыжка. Обычно A / Cross (JoystickButton0).")]
+    private KeyCode gamepadJumpKey = KeyCode.JoystickButton0;
 
-    [SerializeField, Tooltip("Отдельная кнопка геймпада для слабого прыжка. Обычно B / Circle (JoystickButton1).")]
-    private KeyCode gamepadShortJumpKey = KeyCode.JoystickButton1;
-
-    [SerializeField, Tooltip("Если ВКЛ — для броска после вершины сильного прыжка дополнительно читается ось Vertical.\nНужно для стика/крестовины геймпада и мобильного джойстика.")]
+    [SerializeField, Tooltip("Если ВКЛ — для броска после вершины дополнительно читается ось Vertical.")]
     private bool useVerticalAxisForApexThrow = true;
 
     [SerializeField, Tooltip("Имя вертикальной оси в Input Manager. Обычно Vertical.")]
     private string verticalAxisName = "Vertical";
 
-    [SerializeField, Range(-1f, 0f), Tooltip("Насколько сильно нужно нажать вниз по оси Vertical, чтобы засчитать команду броска.\nНапример -0.65 = заметное отклонение стика вниз.")]
+    [SerializeField, Range(-1f, 0f), Tooltip("Порог нажатия вниз по оси Vertical для команды apex throw.")]
     private float apexThrowDownAxisThreshold = -0.65f;
 
     [Header("Legacy Rebind (KeyCode)")]
-    [SerializeField, Tooltip("If ON and LegacyKeycodeRebind exists, this module reads keys from it (UI rebind). If OFF or missing, uses local KeyCode fields below.")]
+    [SerializeField, Tooltip("Если ВКЛ и LegacyKeycodeRebind существует, бинды берутся из него.")]
     private bool useLegacyKeycodeRebind = true;
 
-    [SerializeField, Tooltip("If ON, when no keyboard move key is pressed we use InputManager axis 'Horizontal' as fallback (usually gamepad stick). NOTE: if your InputManager Horizontal still has A/D, those may move unless we block the common keys below.")]
+    [SerializeField, Tooltip("Если ВКЛ и цифровые клавиши движения не нажаты, читается ось Horizontal из Input Manager.")]
     private bool useInputManagerAxisFallback = true;
 
     [Header("Мобильное управление")]
-    [SerializeField, Tooltip("Если ВКЛ — используются мобильные элементы управления (джойстик + кнопка), PC-ввод при этом игнорируется.\nРекоменд: true для телефона, false для ПК.")]
+    [SerializeField, Tooltip("Если ВКЛ — используются мобильные элементы управления (джойстик + кнопка прыжка).")]
     private bool useMobileControls = false;
 
-    [SerializeField, Tooltip("Ссылка на Joystick (обычно UI-джойстик на Canvas).\nРекоменд: назначить, если useMobileControls = true.")]
+    [SerializeField, Tooltip("Ссылка на UI-джойстик для мобильного движения.")]
     private Joystick mobileJoystick;
 
-    [SerializeField, Tooltip("UI-кнопка прыжка для мобилки (удержание/отпускание).\nРекоменд: назначить, если useMobileControls = true.")]
+    [SerializeField, Tooltip("UI-кнопка прыжка для мобилки. Удержание этой кнопки продлевает подъём прыжка.")]
     private Button mobileJumpButton;
 
     [Header("Безопасное включение ввода (после меню)")]
-    [SerializeField, Tooltip("Если ВКЛ — после возврата из меню/паузы ввод не включится, пока игрок не отпустит уже зажатые кнопки управления/прыжка.\nЭто защищает от 'наследования' ввода после UI.")]
+    [SerializeField, Tooltip("Если ВКЛ — после возврата из меню/паузы ввод не включится, пока игрок не отпустит зажатые кнопки.")]
     private bool waitReleaseAfterInputEnable = true;
 
-    [SerializeField, Tooltip("Задержка в секундах после разрешения ввода, прежде чем геймплей снова начнёт читать кнопки.\nНужно, чтобы избежать случайного нажатия из UI.\nРекоменд: 0.03–0.12 сек (часто 0.05–0.08).")]
+    [SerializeField, Tooltip("Небольшая задержка после включения ввода, чтобы не словить случайный клик из UI.")]
     private float postMenuInputUnlockDelay = 0.06f;
 
-    [SerializeField, Tooltip("Порог абсолютного значения для оси Horizontal, выше которого считаем, что ось/стик ещё удерживается.\nРекоменд: 0.15–0.35 (часто 0.2).")]
+    [SerializeField, Tooltip("Порог абсолютного значения для оси Horizontal, выше которого считаем, что ось ещё удерживается.")]
     private float inputReleaseAxisDeadZone = 0.2f;
 
     private bool prevUseMobileControls = false;
     private bool mobileJumpHeld = false;
+    private bool prevMobileJumpHeld = false;
     private bool prevDesktopApexThrowDownHeld = false;
     private bool prevMobileApexThrowDownHeld = false;
 
@@ -156,12 +149,11 @@ public class PlayerInputModule : MonoBehaviour
         {
             MoveX = 0f,
             IsRebinding = false,
-            ShortJumpDown = false,
             ApexThrowDownPressed = false,
-            ChargeDownSource = HoldSource.None
+            JumpDownSource = HoldSource.None
         };
 
-        var rebind = GetLegacyRebind();
+        LegacyKeycodeRebind rebind = GetLegacyRebind();
 
         if (rebind != null && rebind.IsRebinding)
         {
@@ -191,36 +183,36 @@ public class PlayerInputModule : MonoBehaviour
             }
         }
 
-        snapshot.MoveX = (dir != 0) ? dir : axis;
+        snapshot.MoveX = dir != 0 ? dir : axis;
 
-        bool keyboardChargeDown = GetKeyboardChargeJumpDown();
-        bool gamepadChargeDown = GetGamepadChargeJumpDown();
+        bool keyboardJumpDown = GetKeyboardJumpDown();
+        bool gamepadJumpDown = GetGamepadJumpDown();
 
-        if (keyboardChargeDown || gamepadChargeDown)
+        if (keyboardJumpDown || gamepadJumpDown)
         {
-            snapshot.ChargeDownSource =
-                (gamepadChargeDown && !keyboardChargeDown)
+            snapshot.JumpDownSource = (gamepadJumpDown && !keyboardJumpDown)
                 ? HoldSource.GamepadCharge
                 : HoldSource.Keyboard;
         }
 
-        // Если в ребинде кто-то повесил short и charge на одну и ту же кнопку,
-        // приоритет отдаём зарядному прыжку, чтобы Space не вызывал слабый прыжок.
-        snapshot.ShortJumpDown = !keyboardChargeDown && !gamepadChargeDown && GetDesktopShortJumpDown();
         snapshot.ApexThrowDownPressed = GetDesktopApexThrowDownPressed();
-
         return snapshot;
     }
 
     public MobileInputSnapshot ReadMobileInputFrame()
     {
+        bool currentHeld = mobileJumpHeld;
+
         MobileInputSnapshot snapshot = new MobileInputSnapshot
         {
             MoveX = mobileJoystick != null ? mobileJoystick.Horizontal : 0f,
-            JumpHeld = mobileJumpHeld,
+            JumpDown = currentHeld && !prevMobileJumpHeld,
+            JumpHeld = currentHeld,
+            JumpReleased = !currentHeld && prevMobileJumpHeld,
             ApexThrowDownPressed = GetMobileApexThrowDownPressed()
         };
 
+        prevMobileJumpHeld = currentHeld;
         return snapshot;
     }
 
@@ -229,7 +221,7 @@ public class PlayerInputModule : MonoBehaviour
         switch (source)
         {
             case HoldSource.GamepadCharge:
-                return GetGamepadChargeJumpHeld();
+                return GetGamepadJumpHeld();
 
             case HoldSource.Mobile:
                 return mobileJumpHeld;
@@ -237,7 +229,7 @@ public class PlayerInputModule : MonoBehaviour
             case HoldSource.Keyboard:
             case HoldSource.None:
             default:
-                return GetKeyboardChargeJumpHeld();
+                return GetKeyboardJumpHeld();
         }
     }
 
@@ -246,7 +238,7 @@ public class PlayerInputModule : MonoBehaviour
         switch (source)
         {
             case HoldSource.GamepadCharge:
-                return GetGamepadChargeJumpUp();
+                return GetGamepadJumpUp();
 
             case HoldSource.Mobile:
                 return !mobileJumpHeld;
@@ -254,7 +246,7 @@ public class PlayerInputModule : MonoBehaviour
             case HoldSource.Keyboard:
             case HoldSource.None:
             default:
-                return GetKeyboardChargeJumpUp();
+                return GetKeyboardJumpUp();
         }
     }
 
@@ -307,6 +299,7 @@ public class PlayerInputModule : MonoBehaviour
         if (clearMobileHold)
             mobileJumpHeld = false;
 
+        prevMobileJumpHeld = false;
         prevDesktopApexThrowDownHeld = false;
         prevMobileApexThrowDownHeld = false;
     }
@@ -319,85 +312,67 @@ public class PlayerInputModule : MonoBehaviour
         return LegacyKeycodeRebind.I != null ? LegacyKeycodeRebind.I : null;
     }
 
-    private bool GetKeyboardChargeJumpDown()
+    private bool GetKeyboardJumpDown()
     {
-        var rebind = GetLegacyRebind();
+        LegacyKeycodeRebind rebind = GetLegacyRebind();
         if (rebind != null)
             return rebind.GetDown(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold);
 
         return Input.GetKeyDown(jumpKey);
     }
 
-    private bool GetKeyboardChargeJumpHeld()
+    private bool GetKeyboardJumpHeld()
     {
-        var rebind = GetLegacyRebind();
+        LegacyKeycodeRebind rebind = GetLegacyRebind();
         if (rebind != null)
             return rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold);
 
         return Input.GetKey(jumpKey);
     }
 
-    private bool GetKeyboardChargeJumpUp()
+    private bool GetKeyboardJumpUp()
     {
-        var rebind = GetLegacyRebind();
+        LegacyKeycodeRebind rebind = GetLegacyRebind();
         if (rebind != null)
             return rebind.GetUp(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold);
 
         return Input.GetKeyUp(jumpKey);
     }
 
-    private bool GetGamepadChargeJumpDown()
+    private bool GetGamepadJumpDown()
     {
         if (!useGamepadJump)
             return false;
 
-        var rebind = GetLegacyRebind();
+        LegacyKeycodeRebind rebind = GetLegacyRebind();
         if (rebind != null)
             return rebind.GetDown(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold);
 
-        return Input.GetKeyDown(gamepadChargeJumpKey);
+        return Input.GetKeyDown(gamepadJumpKey);
     }
 
-    private bool GetGamepadChargeJumpHeld()
+    private bool GetGamepadJumpHeld()
     {
         if (!useGamepadJump)
             return false;
 
-        var rebind = GetLegacyRebind();
+        LegacyKeycodeRebind rebind = GetLegacyRebind();
         if (rebind != null)
             return rebind.GetHeld(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold);
 
-        return Input.GetKey(gamepadChargeJumpKey);
+        return Input.GetKey(gamepadJumpKey);
     }
 
-    private bool GetGamepadChargeJumpUp()
+    private bool GetGamepadJumpUp()
     {
         if (!useGamepadJump)
             return false;
 
-        var rebind = GetLegacyRebind();
+        LegacyKeycodeRebind rebind = GetLegacyRebind();
         if (rebind != null)
             return rebind.GetUp(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold);
 
-        return Input.GetKeyUp(gamepadChargeJumpKey);
-    }
-
-    private bool GetDesktopShortJumpDown()
-    {
-        var rebind = GetLegacyRebind();
-
-        if (rebind != null)
-        {
-            bool kb = rebind.GetDown(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpShort);
-            bool gp = useGamepadJump && rebind.GetDown(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpShort);
-            return kb || gp;
-        }
-
-        bool keyboardShort = Input.GetKeyDown(shortJumpKey) ||
-                             (alternateShortJumpKey != KeyCode.None && Input.GetKeyDown(alternateShortJumpKey));
-
-        bool gamepadShort = useGamepadJump && Input.GetKeyDown(gamepadShortJumpKey);
-        return keyboardShort || gamepadShort;
+        return Input.GetKeyUp(gamepadJumpKey);
     }
 
     private bool AreAnyGameplayInputsStillHeld()
@@ -419,34 +394,27 @@ public class PlayerInputModule : MonoBehaviour
             return false;
         }
 
-        var rebind = GetLegacyRebind();
+        LegacyKeycodeRebind rebind = GetLegacyRebind();
 
         if (rebind != null)
         {
             if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveLeft)) return true;
             if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveRight)) return true;
             if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold)) return true;
-            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpShort)) return true;
 
-            if (useGamepadJump)
-            {
-                if (rebind.GetHeld(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold)) return true;
-                if (rebind.GetHeld(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpShort)) return true;
-            }
+            if (useGamepadJump && rebind.GetHeld(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold))
+                return true;
         }
         else
         {
-            bool keyboardShortHeld = Input.GetKey(shortJumpKey) ||
-                                     (alternateShortJumpKey != KeyCode.None && Input.GetKey(alternateShortJumpKey));
-
             bool apexThrowDownHeld =
                 Input.GetKey(apexThrowDownKey) ||
                 (alternateApexThrowDownKey != KeyCode.None && Input.GetKey(alternateApexThrowDownKey));
 
-            if (Input.GetKey(leftKey) || Input.GetKey(rightKey) || Input.GetKey(jumpKey) || keyboardShortHeld || apexThrowDownHeld)
+            if (Input.GetKey(leftKey) || Input.GetKey(rightKey) || Input.GetKey(jumpKey) || apexThrowDownHeld)
                 return true;
 
-            if (useGamepadJump && (Input.GetKey(gamepadChargeJumpKey) || Input.GetKey(gamepadShortJumpKey)))
+            if (useGamepadJump && Input.GetKey(gamepadJumpKey))
                 return true;
         }
 
@@ -507,7 +475,6 @@ public class PlayerInputModule : MonoBehaviour
             return;
 
         UnhookMobileButton();
-
         hookedMobileJumpButton = mobileJumpButton;
 
         if (hookedMobileJumpButton == null)
