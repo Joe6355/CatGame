@@ -9,6 +9,7 @@
 [RequireComponent(typeof(PlayerBounceModule))]
 [RequireComponent(typeof(PlayerPresentationModule))]
 [RequireComponent(typeof(PlayerLedgeModule))]
+[RequireComponent(typeof(PlayerFenceClimbModule))]
 public class PlayerController : MonoBehaviour
 {
     [Header("Ссылки на модули")]
@@ -20,6 +21,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private PlayerBounceModule bounceModule;
     [SerializeField] private PlayerPresentationModule presentationModule;
     [SerializeField] private PlayerLedgeModule ledgeModule;
+    [SerializeField] private PlayerFenceClimbModule fenceClimbModule;
 
     [Header("Камера: отдаление при спринте")]
     [SerializeField, Tooltip("Если ВКЛ — PlayerController будет передавать в CamController текущий уровень спринта, чтобы камера могла плавно отдаляться на разгоне и возвращаться обратно после спринта.")]
@@ -102,7 +104,10 @@ public class PlayerController : MonoBehaviour
             else
                 HandleMobileInput(inputModule.ReadMobileInputFrame());
 
-            if (ledgeModule == null || !ledgeModule.BlocksStandardController)
+            bool fenceActive = fenceClimbModule != null && fenceClimbModule.BlocksStandardController;
+            bool ledgeActive = ledgeModule != null && ledgeModule.BlocksStandardController;
+
+            if (!fenceActive && !ledgeActive)
             {
                 UpdateControlledJumpHold();
 
@@ -122,9 +127,10 @@ public class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        bool fenceActive = fenceClimbModule != null && fenceClimbModule.BlocksStandardController;
         bool ledgeActive = ledgeModule != null && ledgeModule.BlocksStandardController;
 
-        if (!ledgeActive)
+        if (!fenceActive && !ledgeActive)
         {
             groundModule.EvaluateGround(rb, Time.time, jumpModule.CoyoteTime);
 
@@ -144,6 +150,13 @@ public class PlayerController : MonoBehaviour
             }
         }
 
+        bool fenceControlled = fenceClimbModule != null && fenceClimbModule.ApplyFenceMotion(rb);
+        if (fenceControlled)
+        {
+            environmentModule.ClearFrameWind();
+            return;
+        }
+
         bool ledgeControlled = ledgeModule != null && ledgeModule.ApplyLedgeMotion(rb, movementModule);
         if (ledgeControlled)
         {
@@ -161,6 +174,7 @@ public class PlayerController : MonoBehaviour
         CamController.ChangeSprintZoomBlendEvent?.Invoke(0f);
         ResetLandingTracking();
         resetSprintAfterLanding = false;
+        fenceClimbModule?.ForceCancel(false);
         ledgeModule?.ForceCancel();
     }
 
@@ -175,6 +189,7 @@ public class PlayerController : MonoBehaviour
         if (bounceModule == null) bounceModule = GetComponent<PlayerBounceModule>();
         if (presentationModule == null) presentationModule = GetComponent<PlayerPresentationModule>();
         if (ledgeModule == null) ledgeModule = GetComponent<PlayerLedgeModule>();
+        if (fenceClimbModule == null) fenceClimbModule = GetComponent<PlayerFenceClimbModule>();
     }
 
     private PlayerJumpModule.JumpContext BuildJumpContext()
@@ -215,11 +230,31 @@ public class PlayerController : MonoBehaviour
 
     private void HandleDesktopInput(PlayerInputModule.DesktopInputSnapshot snapshot)
     {
+        bool jumpPressed = snapshot.JumpDownSource != PlayerInputModule.HoldSource.None;
+
         if (snapshot.IsRebinding)
         {
             inputX = 0f;
             movementModule.RefreshImmediateSprintBlocker(false, 0f);
+            fenceClimbModule?.TickFence(0f, 0f, false, false, movementModule, jumpModule);
+            if (fenceClimbModule != null && fenceClimbModule.BlocksStandardController)
+                return;
+
             ledgeModule?.TickLedge(0f, IsGroundedNow, snapshot.LedgeUpPressed, snapshot.ApexThrowDownPressed, movementModule, jumpModule);
+            return;
+        }
+
+        if (fenceClimbModule != null && fenceClimbModule.BlocksStandardController)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+
+            PlayerFenceClimbModule.FenceTickResult fenceResult =
+                fenceClimbModule.TickFence(snapshot.MoveX, snapshot.ClimbY, snapshot.FenceTogglePressed, jumpPressed, movementModule, jumpModule);
+
+            if (fenceResult.DidJumpOff)
+                OnFenceJumpPerformed(fenceResult.TakeoffVx);
+
             return;
         }
 
@@ -233,6 +268,21 @@ public class PlayerController : MonoBehaviour
 
         float rawInputX = snapshot.MoveX;
         inputX = rawInputX;
+
+        PlayerFenceClimbModule.FenceTickResult preFenceResult =
+            fenceClimbModule != null
+                ? fenceClimbModule.TickFence(rawInputX, snapshot.ClimbY, snapshot.FenceTogglePressed, jumpPressed, movementModule, jumpModule)
+                : default;
+
+        if (preFenceResult.DidJumpOff)
+            OnFenceJumpPerformed(preFenceResult.TakeoffVx);
+
+        if (fenceClimbModule != null && fenceClimbModule.BlocksStandardController)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+            return;
+        }
 
         movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
         movementModule.TryFaceByInput(inputX, true, IsGroundedNow);
@@ -258,12 +308,26 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        if (snapshot.JumpDownSource != PlayerInputModule.HoldSource.None)
+        if (jumpPressed)
             jumpModule.MarkJumpPressed(snapshot.JumpDownSource, Time.time);
     }
 
     private void HandleMobileInput(PlayerInputModule.MobileInputSnapshot snapshot)
     {
+        if (fenceClimbModule != null && fenceClimbModule.BlocksStandardController)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+
+            PlayerFenceClimbModule.FenceTickResult fenceResult =
+                fenceClimbModule.TickFence(snapshot.MoveX, snapshot.ClimbY, snapshot.FenceTogglePressed, snapshot.JumpDown, movementModule, jumpModule);
+
+            if (fenceResult.DidJumpOff)
+                OnFenceJumpPerformed(fenceResult.TakeoffVx);
+
+            return;
+        }
+
         if (ledgeModule != null && ledgeModule.BlocksStandardController)
         {
             inputX = 0f;
@@ -274,6 +338,21 @@ public class PlayerController : MonoBehaviour
 
         float rawInputX = snapshot.MoveX;
         inputX = rawInputX;
+
+        PlayerFenceClimbModule.FenceTickResult preFenceResult =
+            fenceClimbModule != null
+                ? fenceClimbModule.TickFence(rawInputX, snapshot.ClimbY, snapshot.FenceTogglePressed, snapshot.JumpDown, movementModule, jumpModule)
+                : default;
+
+        if (preFenceResult.DidJumpOff)
+            OnFenceJumpPerformed(preFenceResult.TakeoffVx);
+
+        if (fenceClimbModule != null && fenceClimbModule.BlocksStandardController)
+        {
+            inputX = 0f;
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+            return;
+        }
 
         movementModule.RefreshImmediateSprintBlocker(IsGroundedNow, inputX);
         movementModule.TryFaceByInput(inputX, true, IsGroundedNow);
@@ -311,6 +390,13 @@ public class PlayerController : MonoBehaviour
     }
 
     private void OnJumpPerformed(float takeoffVx, bool wasChargedJump)
+    {
+        movementModule.OnJumpPerformed(takeoffVx);
+        resetSprintAfterLanding = true;
+        bounceModule.NotifyJumpImpulse(Time.time);
+    }
+
+    private void OnFenceJumpPerformed(float takeoffVx)
     {
         movementModule.OnJumpPerformed(takeoffVx);
         resetSprintAfterLanding = true;
@@ -390,16 +476,22 @@ public class PlayerController : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (ledgeModule != null && ledgeModule.IsActive)
+        if ((fenceClimbModule != null && fenceClimbModule.IsActive) ||
+            (ledgeModule != null && ledgeModule.IsActive))
+        {
             return;
+        }
 
         bounceModule.HandleBounce(collision, rb, jumpModule, movementModule, ExternalWindVX, Time.time);
     }
 
     private void OnCollisionStay2D(Collision2D collision)
     {
-        if (ledgeModule != null && ledgeModule.IsActive)
+        if ((fenceClimbModule != null && fenceClimbModule.IsActive) ||
+            (ledgeModule != null && ledgeModule.IsActive))
+        {
             return;
+        }
 
         bounceModule.HandleBounce(collision, rb, jumpModule, movementModule, ExternalWindVX, Time.time);
     }
@@ -443,6 +535,7 @@ public class PlayerController : MonoBehaviour
         jumpModule.ResetJumpInputState();
         movementModule.ResetSprint();
         movementModule.RefreshImmediateSprintBlocker(false, 0f);
+        fenceClimbModule?.ClearMoveInput();
         PushSprintCameraFeedback();
     }
 
