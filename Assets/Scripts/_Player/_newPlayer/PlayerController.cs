@@ -1,4 +1,7 @@
 ﻿using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(PlayerEnvironmentModule))]
@@ -31,10 +34,10 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Tooltip("Если ВКЛ — после сильного падения при приземлении будет вызываться лёгкая тряска камеры.")]
     private bool enableLandingCameraShake = true;
 
-    [SerializeField, Min(0f), Tooltip("Минимальная скорость падения вниз по Y, после которой приземление уже считается достаточно жёстким для тряски камеры.")]
+    [SerializeField, Min(0f), Tooltip("Минимальная скорость падения вниз по Y, после которой приземление уже считается достаточно жёстким для тряски камеры и вибрации.")]
     private float landingShakeMinFallSpeed = 10f;
 
-    [SerializeField, Min(0f), Tooltip("Скорость падения вниз, на которой сила тряски достигает максимума.")]
+    [SerializeField, Min(0f), Tooltip("Скорость падения вниз, на которой сила тряски и вибрации достигает максимума.")]
     private float landingShakeMaxFallSpeed = 20f;
 
     [SerializeField, Min(0f), Tooltip("Минимальная сила лёгкой тряски при самом слабом подходящем жёстком приземлении.")]
@@ -49,12 +52,39 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Сколько секунд плавно затухает тряска после жёсткого приземления.")]
     private float landingShakeFadeTime = 0.12f;
 
+    [Header("Геймпад: вибрация при жёстком приземлении")]
+    [SerializeField, Tooltip("Если ВКЛ — жёсткое приземление дополнительно запускает вибрацию на геймпаде.")]
+    private bool enableLandingGamepadRumble = true;
+
+    [SerializeField, Min(0f), Tooltip("Минимальная сила левого low-frequency мотора при слабом жёстком приземлении.")]
+    private float landingRumbleMinLow = 0.20f;
+
+    [SerializeField, Min(0f), Tooltip("Максимальная сила левого low-frequency мотора при очень жёстком приземлении.")]
+    private float landingRumbleMaxLow = 0.85f;
+
+    [SerializeField, Min(0f), Tooltip("Минимальная сила правого high-frequency мотора при слабом жёстком приземлении.")]
+    private float landingRumbleMinHigh = 0.10f;
+
+    [SerializeField, Min(0f), Tooltip("Максимальная сила правого high-frequency мотора при очень жёстком приземлении.")]
+    private float landingRumbleMaxHigh = 0.45f;
+
+    [SerializeField, Min(0f), Tooltip("Минимальная длительность вибрации.")]
+    private float landingRumbleMinDuration = 0.06f;
+
+    [SerializeField, Min(0f), Tooltip("Максимальная длительность вибрации.")]
+    private float landingRumbleMaxDuration = 0.18f;
+
     private Rigidbody2D rb;
     private float inputX = 0f;
     private bool resetSprintAfterLanding = false;
 
     private float trackedMinAirborneY = 0f;
     private bool hasAirborneFallData = false;
+
+#if ENABLE_INPUT_SYSTEM
+    private float rumbleStopAtUnscaled = -1f;
+    private bool rumbleActive = false;
+#endif
 
     private float ExternalWindVX => environmentModule != null ? environmentModule.ExternalWindVX : 0f;
     private float SnowMoveMul => environmentModule != null ? environmentModule.SnowMoveMultiplier : 1f;
@@ -85,6 +115,13 @@ public class PlayerController : MonoBehaviour
         landingShakeMaxStrength = Mathf.Max(landingShakeMinStrength, landingShakeMaxStrength);
         landingShakeHoldTime = Mathf.Max(0f, landingShakeHoldTime);
         landingShakeFadeTime = Mathf.Max(0f, landingShakeFadeTime);
+
+        landingRumbleMinLow = Mathf.Max(0f, landingRumbleMinLow);
+        landingRumbleMaxLow = Mathf.Max(landingRumbleMinLow, landingRumbleMaxLow);
+        landingRumbleMinHigh = Mathf.Max(0f, landingRumbleMinHigh);
+        landingRumbleMaxHigh = Mathf.Max(landingRumbleMinHigh, landingRumbleMaxHigh);
+        landingRumbleMinDuration = Mathf.Max(0f, landingRumbleMinDuration);
+        landingRumbleMaxDuration = Mathf.Max(landingRumbleMinDuration, landingRumbleMaxDuration);
     }
 
     private void Start()
@@ -121,6 +158,7 @@ public class PlayerController : MonoBehaviour
             ResetGameplayInputState(false);
         }
 
+        UpdateLandingGamepadRumble();
         PushSprintCameraFeedback();
         RefreshPresentation();
     }
@@ -142,7 +180,7 @@ public class PlayerController : MonoBehaviour
                     resetSprintAfterLanding = false;
                 }
 
-                TryPlayLandingCameraShake();
+                TryPlayLandingFeedback();
 
                 PlayerJumpModule.JumpActionResult bufferResult = jumpModule.TryConsumeJumpBuffer(BuildJumpContext());
                 if (bufferResult.DidJump)
@@ -173,9 +211,15 @@ public class PlayerController : MonoBehaviour
     {
         CamController.ChangeSprintZoomBlendEvent?.Invoke(0f);
         ResetLandingTracking();
+        StopLandingGamepadRumble();
         resetSprintAfterLanding = false;
         fenceClimbModule?.ForceCancel(false);
         ledgeModule?.ForceCancel();
+    }
+
+    private void OnDestroy()
+    {
+        StopLandingGamepadRumble();
     }
 
     private void CacheComponents()
@@ -445,9 +489,9 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    private void TryPlayLandingCameraShake()
+    private void TryPlayLandingFeedback()
     {
-        if (!enableLandingCameraShake || !hasAirborneFallData)
+        if (!hasAirborneFallData)
         {
             ResetLandingTracking();
             return;
@@ -462,10 +506,61 @@ public class PlayerController : MonoBehaviour
 
         float denom = Mathf.Max(0.0001f, landingShakeMaxFallSpeed - landingShakeMinFallSpeed);
         float t = Mathf.Clamp01((fallSpeed - landingShakeMinFallSpeed) / denom);
-        float strength = Mathf.Lerp(landingShakeMinStrength, landingShakeMaxStrength, t);
 
-        CamController.CameraShake?.Invoke(strength, landingShakeHoldTime, landingShakeFadeTime);
+        if (enableLandingCameraShake)
+        {
+            float strength = Mathf.Lerp(landingShakeMinStrength, landingShakeMaxStrength, t);
+            CamController.CameraShake?.Invoke(strength, landingShakeHoldTime, landingShakeFadeTime);
+        }
+
+        if (enableLandingGamepadRumble)
+            PlayLandingGamepadRumble(t);
+
         ResetLandingTracking();
+    }
+
+    private void PlayLandingGamepadRumble(float normalizedStrength)
+    {
+#if ENABLE_INPUT_SYSTEM
+        Gamepad pad = Gamepad.current;
+        if (pad == null)
+            return;
+
+        float t = Mathf.Clamp01(normalizedStrength);
+
+        float low = Mathf.Lerp(landingRumbleMinLow, landingRumbleMaxLow, t);
+        float high = Mathf.Lerp(landingRumbleMinHigh, landingRumbleMaxHigh, t);
+        float duration = Mathf.Lerp(landingRumbleMinDuration, landingRumbleMaxDuration, t);
+
+        pad.SetMotorSpeeds(low, high);
+        rumbleStopAtUnscaled = Time.unscaledTime + duration;
+        rumbleActive = true;
+#endif
+    }
+
+    private void UpdateLandingGamepadRumble()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (!rumbleActive)
+            return;
+
+        if (Time.unscaledTime < rumbleStopAtUnscaled)
+            return;
+
+        StopLandingGamepadRumble();
+#endif
+    }
+
+    private void StopLandingGamepadRumble()
+    {
+#if ENABLE_INPUT_SYSTEM
+        Gamepad pad = Gamepad.current;
+        if (pad != null)
+            pad.ResetHaptics();
+
+        rumbleActive = false;
+        rumbleStopAtUnscaled = -1f;
+#endif
     }
 
     private void ResetLandingTracking()
@@ -536,6 +631,7 @@ public class PlayerController : MonoBehaviour
         movementModule.ResetSprint();
         movementModule.RefreshImmediateSprintBlocker(false, 0f);
         fenceClimbModule?.ClearMoveInput();
+        StopLandingGamepadRumble();
         PushSprintCameraFeedback();
     }
 
