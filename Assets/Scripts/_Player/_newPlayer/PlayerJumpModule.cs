@@ -207,6 +207,19 @@ public class PlayerJumpModule : MonoBehaviour
             : source;
     }
 
+    public void RegisterExternalJumpImpulse(float now, float appliedVerticalForce)
+    {
+        lastJumpTime = now;
+        lastAppliedJumpForce = Mathf.Abs(appliedVerticalForce);
+
+        hasBufferedJump = false;
+        bufferedHoldSource = PlayerInputModule.HoldSource.None;
+        lastJumpPressedTime = -999f;
+
+        StopControlledJump();
+        ClearApexThrowState();
+    }
+
     public JumpActionResult TryConsumeJumpBuffer(JumpContext ctx)
     {
         TryClearOrbJumpRefreshOnGround(ctx);
@@ -385,6 +398,23 @@ public class PlayerJumpModule : MonoBehaviour
 
         StopControlledJump();
         ClearApexThrowState();
+    }
+
+    public void RegisterExternalJump(float now, float verticalForce, bool armApexThrow = false, float takeoffWorldVx = 0f, bool isFacingRight = true)
+    {
+        lastJumpPressedTime = -999f;
+        hasBufferedJump = false;
+        bufferedHoldSource = PlayerInputModule.HoldSource.None;
+
+        StopControlledJump();
+
+        lastJumpTime = now;
+        lastAppliedJumpForce = Mathf.Abs(verticalForce);
+
+        if (armApexThrow)
+            ArmApexThrowState(takeoffWorldVx, isFacingRight);
+        else
+            ClearApexThrowState();
     }
 
     public Vector2 GetPredictedJumpVelocity(JumpContext ctx)

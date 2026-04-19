@@ -202,7 +202,10 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
+        bounceModule?.RefreshWallState(inputX, IsGroundedNow, Time.time);
         movementModule.ApplyMovement(BuildMovementContext());
+        bounceModule?.ApplyWallSlide(rb, inputX, IsGroundedNow, Time.time);
+
         TrackAirborneLandingData();
         environmentModule.ClearFrameWind();
     }
@@ -215,6 +218,7 @@ public class PlayerController : MonoBehaviour
         resetSprintAfterLanding = false;
         fenceClimbModule?.ForceCancel(false);
         ledgeModule?.ForceCancel();
+        bounceModule?.ResetWallState();
     }
 
     private void OnDestroy()
@@ -339,6 +343,11 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
+        bounceModule?.RefreshWallState(inputX, IsGroundedNow, Time.time);
+
+        if (snapshot.ApexThrowDownPressed && bounceModule != null && bounceModule.TryStartWallSlideDrop(Time.time))
+            return;
+
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
         jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
 
@@ -353,7 +362,19 @@ public class PlayerController : MonoBehaviour
         }
 
         if (jumpPressed)
+        {
+            PlayerBounceModule.WallJumpResult wallJumpResult = bounceModule != null
+                ? bounceModule.TryPerformWallJump(inputX, IsGroundedNow, jumpModule, movementModule, ExternalWindVX, Time.time)
+                : default;
+
+            if (wallJumpResult.DidJump)
+            {
+                OnWallJumpPerformed(wallJumpResult.TakeoffVx);
+                return;
+            }
+
             jumpModule.MarkJumpPressed(snapshot.JumpDownSource, Time.time);
+        }
     }
 
     private void HandleMobileInput(PlayerInputModule.MobileInputSnapshot snapshot)
@@ -409,6 +430,11 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
+        bounceModule?.RefreshWallState(inputX, IsGroundedNow, Time.time);
+
+        if (snapshot.ApexThrowDownPressed && bounceModule != null && bounceModule.TryStartWallSlideDrop(Time.time))
+            return;
+
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
         jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
 
@@ -423,7 +449,19 @@ public class PlayerController : MonoBehaviour
         }
 
         if (snapshot.JumpDown)
+        {
+            PlayerBounceModule.WallJumpResult wallJumpResult = bounceModule != null
+                ? bounceModule.TryPerformWallJump(inputX, IsGroundedNow, jumpModule, movementModule, ExternalWindVX, Time.time)
+                : default;
+
+            if (wallJumpResult.DidJump)
+            {
+                OnWallJumpPerformed(wallJumpResult.TakeoffVx);
+                return;
+            }
+
             jumpModule.MarkJumpPressed(PlayerInputModule.HoldSource.Mobile, Time.time);
+        }
     }
 
     private void UpdateControlledJumpHold()
@@ -438,6 +476,13 @@ public class PlayerController : MonoBehaviour
         movementModule.OnJumpPerformed(takeoffVx);
         resetSprintAfterLanding = true;
         bounceModule.NotifyJumpImpulse(Time.time);
+    }
+
+    private void OnWallJumpPerformed(float takeoffVx)
+    {
+        movementModule.OnJumpPerformed(takeoffVx);
+        movementModule.ResetSprint();
+        resetSprintAfterLanding = true;
     }
 
     private void OnFenceJumpPerformed(float takeoffVx)
@@ -569,28 +614,6 @@ public class PlayerController : MonoBehaviour
         hasAirborneFallData = false;
     }
 
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        if ((fenceClimbModule != null && fenceClimbModule.IsActive) ||
-            (ledgeModule != null && ledgeModule.IsActive))
-        {
-            return;
-        }
-
-        bounceModule.HandleBounce(collision, rb, jumpModule, movementModule, ExternalWindVX, Time.time);
-    }
-
-    private void OnCollisionStay2D(Collision2D collision)
-    {
-        if ((fenceClimbModule != null && fenceClimbModule.IsActive) ||
-            (ledgeModule != null && ledgeModule.IsActive))
-        {
-            return;
-        }
-
-        bounceModule.HandleBounce(collision, rb, jumpModule, movementModule, ExternalWindVX, Time.time);
-    }
-
     public void AllowAirControlFor(float duration)
     {
         movementModule.AllowAirControlFor(duration);
@@ -631,6 +654,7 @@ public class PlayerController : MonoBehaviour
         movementModule.ResetSprint();
         movementModule.RefreshImmediateSprintBlocker(false, 0f);
         fenceClimbModule?.ClearMoveInput();
+        bounceModule?.ResetWallState();
         StopLandingGamepadRumble();
         PushSprintCameraFeedback();
     }
