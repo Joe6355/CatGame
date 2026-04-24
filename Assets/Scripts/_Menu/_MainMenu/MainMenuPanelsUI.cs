@@ -13,7 +13,7 @@ public class MainMenuPanelsUI : MonoBehaviour
     [SerializeField] private GameObject continuePanel;
     [SerializeField] private GameObject controlPanel;
     [SerializeField] private GameObject settingsPanel;
-    [SerializeField] private GameObject exitConfirmDialog; // ConfirmExit_Dialog
+    [SerializeField] private GameObject exitConfirmDialog;
 
     [Header("Settings tabs")]
     [SerializeField, Tooltip("Скрипт вкладок внутри Settings_Panel. Если не задан — попробует найти его внутри settingsPanel.")]
@@ -22,109 +22,95 @@ public class MainMenuPanelsUI : MonoBehaviour
     [SerializeField, Tooltip("Если settingsTabsSwitcher не задан вручную — попробовать найти его внутри settingsPanel.")]
     private bool autoFindSettingsTabsSwitcher = true;
 
-    [Header("Optional CanvasGroups (for modal blocking)")]
-    [SerializeField, Tooltip("CanvasGroup главной панели. Если задан — при открытии диалога выхода mainPanel станет неинтерактивной.")]
+    [Header("Optional CanvasGroups")]
+    [SerializeField, Tooltip("CanvasGroup главной панели. Используется для блокировки главных кнопок при открытом диалоге выхода.")]
     private CanvasGroup mainPanelCanvasGroup;
 
     [Header("Main menu buttons")]
-    [SerializeField] private Button newGameButton;         // (опционально) Btn_NewGame
-    [SerializeField] private Button openContinueButton;    // Btn_Continue
-    [SerializeField] private Button openControlButton;     // Btn_HelpCredits / Btn_Controls
-    [SerializeField] private Button openSettingsButton;    // Btn_Settings
-    [SerializeField] private Button quitButton;            // Btn_Quit
+    [SerializeField] private Button newGameButton;
+    [SerializeField] private Button openContinueButton;
+    [SerializeField] private Button openControlButton;
+    [SerializeField] private Button openSettingsButton;
+    [SerializeField] private Button quitButton;
 
     [Header("Back buttons in panels")]
-    [SerializeField] private Button continueBackButton;    // Btn_Back внутри Continue_Panel
-    [SerializeField] private Button controlBackButton;     // Btn_Back внутри Control_Panel
-    [SerializeField] private Button settingsBackButton;    // Btn_Back внутри Settings_Panel
+    [SerializeField] private Button continueBackButton;
+    [SerializeField] private Button controlBackButton;
+    [SerializeField] private Button settingsBackButton;
 
     [Header("Exit confirm buttons")]
-    [SerializeField] private Button exitYesButton;         // Btn_Yes
-    [SerializeField] private Button exitNoButton;          // Btn_No
+    [SerializeField] private Button exitYesButton;
+    [SerializeField] private Button exitNoButton;
 
     [Header("Reset confirm dialogs (optional)")]
-    [SerializeField, Tooltip("Панель подтверждения сброса клавиатуры.")]
-    private GameObject keyboardResetConfirmDialog;
+    [SerializeField] private GameObject keyboardResetConfirmDialog;
+    [SerializeField] private Button keyboardResetYesButton;
+    [SerializeField] private Button keyboardResetNoButton;
+    [SerializeField] private Button keyboardResetReturnButton;
 
-    [SerializeField, Tooltip("Кнопка Да в окне подтверждения сброса клавиатуры.")]
-    private Button keyboardResetYesButton;
+    [SerializeField] private GameObject gamepadResetConfirmDialog;
+    [SerializeField] private Button gamepadResetYesButton;
+    [SerializeField] private Button gamepadResetNoButton;
+    [SerializeField] private Button gamepadResetReturnButton;
 
-    [SerializeField, Tooltip("Кнопка Нет / Закрыть в окне подтверждения сброса клавиатуры.")]
-    private Button keyboardResetNoButton;
-
-    [SerializeField, Tooltip("Кнопка Reset Keyboard, на которую вернётся выделение после закрытия keyboard confirm.")]
-    private Button keyboardResetReturnButton;
-
-    [SerializeField, Tooltip("Панель подтверждения сброса геймпада.")]
-    private GameObject gamepadResetConfirmDialog;
-
-    [SerializeField, Tooltip("Кнопка Да в окне подтверждения сброса геймпада.")]
-    private Button gamepadResetYesButton;
-
-    [SerializeField, Tooltip("Кнопка Нет / Закрыть в окне подтверждения сброса геймпада.")]
-    private Button gamepadResetNoButton;
-
-    [SerializeField, Tooltip("Кнопка Reset Gamepad, на которую вернётся выделение после закрытия gamepad confirm.")]
-    private Button gamepadResetReturnButton;
-
-    [Header("New Game (optional, from NewGameLoader)")]
-    [SerializeField, Tooltip("Имя сцены для кнопки New Game. Если пусто — кнопка newGameButton ничего не загрузит.")]
+    [Header("New Game")]
+    [SerializeField, Tooltip("Имя сцены для кнопки New Game.")]
     private string newGameSceneName;
 
     [Header("Start state")]
-    [SerializeField, Tooltip("На старте показать mainPanel и скрыть остальные панели/диалог.")]
+    [SerializeField, Tooltip("На старте показать mainPanel и скрыть остальные панели/диалоги.")]
     private bool setupInitialStateOnAwake = true;
 
-    [Header("UI Navigation (keyboard / gamepad)")]
+    [Header("UI Navigation")]
     [SerializeField] private bool enableUiNavigation = true;
 
-    [SerializeField, Tooltip("Если выделение потерялось (клик по пустому месту и т.п.) — восстановить.")]
+    [SerializeField, Tooltip("Если выделение потерялось — восстановить его.")]
     private bool restoreSelectionIfLost = true;
 
-    [SerializeField, Tooltip("Кнопка, которая будет выделена в Main Panel при открытии.")]
-    private Button mainFirstSelected;
-
-    [SerializeField, Tooltip("Кнопка, которая будет выделена в Continue Panel.")]
-    private Button continueFirstSelected;
-
-    [SerializeField, Tooltip("Кнопка, которая будет выделена в Controls Panel.")]
-    private Button controlFirstSelected;
-
-    [SerializeField, Tooltip("Кнопка, которая будет выделена в Settings Panel.")]
-    private Button settingsFirstSelected;
-
-    [SerializeField, Tooltip("Кнопка, которая будет выделена в Exit Confirm (обычно No).")]
-    private Button exitConfirmFirstSelected;
-
-    [SerializeField, Tooltip("Кнопка, которая будет выделена в Keyboard Reset Confirm.")]
-    private Button keyboardResetConfirmFirstSelected;
-
-    [SerializeField, Tooltip("Кнопка, которая будет выделена в Gamepad Reset Confirm.")]
-    private Button gamepadResetConfirmFirstSelected;
+    [SerializeField] private Button mainFirstSelected;
+    [SerializeField] private Button continueFirstSelected;
+    [SerializeField] private Button controlFirstSelected;
+    [SerializeField] private Button settingsFirstSelected;
+    [SerializeField] private Button exitConfirmFirstSelected;
+    [SerializeField] private Button keyboardResetConfirmFirstSelected;
+    [SerializeField] private Button gamepadResetConfirmFirstSelected;
 
     [Header("Back / Cancel input")]
-    [SerializeField, Tooltip("Клавиша назад/отмена (обычно Esc).")]
-    private KeyCode keyboardBackKey = KeyCode.Escape;
-
-    [SerializeField, Tooltip("Кнопка назад/отмена на геймпаде (обычно B / Circle). Часто JoystickButton1.")]
-    private KeyCode gamepadBackKey = KeyCode.JoystickButton1;
+    [SerializeField] private KeyCode keyboardBackKey = KeyCode.Escape;
+    [SerializeField] private KeyCode gamepadBackKey = KeyCode.JoystickButton1;
 
     [SerializeField, Tooltip("Если нажать Back в главном меню — открыть диалог выхода.")]
     private bool openExitDialogOnBackFromMain = true;
 
-    [Header("Legacy Rebind (KeyCode)")]
-    [SerializeField, Tooltip("Если ВКЛ и в сцене есть LegacyKeycodeRebind — Back читается из него (с учётом ребинда и сохранения).")]
+    [Header("Legacy Rebind")]
+    [SerializeField, Tooltip("Если есть LegacyKeycodeRebind — Back читается из него.")]
     private bool useLegacyKeycodeRebind = true;
 
     [Header("Mouse hover sync")]
-    [SerializeField, Tooltip("При наведении мышью делать кнопку currentSelected, чтобы не было двойной подсветки.")]
+    [SerializeField, Tooltip("При наведении мышью делать кнопку currentSelected.")]
     private bool selectHoveredButtonWithMouse = true;
 
     [SerializeField, Tooltip("Обновлять hover -> selected только когда мышь реально двигается.")]
     private bool syncMouseOnlyWhenMoved = true;
 
-    [SerializeField, Tooltip("Когда игрок начал пользоваться клавиатурой/геймпадом — hover мыши временно отключается, пока мышь снова не сдвинется.")]
+    [SerializeField, Tooltip("После навигации клавой/геймпадом временно отключать hover мыши, пока мышь снова не сдвинется.")]
     private bool disableMouseHoverWhileUsingNavigation = true;
+
+    [Header("Button Visual Reset Fix")]
+    [SerializeField, Tooltip("Перед выключением панели принудительно сбрасывать визуальное состояние кнопок.")]
+    private bool resetButtonVisualStateBeforePanelSwitch = true;
+
+    [SerializeField, Tooltip("Посылать кнопкам PointerUp/PointerExit/Deselect перед выключением панели.")]
+    private bool sendPointerEventsBeforePanelSwitch = true;
+
+    [SerializeField, Tooltip("Сбрасывать Animator на кнопках перед выключением панели. Нужно, если кнопки залипают в Pressed/Highlighted.")]
+    private bool resetButtonAnimatorsBeforePanelSwitch = true;
+
+    [SerializeField, Tooltip("Сбрасывать targetGraphic кнопки в normalColor.")]
+    private bool resetButtonGraphicColorBeforePanelSwitch = true;
+
+    [SerializeField, Tooltip("Логи сброса визуального состояния.")]
+    private bool debugVisualReset = false;
 
     private Coroutine _selectRoutine;
     private Vector3 _lastMousePosition;
@@ -166,6 +152,8 @@ public class MainMenuPanelsUI : MonoBehaviour
         _lastMousePosition = Input.mousePosition;
         _mouseInputActive = Input.mousePresent;
 
+        UIButtonTextColor.SetSuppressPointerHoverVisuals(false);
+
         if (enableUiNavigation)
             SelectCurrentPanelDefault();
     }
@@ -174,17 +162,17 @@ public class MainMenuPanelsUI : MonoBehaviour
     {
         CacheModalStates();
 
+        UIButtonTextColor.SetSuppressPointerHoverVisuals(false);
+
         if (enableUiNavigation)
             SelectCurrentPanelDefault();
     }
 
     private void OnDisable()
     {
-        if (_selectRoutine != null)
-        {
-            StopCoroutine(_selectRoutine);
-            _selectRoutine = null;
-        }
+        StopSelectRoutine();
+
+        UIButtonTextColor.SetSuppressPointerHoverVisuals(false);
 
         ClearMouseHoverVisual();
 
@@ -257,11 +245,13 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!enableUiNavigation) return;
+        if (!enableUiNavigation)
+            return;
 
         UpdateModalSelectionState();
 
-        if (IsLegacyUiBlocking()) return;
+        if (IsLegacyUiBlocking())
+            return;
 
         if (selectHoveredButtonWithMouse &&
             (!disableMouseHoverWhileUsingNavigation || _mouseInputActive))
@@ -293,6 +283,9 @@ public class MainMenuPanelsUI : MonoBehaviour
                 _mouseMovedThisFrame = true;
                 _mouseInputActive = true;
                 _lastMousePosition = mousePos;
+
+                UIButtonTextColor.SetSuppressPointerHoverVisuals(false);
+                RefreshAllButtonTextColors();
             }
         }
 
@@ -302,7 +295,11 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (HasNavigationInputThisFrame())
         {
             _mouseInputActive = false;
+
+            UIButtonTextColor.SetSuppressPointerHoverVisuals(true);
+
             ClearMouseHoverVisual();
+            ClearPointerStateOnAllButtonsKeepSelection();
         }
     }
 
@@ -345,13 +342,65 @@ public class MainMenuPanelsUI : MonoBehaviour
         {
             PointerEventData pointerData = new PointerEventData(EventSystem.current)
             {
-                position = new Vector2(-100000f, -100000f)
+                position = new Vector2(-100000f, -100000f),
+                button = PointerEventData.InputButton.Left
             };
 
+            ExecuteEvents.Execute(_lastHoveredButton.gameObject, pointerData, ExecuteEvents.pointerUpHandler);
             ExecuteEvents.Execute(_lastHoveredButton.gameObject, pointerData, ExecuteEvents.pointerExitHandler);
         }
 
         _lastHoveredButton = null;
+    }
+
+    private void ClearPointerStateOnAllButtonsKeepSelection()
+    {
+        ClearPointerStateOnPanelKeepSelection(mainPanel);
+        ClearPointerStateOnPanelKeepSelection(continuePanel);
+        ClearPointerStateOnPanelKeepSelection(controlPanel);
+        ClearPointerStateOnPanelKeepSelection(settingsPanel);
+        ClearPointerStateOnPanelKeepSelection(exitConfirmDialog);
+        ClearPointerStateOnPanelKeepSelection(keyboardResetConfirmDialog);
+        ClearPointerStateOnPanelKeepSelection(gamepadResetConfirmDialog);
+    }
+
+    private void ClearPointerStateOnPanelKeepSelection(GameObject panel)
+    {
+        if (panel == null)
+            return;
+
+        UIButtonTextColor[] textColors = panel.GetComponentsInChildren<UIButtonTextColor>(true);
+
+        for (int i = 0; i < textColors.Length; i++)
+        {
+            if (textColors[i] != null)
+                textColors[i].ForceClearPointerStateKeepSelection();
+        }
+    }
+
+    private void RefreshAllButtonTextColors()
+    {
+        RefreshButtonTextColorsInPanel(mainPanel);
+        RefreshButtonTextColorsInPanel(continuePanel);
+        RefreshButtonTextColorsInPanel(controlPanel);
+        RefreshButtonTextColorsInPanel(settingsPanel);
+        RefreshButtonTextColorsInPanel(exitConfirmDialog);
+        RefreshButtonTextColorsInPanel(keyboardResetConfirmDialog);
+        RefreshButtonTextColorsInPanel(gamepadResetConfirmDialog);
+    }
+
+    private void RefreshButtonTextColorsInPanel(GameObject panel)
+    {
+        if (panel == null)
+            return;
+
+        UIButtonTextColor[] textColors = panel.GetComponentsInChildren<UIButtonTextColor>(true);
+
+        for (int i = 0; i < textColors.Length; i++)
+        {
+            if (textColors[i] != null)
+                textColors[i].ForceRefreshVisualState();
+        }
     }
 
     private void CacheSettingsTabsIfNeeded()
@@ -380,6 +429,8 @@ public class MainMenuPanelsUI : MonoBehaviour
     {
         CacheSettingsTabsIfNeeded();
 
+        ResetPanelVisualState(settingsPanel);
+
         if (settingsTabsSwitcher != null)
             settingsTabsSwitcher.CloseToSettingsRoot();
 
@@ -407,7 +458,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private static void Bind(Button btn, UnityEngine.Events.UnityAction action)
     {
-        if (btn == null) return;
+        if (btn == null)
+            return;
 
         btn.onClick.RemoveListener(action);
         btn.onClick.AddListener(action);
@@ -415,6 +467,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     public void LoadNewGameScene()
     {
+        PrepareForPanelSwitch();
+
         if (string.IsNullOrWhiteSpace(newGameSceneName))
         {
             Debug.LogError("MainMenuPanelsUI: newGameSceneName пустой. Укажи имя сцены в инспекторе.");
@@ -450,6 +504,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     public void OpenExitDialog()
     {
+        ResetPanelVisualState(mainPanel);
+
         if (exitConfirmDialog != null)
             exitConfirmDialog.SetActive(true);
 
@@ -459,6 +515,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     public void CloseExitDialog()
     {
+        ResetPanelVisualState(exitConfirmDialog);
+
         if (exitConfirmDialog != null)
             exitConfirmDialog.SetActive(false);
 
@@ -468,6 +526,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     public void QuitGame()
     {
+        PrepareForPanelSwitch();
+
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
 #else
@@ -477,6 +537,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private void ShowMainOnly()
     {
+        PrepareForPanelSwitch();
+
         if (mainPanel != null) mainPanel.SetActive(true);
 
         if (continuePanel != null) continuePanel.SetActive(false);
@@ -486,10 +548,13 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (exitConfirmDialog != null) exitConfirmDialog.SetActive(false);
 
         SetMainMenuInteractable(true);
+        Canvas.ForceUpdateCanvases();
     }
 
     private void ShowOnlySubPanel(GameObject targetPanel)
     {
+        PrepareForPanelSwitch();
+
         if (mainPanel != null) mainPanel.SetActive(false);
 
         if (continuePanel != null) continuePanel.SetActive(targetPanel == continuePanel);
@@ -499,6 +564,136 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (exitConfirmDialog != null) exitConfirmDialog.SetActive(false);
 
         SetMainMenuInteractable(true);
+        Canvas.ForceUpdateCanvases();
+    }
+
+    private void PrepareForPanelSwitch()
+    {
+        StopSelectRoutine();
+
+        UIButtonTextColor.SetSuppressPointerHoverVisuals(false);
+
+        ClearMouseHoverVisual();
+
+        if (EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(null);
+
+        ResetPanelVisualState(mainPanel);
+        ResetPanelVisualState(continuePanel);
+        ResetPanelVisualState(controlPanel);
+        ResetPanelVisualState(settingsPanel);
+        ResetPanelVisualState(exitConfirmDialog);
+        ResetPanelVisualState(keyboardResetConfirmDialog);
+        ResetPanelVisualState(gamepadResetConfirmDialog);
+
+        _lastHoveredButton = null;
+    }
+
+    private void ResetPanelVisualState(GameObject panel)
+    {
+        if (!resetButtonVisualStateBeforePanelSwitch)
+            return;
+
+        if (panel == null)
+            return;
+
+        if (EventSystem.current != null)
+        {
+            GameObject selected = EventSystem.current.currentSelectedGameObject;
+
+            if (selected != null && selected.transform.IsChildOf(panel.transform))
+                EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        PointerEventData pointerData = null;
+
+        if (sendPointerEventsBeforePanelSwitch && EventSystem.current != null)
+        {
+            pointerData = new PointerEventData(EventSystem.current)
+            {
+                position = new Vector2(-100000f, -100000f),
+                button = PointerEventData.InputButton.Left
+            };
+        }
+
+        Button[] buttons = panel.GetComponentsInChildren<Button>(true);
+
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            Button btn = buttons[i];
+
+            if (btn == null)
+                continue;
+
+            if (pointerData != null)
+            {
+                ExecuteEvents.Execute(btn.gameObject, pointerData, ExecuteEvents.pointerUpHandler);
+                ExecuteEvents.Execute(btn.gameObject, pointerData, ExecuteEvents.pointerExitHandler);
+                ExecuteEvents.Execute(btn.gameObject, pointerData, ExecuteEvents.deselectHandler);
+            }
+
+            if (resetButtonGraphicColorBeforePanelSwitch)
+                ResetButtonGraphicColor(btn);
+
+            if (resetButtonAnimatorsBeforePanelSwitch)
+                ResetButtonAnimators(btn);
+
+            if (debugVisualReset)
+                Debug.Log($"MainMenuPanelsUI: reset button visual -> {btn.name}", btn);
+        }
+
+        UIButtonTextColor[] textColors = panel.GetComponentsInChildren<UIButtonTextColor>(true);
+
+        for (int i = 0; i < textColors.Length; i++)
+        {
+            if (textColors[i] != null)
+                textColors[i].ForceResetVisualState();
+        }
+    }
+
+    private static void ResetButtonGraphicColor(Button btn)
+    {
+        if (btn == null)
+            return;
+
+        Graphic graphic = btn.targetGraphic;
+
+        if (graphic == null)
+            return;
+
+        Color targetColor = btn.interactable ? btn.colors.normalColor : btn.colors.disabledColor;
+        graphic.CrossFadeColor(targetColor, 0f, true, true);
+    }
+
+    private static void ResetButtonAnimators(Button btn)
+    {
+        if (btn == null)
+            return;
+
+        Animator[] animators = btn.GetComponentsInChildren<Animator>(true);
+
+        for (int i = 0; i < animators.Length; i++)
+        {
+            Animator animator = animators[i];
+
+            if (animator == null)
+                continue;
+
+            if (!animator.gameObject.activeInHierarchy)
+                continue;
+
+            animator.Rebind();
+            animator.Update(0f);
+        }
+    }
+
+    private void StopSelectRoutine()
+    {
+        if (_selectRoutine == null)
+            return;
+
+        StopCoroutine(_selectRoutine);
+        _selectRoutine = null;
     }
 
     private void SetMainMenuInteractable(bool value)
@@ -538,7 +733,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private void RestoreSelectionIfNeeded()
     {
-        if (EventSystem.current == null) return;
+        if (EventSystem.current == null)
+            return;
 
         GameObject currentSelected = EventSystem.current.currentSelectedGameObject;
 
@@ -559,7 +755,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private void SelectCurrentPanelDefault()
     {
-        if (!enableUiNavigation) return;
+        if (!enableUiNavigation)
+            return;
 
         if (exitConfirmDialog != null && exitConfirmDialog.activeSelf)
         {
@@ -593,7 +790,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private Button GetDefaultMainButton()
     {
-        if (mainFirstSelected != null) return mainFirstSelected;
+        if (mainFirstSelected != null)
+            return mainFirstSelected;
 
         if (newGameButton != null && newGameButton.isActiveAndEnabled && newGameButton.interactable) return newGameButton;
         if (openContinueButton != null && openContinueButton.isActiveAndEnabled && openContinueButton.interactable) return openContinueButton;
@@ -606,13 +804,19 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private void SelectButtonDeferred(Button btn)
     {
-        if (!enableUiNavigation) return;
-        if (btn == null) return;
-        if (!btn.isActiveAndEnabled || !btn.interactable) return;
-        if (EventSystem.current == null) return;
+        if (!enableUiNavigation)
+            return;
 
-        if (_selectRoutine != null)
-            StopCoroutine(_selectRoutine);
+        if (btn == null)
+            return;
+
+        if (!btn.isActiveAndEnabled || !btn.interactable)
+            return;
+
+        if (EventSystem.current == null)
+            return;
+
+        StopSelectRoutine();
 
         _selectRoutine = StartCoroutine(SelectButtonNextFrame(btn));
     }
@@ -621,12 +825,20 @@ public class MainMenuPanelsUI : MonoBehaviour
     {
         yield return null;
 
-        if (!enableUiNavigation) yield break;
-        if (btn == null) yield break;
-        if (EventSystem.current == null) yield break;
-        if (!btn.isActiveAndEnabled || !btn.interactable) yield break;
+        if (!enableUiNavigation)
+            yield break;
+
+        if (btn == null)
+            yield break;
+
+        if (EventSystem.current == null)
+            yield break;
+
+        if (!btn.isActiveAndEnabled || !btn.interactable)
+            yield break;
 
         Canvas.ForceUpdateCanvases();
+
         EventSystem.current.SetSelectedGameObject(null);
         EventSystem.current.SetSelectedGameObject(btn.gameObject);
 
@@ -668,9 +880,14 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private void SyncMouseHoverSelection()
     {
-        if (EventSystem.current == null) return;
-        if (!Input.mousePresent) return;
-        if (syncMouseOnlyWhenMoved && !_mouseMovedThisFrame) return;
+        if (EventSystem.current == null)
+            return;
+
+        if (!Input.mousePresent)
+            return;
+
+        if (syncMouseOnlyWhenMoved && !_mouseMovedThisFrame)
+            return;
 
         PointerEventData pointerData = new PointerEventData(EventSystem.current)
         {
@@ -685,12 +902,20 @@ public class MainMenuPanelsUI : MonoBehaviour
         for (int i = 0; i < _mouseRaycastResults.Count; i++)
         {
             GameObject go = _mouseRaycastResults[i].gameObject;
-            if (go == null) continue;
+
+            if (go == null)
+                continue;
 
             Button btn = go.GetComponentInParent<Button>();
-            if (btn == null) continue;
-            if (!btn.isActiveAndEnabled || !btn.interactable) continue;
-            if (!IsButtonAllowedInCurrentContext(btn)) continue;
+
+            if (btn == null)
+                continue;
+
+            if (!btn.isActiveAndEnabled || !btn.interactable)
+                continue;
+
+            if (!IsButtonAllowedInCurrentContext(btn))
+                continue;
 
             hoveredButton = btn;
             break;
@@ -707,11 +932,7 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (EventSystem.current.currentSelectedGameObject == hoveredButton.gameObject)
             return;
 
-        if (_selectRoutine != null)
-        {
-            StopCoroutine(_selectRoutine);
-            _selectRoutine = null;
-        }
+        StopSelectRoutine();
 
         EventSystem.current.SetSelectedGameObject(null);
         EventSystem.current.SetSelectedGameObject(hoveredButton.gameObject);
@@ -719,7 +940,8 @@ public class MainMenuPanelsUI : MonoBehaviour
 
     private bool IsButtonAllowedInCurrentContext(Button btn)
     {
-        if (btn == null) return false;
+        if (btn == null)
+            return false;
 
         if (IsKeyboardResetConfirmOpen())
             return keyboardResetConfirmDialog != null && btn.transform.IsChildOf(keyboardResetConfirmDialog.transform);
@@ -763,17 +985,49 @@ public class MainMenuPanelsUI : MonoBehaviour
     private void UpdateModalSelectionState()
     {
         bool exitActive = exitConfirmDialog != null && exitConfirmDialog.activeSelf;
+        bool keyboardResetActive = IsKeyboardResetConfirmOpen();
+        bool gamepadResetActive = IsGamepadResetConfirmOpen();
 
         bool exitJustOpened = exitActive && !_prevExitConfirmActive;
         bool exitJustClosed = !exitActive && _prevExitConfirmActive;
 
+        bool keyboardResetJustOpened = keyboardResetActive && !_prevKeyboardResetConfirmActive;
+        bool keyboardResetJustClosed = !keyboardResetActive && _prevKeyboardResetConfirmActive;
+
+        bool gamepadResetJustOpened = gamepadResetActive && !_prevGamepadResetConfirmActive;
+        bool gamepadResetJustClosed = !gamepadResetActive && _prevGamepadResetConfirmActive;
+
         _prevExitConfirmActive = exitActive;
-        _prevKeyboardResetConfirmActive = IsKeyboardResetConfirmOpen();
-        _prevGamepadResetConfirmActive = IsGamepadResetConfirmOpen();
+        _prevKeyboardResetConfirmActive = keyboardResetActive;
+        _prevGamepadResetConfirmActive = gamepadResetActive;
+
+        if (keyboardResetJustOpened)
+        {
+            SelectButtonDeferred(keyboardResetConfirmFirstSelected ? keyboardResetConfirmFirstSelected : keyboardResetNoButton);
+            return;
+        }
+
+        if (gamepadResetJustOpened)
+        {
+            SelectButtonDeferred(gamepadResetConfirmFirstSelected ? gamepadResetConfirmFirstSelected : gamepadResetNoButton);
+            return;
+        }
 
         if (exitJustOpened)
         {
             SelectButtonDeferred(exitConfirmFirstSelected ? exitConfirmFirstSelected : exitNoButton);
+            return;
+        }
+
+        if (keyboardResetJustClosed)
+        {
+            SelectButtonDeferred(GetKeyboardResetReturnButton());
+            return;
+        }
+
+        if (gamepadResetJustClosed)
+        {
+            SelectButtonDeferred(GetGamepadResetReturnButton());
             return;
         }
 
@@ -786,36 +1040,55 @@ public class MainMenuPanelsUI : MonoBehaviour
     private void CacheModalStates()
     {
         _prevExitConfirmActive = exitConfirmDialog != null && exitConfirmDialog.activeSelf;
-        _prevKeyboardResetConfirmActive = false;
-        _prevGamepadResetConfirmActive = false;
+        _prevKeyboardResetConfirmActive = IsKeyboardResetConfirmOpen();
+        _prevGamepadResetConfirmActive = IsGamepadResetConfirmOpen();
     }
 
     private Button GetKeyboardResetReturnButton()
     {
-        if (keyboardResetReturnButton != null && keyboardResetReturnButton.isActiveAndEnabled && keyboardResetReturnButton.interactable)
+        if (keyboardResetReturnButton != null &&
+            keyboardResetReturnButton.isActiveAndEnabled &&
+            keyboardResetReturnButton.interactable)
+        {
             return keyboardResetReturnButton;
+        }
 
-        if (settingsFirstSelected != null && settingsFirstSelected.isActiveAndEnabled && settingsFirstSelected.interactable)
+        if (settingsFirstSelected != null &&
+            settingsFirstSelected.isActiveAndEnabled &&
+            settingsFirstSelected.interactable)
+        {
             return settingsFirstSelected;
+        }
 
         return settingsBackButton;
     }
 
     private Button GetGamepadResetReturnButton()
     {
-        if (gamepadResetReturnButton != null && gamepadResetReturnButton.isActiveAndEnabled && gamepadResetReturnButton.interactable)
+        if (gamepadResetReturnButton != null &&
+            gamepadResetReturnButton.isActiveAndEnabled &&
+            gamepadResetReturnButton.interactable)
+        {
             return gamepadResetReturnButton;
+        }
 
-        if (settingsFirstSelected != null && settingsFirstSelected.isActiveAndEnabled && settingsFirstSelected.interactable)
+        if (settingsFirstSelected != null &&
+            settingsFirstSelected.isActiveAndEnabled &&
+            settingsFirstSelected.interactable)
+        {
             return settingsFirstSelected;
+        }
 
         return settingsBackButton;
     }
 
     private static void InvokeButton(Button btn)
     {
-        if (btn == null) return;
-        if (!btn.isActiveAndEnabled || !btn.interactable) return;
+        if (btn == null)
+            return;
+
+        if (!btn.isActiveAndEnabled || !btn.interactable)
+            return;
 
         btn.onClick.Invoke();
     }
