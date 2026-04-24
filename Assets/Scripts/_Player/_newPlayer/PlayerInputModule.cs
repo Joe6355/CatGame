@@ -35,108 +35,53 @@ public class PlayerInputModule : MonoBehaviour
         public bool FenceTogglePressed;
     }
 
-    [Header("Клавиатура и мышь (PC)")]
-    [SerializeField, Tooltip("Клавиша движения влево (PC).")]
-    private KeyCode leftKey = KeyCode.A;
+    [Header("Fallback Keyboard - работает только если Use Legacy Keycode Rebind выключен")]
+    [SerializeField] private KeyCode leftKey = KeyCode.A;
+    [SerializeField] private KeyCode rightKey = KeyCode.D;
+    [SerializeField] private KeyCode jumpKey = KeyCode.Space;
+    [SerializeField] private KeyCode downActionKey = KeyCode.S;
+    [SerializeField] private KeyCode alternateDownActionKey = KeyCode.DownArrow;
+    [SerializeField] private KeyCode upActionKey = KeyCode.W;
+    [SerializeField] private KeyCode alternateUpActionKey = KeyCode.UpArrow;
+    [SerializeField] private KeyCode interactKey = KeyCode.F;
 
-    [SerializeField, Tooltip("Клавиша движения вправо (PC).")]
-    private KeyCode rightKey = KeyCode.D;
+    [Header("Fallback Gamepad - работает только если Use Legacy Keycode Rebind выключен")]
+    [SerializeField] private bool useGamepadJump = true;
+    [SerializeField] private KeyCode gamepadJumpKey = KeyCode.JoystickButton0;
+    [SerializeField] private KeyCode gamepadInteractKey = KeyCode.JoystickButton2;
 
-    [SerializeField, Tooltip("Главная клавиша прыжка (PC). Прыжок срабатывает сразу по нажатию.")]
-    private KeyCode jumpKey = KeyCode.Space;
+    [Header("Fallback Axes - работает только если Use Legacy Keycode Rebind выключен")]
+    [SerializeField] private string horizontalAxisName = "Horizontal";
+    [SerializeField] private string verticalAxisName = "Vertical";
+    [SerializeField] private bool useInputManagerAxisFallback = true;
+    [SerializeField] private bool useVerticalAxisForApexThrowFallback = true;
+    [SerializeField, Range(-1f, 0f)] private float apexThrowDownAxisThreshold = -0.65f;
+    [SerializeField] private bool useVerticalAxisForLedgeClimbFallback = true;
+    [SerializeField, Range(0f, 1f)] private float ledgeClimbUpAxisThreshold = 0.65f;
+    [SerializeField] private bool useVerticalAxisForFenceClimbFallback = true;
+    [SerializeField, Range(0f, 1f)] private float fenceClimbAxisThreshold = 0.35f;
 
-    [SerializeField, Tooltip("Клавиша вниз для броска после вершины прыжка и спрыга с ledge.")]
-    private KeyCode apexThrowDownKey = KeyCode.S;
+    [Header("Legacy Rebind")]
+    [SerializeField] private bool useLegacyKeycodeRebind = true;
 
-    [SerializeField, Tooltip("Дополнительная клавиша вниз для броска после вершины прыжка и спрыга с ledge.")]
-    private KeyCode alternateApexThrowDownKey = KeyCode.DownArrow;
+    [Header("Mobile Controls")]
+    [SerializeField] private bool useMobileControls = false;
+    [SerializeField] private Joystick mobileJoystick;
+    [SerializeField] private Button mobileJumpButton;
 
-    [SerializeField, Tooltip("Клавиша вверх для подтягивания на платформу с ledge.")]
-    private KeyCode ledgeClimbUpKey = KeyCode.W;
-
-    [SerializeField, Tooltip("Дополнительная клавиша вверх для подтягивания на платформу с ledge.")]
-    private KeyCode alternateLedgeClimbUpKey = KeyCode.UpArrow;
-
-    [SerializeField, Tooltip("Клавиша взаимодействия с лестницей/забором.")]
-    private KeyCode fenceToggleKey = KeyCode.F;
-
-    [SerializeField, Tooltip("Клавиша вверх для движения по лестнице/забору.")]
-    private KeyCode climbUpKey = KeyCode.W;
-
-    [SerializeField, Tooltip("Клавиша вниз для движения по лестнице/забору.")]
-    private KeyCode climbDownKey = KeyCode.S;
-
-    [SerializeField, Tooltip("Дополнительная клавиша вверх для движения по лестнице/забору.")]
-    private KeyCode alternateClimbUpKey = KeyCode.UpArrow;
-
-    [SerializeField, Tooltip("Дополнительная клавиша вниз для движения по лестнице/забору.")]
-    private KeyCode alternateClimbDownKey = KeyCode.DownArrow;
-
-    [Header("Геймпад (desktop)")]
-    [SerializeField, Tooltip("Если ВКЛ — в desktop-режиме дополнительно читается геймпад.")]
-    private bool useGamepadJump = true;
-
-    [SerializeField, Tooltip("Кнопка геймпада для обычного прыжка. Обычно A / Cross (JoystickButton0).")]
-    private KeyCode gamepadJumpKey = KeyCode.JoystickButton0;
-
-    [SerializeField, Tooltip("Кнопка геймпада для входа/выхода с лестницы/забора. По умолчанию X/Square (JoystickButton2).")]
-    private KeyCode gamepadFenceToggleKey = KeyCode.JoystickButton2;
-
-    [SerializeField, Tooltip("Если ВКЛ — для броска вниз и ledge-команд дополнительно читается ось Vertical.")]
-    private bool useVerticalAxisForApexThrow = true;
-
-    [SerializeField, Tooltip("Имя вертикальной оси в Input Manager. Обычно Vertical.")]
-    private string verticalAxisName = "Vertical";
-
-    [SerializeField, Range(-1f, 0f), Tooltip("Порог нажатия вниз по оси Vertical для команды apex throw / спрыга с ledge.")]
-    private float apexThrowDownAxisThreshold = -0.65f;
-
-    [SerializeField, Tooltip("Если ВКЛ — ledge climb также может срабатывать от вертикальной оси вверх.")]
-    private bool useVerticalAxisForLedgeClimb = true;
-
-    [SerializeField, Range(0f, 1f), Tooltip("Порог нажатия вверх по оси Vertical для подтягивания с ledge.")]
-    private float ledgeClimbUpAxisThreshold = 0.65f;
-
-    [SerializeField, Tooltip("Если ВКЛ — вертикальная ось также используется для движения по лестнице/забору.")]
-    private bool useVerticalAxisForFenceClimb = true;
-
-    [SerializeField, Range(0f, 1f), Tooltip("Порог вертикальной оси для движения по лестнице/забору.")]
-    private float fenceClimbAxisThreshold = 0.35f;
-
-    [Header("Legacy Rebind (KeyCode)")]
-    [SerializeField, Tooltip("Если ВКЛ и LegacyKeycodeRebind существует, бинды прыжка/движения берутся из него.")]
-    private bool useLegacyKeycodeRebind = true;
-
-    [SerializeField, Tooltip("Если ВКЛ и цифровые клавиши движения не нажаты, читается ось Horizontal из Input Manager.")]
-    private bool useInputManagerAxisFallback = true;
-
-    [Header("Мобильное управление")]
-    [SerializeField, Tooltip("Если ВКЛ — используются мобильные элементы управления (джойстик + кнопка прыжка).")]
-    private bool useMobileControls = false;
-
-    [SerializeField, Tooltip("Ссылка на UI-джойстик для мобильного движения.")]
-    private Joystick mobileJoystick;
-
-    [SerializeField, Tooltip("UI-кнопка прыжка для мобилки. Удержание этой кнопки продлевает подъём прыжка.")]
-    private Button mobileJumpButton;
-
-    [Header("Безопасное включение ввода (после меню)")]
-    [SerializeField, Tooltip("Если ВКЛ — после возврата из меню/паузы ввод не включится, пока игрок не отпустит зажатые кнопки.")]
-    private bool waitReleaseAfterInputEnable = true;
-
-    [SerializeField, Tooltip("Небольшая задержка после включения ввода, чтобы не словить случайный клик из UI.")]
-    private float postMenuInputUnlockDelay = 0.06f;
-
-    [SerializeField, Tooltip("Порог абсолютного значения для оси Horizontal, выше которого считаем, что ось ещё удерживается.")]
-    private float inputReleaseAxisDeadZone = 0.2f;
+    [Header("Input Safety After Menu")]
+    [SerializeField] private bool waitReleaseAfterInputEnable = true;
+    [SerializeField] private float postMenuInputUnlockDelay = 0.06f;
+    [SerializeField] private float inputReleaseAxisDeadZone = 0.2f;
 
     private bool prevUseMobileControls = false;
     private bool mobileJumpHeld = false;
     private bool prevMobileJumpHeld = false;
-    private bool prevDesktopApexThrowDownHeld = false;
-    private bool prevMobileApexThrowDownHeld = false;
-    private bool prevDesktopLedgeUpHeld = false;
-    private bool prevMobileLedgeUpHeld = false;
+
+    private bool prevDesktopDownActionHeld = false;
+    private bool prevMobileDownActionHeld = false;
+    private bool prevDesktopUpActionHeld = false;
+    private bool prevMobileUpActionHeld = false;
 
     private bool gameplayInputEnabled = true;
     private bool waitForGameplayInputRelease = false;
@@ -149,8 +94,24 @@ public class PlayerInputModule : MonoBehaviour
     public bool UseGamepadJump => useGamepadJump;
     public bool MobileJumpHeld => mobileJumpHeld;
 
+    private bool RebindActive
+    {
+        get
+        {
+            if (!useLegacyKeycodeRebind)
+                return false;
+
+            return LegacyKeycodeRebind.RuntimeReady;
+        }
+    }
+
     private void Awake()
     {
+        if (useLegacyKeycodeRebind)
+        {
+            bool _ = LegacyKeycodeRebind.RuntimeReady;
+        }
+
         EnsureMobileButtonHooked();
         prevUseMobileControls = useMobileControls;
         ApplyMobileUIVisibility();
@@ -200,44 +161,18 @@ public class PlayerInputModule : MonoBehaviour
             JumpDownSource = HoldSource.None
         };
 
-        LegacyKeycodeRebind rebind = GetLegacyRebind();
-
-        if (rebind != null && rebind.IsRebinding)
+        if (useLegacyKeycodeRebind && LegacyKeycodeRebind.IsAnyRebinding)
         {
             snapshot.IsRebinding = true;
             return snapshot;
         }
 
-        int dir = 0;
+        bool useRebind = RebindActive;
 
-        if (rebind != null)
-        {
-            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveLeft))
-                dir -= 1;
+        snapshot.MoveX = useRebind ? GetRebindMoveX() : GetFallbackMoveX();
 
-            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveRight))
-                dir += 1;
-        }
-        else
-        {
-            if (Input.GetKey(leftKey))
-                dir -= 1;
-
-            if (Input.GetKey(rightKey))
-                dir += 1;
-        }
-
-        if (dir != 0)
-        {
-            snapshot.MoveX = Mathf.Clamp(dir, -1f, 1f);
-        }
-        else if (useInputManagerAxisFallback)
-        {
-            snapshot.MoveX = Mathf.Clamp(Input.GetAxisRaw("Horizontal"), -1f, 1f);
-        }
-
-        bool keyboardJumpDown = GetKeyboardJumpDown();
-        bool gamepadJumpDown = GetGamepadJumpDown();
+        bool keyboardJumpDown = useRebind ? GetRebindKeyboardJumpDown() : Input.GetKeyDown(jumpKey);
+        bool gamepadJumpDown = useRebind ? GetRebindGamepadJumpDown() : GetFallbackGamepadJumpDown();
 
         if (keyboardJumpDown || gamepadJumpDown)
         {
@@ -246,10 +181,11 @@ public class PlayerInputModule : MonoBehaviour
                 : HoldSource.Keyboard;
         }
 
-        snapshot.ClimbY = GetDesktopClimbVerticalValue();
-        snapshot.ApexThrowDownPressed = GetDesktopApexThrowDownPressed();
-        snapshot.LedgeUpPressed = GetDesktopLedgeUpPressed();
-        snapshot.FenceTogglePressed = GetDesktopFenceTogglePressed();
+        snapshot.ClimbY = useRebind ? GetRebindClimbVerticalValue() : GetFallbackClimbVerticalValue();
+        snapshot.ApexThrowDownPressed = GetDesktopDownActionPressed(useRebind);
+        snapshot.LedgeUpPressed = GetDesktopUpActionPressed(useRebind);
+        snapshot.FenceTogglePressed = useRebind ? GetRebindInteractPressed() : GetFallbackInteractPressed();
+
         return snapshot;
     }
 
@@ -264,8 +200,8 @@ public class PlayerInputModule : MonoBehaviour
             JumpDown = currentHeld && !prevMobileJumpHeld,
             JumpHeld = currentHeld,
             JumpReleased = !currentHeld && prevMobileJumpHeld,
-            ApexThrowDownPressed = GetMobileApexThrowDownPressed(),
-            LedgeUpPressed = GetMobileLedgeUpPressed(),
+            ApexThrowDownPressed = GetMobileDownActionPressed(),
+            LedgeUpPressed = GetMobileUpActionPressed(),
             FenceTogglePressed = false
         };
 
@@ -275,10 +211,12 @@ public class PlayerInputModule : MonoBehaviour
 
     public bool IsHoldInputStillHeld(HoldSource source)
     {
+        bool useRebind = RebindActive;
+
         switch (source)
         {
             case HoldSource.GamepadCharge:
-                return GetGamepadJumpHeld();
+                return useRebind ? GetRebindGamepadJumpHeld() : GetFallbackGamepadJumpHeld();
 
             case HoldSource.Mobile:
                 return mobileJumpHeld;
@@ -286,16 +224,18 @@ public class PlayerInputModule : MonoBehaviour
             case HoldSource.Keyboard:
             case HoldSource.None:
             default:
-                return GetKeyboardJumpHeld();
+                return useRebind ? GetRebindKeyboardJumpHeld() : Input.GetKey(jumpKey);
         }
     }
 
     public bool IsHoldInputReleased(HoldSource source)
     {
+        bool useRebind = RebindActive;
+
         switch (source)
         {
             case HoldSource.GamepadCharge:
-                return GetGamepadJumpUp();
+                return useRebind ? GetRebindGamepadJumpUp() : GetFallbackGamepadJumpUp();
 
             case HoldSource.Mobile:
                 return !mobileJumpHeld;
@@ -303,7 +243,7 @@ public class PlayerInputModule : MonoBehaviour
             case HoldSource.Keyboard:
             case HoldSource.None:
             default:
-                return GetKeyboardJumpUp();
+                return useRebind ? GetRebindKeyboardJumpUp() : Input.GetKeyUp(jumpKey);
         }
     }
 
@@ -357,81 +297,252 @@ public class PlayerInputModule : MonoBehaviour
             mobileJumpHeld = false;
 
         prevMobileJumpHeld = false;
-        prevDesktopApexThrowDownHeld = false;
-        prevMobileApexThrowDownHeld = false;
-        prevDesktopLedgeUpHeld = false;
-        prevMobileLedgeUpHeld = false;
+        prevDesktopDownActionHeld = false;
+        prevMobileDownActionHeld = false;
+        prevDesktopUpActionHeld = false;
+        prevMobileUpActionHeld = false;
     }
 
-    private LegacyKeycodeRebind GetLegacyRebind()
+    private float GetRebindMoveX()
     {
-        if (!useLegacyKeycodeRebind)
-            return null;
+        int dir = 0;
 
-        return LegacyKeycodeRebind.I != null ? LegacyKeycodeRebind.I : null;
+        if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveLeft) ||
+            LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.MoveLeft))
+        {
+            dir -= 1;
+        }
+
+        if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveRight) ||
+            LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.MoveRight))
+        {
+            dir += 1;
+        }
+
+        return Mathf.Clamp(dir, -1f, 1f);
     }
 
-    private bool GetKeyboardJumpDown()
+    private float GetFallbackMoveX()
     {
-        LegacyKeycodeRebind rebind = GetLegacyRebind();
-        if (rebind != null)
-            return rebind.GetDown(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold);
+        int dir = 0;
 
-        return Input.GetKeyDown(jumpKey);
+        if (Input.GetKey(leftKey))
+            dir -= 1;
+
+        if (Input.GetKey(rightKey))
+            dir += 1;
+
+        if (dir != 0)
+            return Mathf.Clamp(dir, -1f, 1f);
+
+        if (useInputManagerAxisFallback)
+            return Mathf.Clamp(SafeGetAxisRaw(horizontalAxisName), -1f, 1f);
+
+        return 0f;
     }
 
-    private bool GetKeyboardJumpHeld()
+    private bool GetRebindKeyboardJumpDown()
     {
-        LegacyKeycodeRebind rebind = GetLegacyRebind();
-        if (rebind != null)
-            return rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold);
-
-        return Input.GetKey(jumpKey);
+        return LegacyKeycodeRebind.GetDownStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.Jump);
     }
 
-    private bool GetKeyboardJumpUp()
+    private bool GetRebindKeyboardJumpHeld()
     {
-        LegacyKeycodeRebind rebind = GetLegacyRebind();
-        if (rebind != null)
-            return rebind.GetUp(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold);
-
-        return Input.GetKeyUp(jumpKey);
+        return LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.Jump);
     }
 
-    private bool GetGamepadJumpDown()
+    private bool GetRebindKeyboardJumpUp()
+    {
+        return LegacyKeycodeRebind.GetUpStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.Jump);
+    }
+
+    private bool GetRebindGamepadJumpDown()
+    {
+        return LegacyKeycodeRebind.GetDownStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.Jump);
+    }
+
+    private bool GetRebindGamepadJumpHeld()
+    {
+        return LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.Jump);
+    }
+
+    private bool GetRebindGamepadJumpUp()
+    {
+        return LegacyKeycodeRebind.GetUpStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.Jump);
+    }
+
+    private bool GetFallbackGamepadJumpDown()
     {
         if (!useGamepadJump)
             return false;
 
-        LegacyKeycodeRebind rebind = GetLegacyRebind();
-        if (rebind != null)
-            return rebind.GetDown(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold);
-
-        return Input.GetKeyDown(gamepadJumpKey);
+        return gamepadJumpKey != KeyCode.None && Input.GetKeyDown(gamepadJumpKey);
     }
 
-    private bool GetGamepadJumpHeld()
+    private bool GetFallbackGamepadJumpHeld()
     {
         if (!useGamepadJump)
             return false;
 
-        LegacyKeycodeRebind rebind = GetLegacyRebind();
-        if (rebind != null)
-            return rebind.GetHeld(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold);
-
-        return Input.GetKey(gamepadJumpKey);
+        return gamepadJumpKey != KeyCode.None && Input.GetKey(gamepadJumpKey);
     }
 
-    private bool GetGamepadJumpUp()
+    private bool GetFallbackGamepadJumpUp()
     {
         if (!useGamepadJump)
             return false;
 
-        LegacyKeycodeRebind rebind = GetLegacyRebind();
-        if (rebind != null)
-            return rebind.GetUp(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold);
+        return gamepadJumpKey != KeyCode.None && Input.GetKeyUp(gamepadJumpKey);
+    }
 
-        return Input.GetKeyUp(gamepadJumpKey);
+    private bool GetDesktopDownActionPressed(bool useRebind)
+    {
+        bool currentHeld = useRebind ? GetRebindDownActionHeld() : GetFallbackDownActionHeld();
+        bool pressed = currentHeld && !prevDesktopDownActionHeld;
+
+        prevDesktopDownActionHeld = currentHeld;
+        return pressed;
+    }
+
+    private bool GetRebindDownActionHeld()
+    {
+        return LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.DownAction) ||
+               LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.DownAction);
+    }
+
+    private bool GetFallbackDownActionHeld()
+    {
+        bool keyboard =
+            Input.GetKey(downActionKey) ||
+            (alternateDownActionKey != KeyCode.None && Input.GetKey(alternateDownActionKey));
+
+        bool axis = useVerticalAxisForApexThrowFallback &&
+                    SafeGetAxisRaw(verticalAxisName) <= apexThrowDownAxisThreshold;
+
+        return keyboard || axis;
+    }
+
+    private bool GetMobileDownActionPressed()
+    {
+        bool currentHeld = false;
+
+        if (mobileJoystick != null)
+            currentHeld = mobileJoystick.Vertical <= apexThrowDownAxisThreshold;
+
+        bool pressed = currentHeld && !prevMobileDownActionHeld;
+
+        prevMobileDownActionHeld = currentHeld;
+        return pressed;
+    }
+
+    private bool GetDesktopUpActionPressed(bool useRebind)
+    {
+        bool currentHeld = useRebind ? GetRebindUpActionHeld() : GetFallbackUpActionHeld();
+        bool pressed = currentHeld && !prevDesktopUpActionHeld;
+
+        prevDesktopUpActionHeld = currentHeld;
+        return pressed;
+    }
+
+    private bool GetRebindUpActionHeld()
+    {
+        return LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.UpAction) ||
+               LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.UpAction);
+    }
+
+    private bool GetFallbackUpActionHeld()
+    {
+        bool keyboard =
+            Input.GetKey(upActionKey) ||
+            (alternateUpActionKey != KeyCode.None && Input.GetKey(alternateUpActionKey));
+
+        bool axis = useVerticalAxisForLedgeClimbFallback &&
+                    SafeGetAxisRaw(verticalAxisName) >= ledgeClimbUpAxisThreshold;
+
+        return keyboard || axis;
+    }
+
+    private bool GetMobileUpActionPressed()
+    {
+        bool currentHeld = false;
+
+        if (mobileJoystick != null)
+            currentHeld = mobileJoystick.Vertical >= ledgeClimbUpAxisThreshold;
+
+        bool pressed = currentHeld && !prevMobileUpActionHeld;
+
+        prevMobileUpActionHeld = currentHeld;
+        return pressed;
+    }
+
+    private bool GetRebindInteractPressed()
+    {
+        return LegacyKeycodeRebind.GetDownStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.Interact) ||
+               LegacyKeycodeRebind.GetDownStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.Interact);
+    }
+
+    private bool GetFallbackInteractPressed()
+    {
+        bool keyboard = interactKey != KeyCode.None && Input.GetKeyDown(interactKey);
+        bool gamepad = gamepadInteractKey != KeyCode.None && Input.GetKeyDown(gamepadInteractKey);
+
+        return keyboard || gamepad;
+    }
+
+    private float GetRebindClimbVerticalValue()
+    {
+        float value = 0f;
+
+        if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.UpAction) ||
+            LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.UpAction))
+        {
+            value += 1f;
+        }
+
+        if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.DownAction) ||
+            LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.DownAction))
+        {
+            value -= 1f;
+        }
+
+        return Mathf.Clamp(value, -1f, 1f);
+    }
+
+    private float GetFallbackClimbVerticalValue()
+    {
+        float value = 0f;
+
+        if (Input.GetKey(upActionKey) || (alternateUpActionKey != KeyCode.None && Input.GetKey(alternateUpActionKey)))
+            value += 1f;
+
+        if (Input.GetKey(downActionKey) || (alternateDownActionKey != KeyCode.None && Input.GetKey(alternateDownActionKey)))
+            value -= 1f;
+
+        if (Mathf.Abs(value) > 0.001f)
+            return Mathf.Clamp(value, -1f, 1f);
+
+        if (!useVerticalAxisForFenceClimbFallback)
+            return 0f;
+
+        float axis = SafeGetAxisRaw(verticalAxisName);
+
+        if (Mathf.Abs(axis) < fenceClimbAxisThreshold)
+            return 0f;
+
+        return Mathf.Clamp(axis, -1f, 1f);
+    }
+
+    private float GetMobileClimbVerticalValue()
+    {
+        if (mobileJoystick == null)
+            return 0f;
+
+        float axis = mobileJoystick.Vertical;
+
+        if (Mathf.Abs(axis) < fenceClimbAxisThreshold)
+            return 0f;
+
+        return Mathf.Clamp(axis, -1f, 1f);
     }
 
     private bool AreAnyGameplayInputsStillHeld()
@@ -448,201 +559,70 @@ public class PlayerInputModule : MonoBehaviour
 
                 if (Mathf.Abs(mobileJoystick.Vertical) > inputReleaseAxisDeadZone)
                     return true;
-
-                if (useVerticalAxisForApexThrow && mobileJoystick.Vertical <= apexThrowDownAxisThreshold)
-                    return true;
-
-                if (useVerticalAxisForLedgeClimb && mobileJoystick.Vertical >= ledgeClimbUpAxisThreshold)
-                    return true;
             }
 
             return false;
         }
 
-        LegacyKeycodeRebind rebind = GetLegacyRebind();
-
-        if (rebind != null)
+        if (RebindActive)
         {
-            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveLeft)) return true;
-            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveRight)) return true;
-            if (rebind.GetHeld(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.JumpHold)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveLeft)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.MoveRight)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.Jump)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.UpAction)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.DownAction)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Keyboard, LegacyKeycodeRebind.Action.Interact)) return true;
 
-            if (useGamepadJump && rebind.GetHeld(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.JumpHold))
-                return true;
-        }
-        else
-        {
-            bool apexThrowDownHeld = GetKeyboardApexThrowDownHeld();
-            bool ledgeUpHeld = GetKeyboardLedgeUpHeld();
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.MoveLeft)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.MoveRight)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.Jump)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.UpAction)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.DownAction)) return true;
+            if (LegacyKeycodeRebind.GetHeldStatic(LegacyKeycodeRebind.Device.Gamepad, LegacyKeycodeRebind.Action.Interact)) return true;
 
-            if (Input.GetKey(leftKey) ||
-                Input.GetKey(rightKey) ||
-                Input.GetKey(jumpKey) ||
-                Input.GetKey(fenceToggleKey) ||
-                GetGamepadFenceToggleHeld() ||
-                GetKeyboardClimbUpHeld() ||
-                GetKeyboardClimbDownHeld() ||
-                apexThrowDownHeld ||
-                ledgeUpHeld)
-            {
-                return true;
-            }
-
-            if (useGamepadJump && Input.GetKey(gamepadJumpKey))
-                return true;
+            return false;
         }
 
-        if (useInputManagerAxisFallback && Mathf.Abs(Input.GetAxisRaw("Horizontal")) > inputReleaseAxisDeadZone)
+        if (Input.GetKey(leftKey) ||
+            Input.GetKey(rightKey) ||
+            Input.GetKey(jumpKey) ||
+            Input.GetKey(upActionKey) ||
+            Input.GetKey(alternateUpActionKey) ||
+            Input.GetKey(downActionKey) ||
+            Input.GetKey(alternateDownActionKey) ||
+            Input.GetKey(interactKey))
+        {
+            return true;
+        }
+
+        if (useGamepadJump && gamepadJumpKey != KeyCode.None && Input.GetKey(gamepadJumpKey))
             return true;
 
-        if (Mathf.Abs(GetVerticalAxisValue()) > inputReleaseAxisDeadZone)
+        if (gamepadInteractKey != KeyCode.None && Input.GetKey(gamepadInteractKey))
             return true;
 
-        if (useVerticalAxisForApexThrow && GetVerticalAxisValue() <= apexThrowDownAxisThreshold)
+        if (useInputManagerAxisFallback && Mathf.Abs(SafeGetAxisRaw(horizontalAxisName)) > inputReleaseAxisDeadZone)
             return true;
 
-        if (useVerticalAxisForLedgeClimb && GetVerticalAxisValue() >= ledgeClimbUpAxisThreshold)
+        if (Mathf.Abs(SafeGetAxisRaw(verticalAxisName)) > inputReleaseAxisDeadZone)
             return true;
 
         return false;
     }
 
-    private bool GetDesktopApexThrowDownPressed()
+    private float SafeGetAxisRaw(string axisName)
     {
-        bool currentHeld = GetKeyboardApexThrowDownHeld() || GetAxisApexThrowDownHeld();
-        bool pressed = currentHeld && !prevDesktopApexThrowDownHeld;
-        prevDesktopApexThrowDownHeld = currentHeld;
-        return pressed;
-    }
-
-    private bool GetMobileApexThrowDownPressed()
-    {
-        bool currentHeld = false;
-
-        if (mobileJoystick != null)
-            currentHeld = useVerticalAxisForApexThrow && mobileJoystick.Vertical <= apexThrowDownAxisThreshold;
-
-        bool pressed = currentHeld && !prevMobileApexThrowDownHeld;
-        prevMobileApexThrowDownHeld = currentHeld;
-        return pressed;
-    }
-
-    private bool GetDesktopLedgeUpPressed()
-    {
-        bool currentHeld = GetKeyboardLedgeUpHeld() || GetAxisLedgeUpHeld();
-        bool pressed = currentHeld && !prevDesktopLedgeUpHeld;
-        prevDesktopLedgeUpHeld = currentHeld;
-        return pressed;
-    }
-
-    private bool GetMobileLedgeUpPressed()
-    {
-        bool currentHeld = false;
-
-        if (mobileJoystick != null)
-            currentHeld = useVerticalAxisForLedgeClimb && mobileJoystick.Vertical >= ledgeClimbUpAxisThreshold;
-
-        bool pressed = currentHeld && !prevMobileLedgeUpHeld;
-        prevMobileLedgeUpHeld = currentHeld;
-        return pressed;
-    }
-
-    private bool GetDesktopFenceTogglePressed()
-    {
-        return Input.GetKeyDown(fenceToggleKey) || GetGamepadFenceTogglePressed();
-    }
-
-    private bool GetGamepadFenceTogglePressed()
-    {
-        return gamepadFenceToggleKey != KeyCode.None && Input.GetKeyDown(gamepadFenceToggleKey);
-    }
-
-    private bool GetGamepadFenceToggleHeld()
-    {
-        return gamepadFenceToggleKey != KeyCode.None && Input.GetKey(gamepadFenceToggleKey);
-    }
-
-    private float GetDesktopClimbVerticalValue()
-    {
-        float value = 0f;
-
-        if (GetKeyboardClimbUpHeld())
-            value += 1f;
-
-        if (GetKeyboardClimbDownHeld())
-            value -= 1f;
-
-        if (Mathf.Abs(value) > 0.001f)
-            return Mathf.Clamp(value, -1f, 1f);
-
-        if (!useVerticalAxisForFenceClimb)
+        if (string.IsNullOrWhiteSpace(axisName))
             return 0f;
 
-        float axis = GetVerticalAxisValue();
-        if (Mathf.Abs(axis) < fenceClimbAxisThreshold)
+        try
+        {
+            return Input.GetAxisRaw(axisName);
+        }
+        catch
+        {
             return 0f;
-
-        return Mathf.Clamp(axis, -1f, 1f);
-    }
-
-    private float GetMobileClimbVerticalValue()
-    {
-        if (mobileJoystick == null || !useVerticalAxisForFenceClimb)
-            return 0f;
-
-        float axis = mobileJoystick.Vertical;
-        if (Mathf.Abs(axis) < fenceClimbAxisThreshold)
-            return 0f;
-
-        return Mathf.Clamp(axis, -1f, 1f);
-    }
-
-    private bool GetKeyboardApexThrowDownHeld()
-    {
-        return Input.GetKey(apexThrowDownKey) ||
-               (alternateApexThrowDownKey != KeyCode.None && Input.GetKey(alternateApexThrowDownKey));
-    }
-
-    private bool GetAxisApexThrowDownHeld()
-    {
-        if (!useVerticalAxisForApexThrow)
-            return false;
-
-        return GetVerticalAxisValue() <= apexThrowDownAxisThreshold;
-    }
-
-    private bool GetKeyboardLedgeUpHeld()
-    {
-        return Input.GetKey(ledgeClimbUpKey) ||
-               (alternateLedgeClimbUpKey != KeyCode.None && Input.GetKey(alternateLedgeClimbUpKey));
-    }
-
-    private bool GetAxisLedgeUpHeld()
-    {
-        if (!useVerticalAxisForLedgeClimb)
-            return false;
-
-        return GetVerticalAxisValue() >= ledgeClimbUpAxisThreshold;
-    }
-
-    private bool GetKeyboardClimbUpHeld()
-    {
-        return Input.GetKey(climbUpKey) ||
-               (alternateClimbUpKey != KeyCode.None && Input.GetKey(alternateClimbUpKey));
-    }
-
-    private bool GetKeyboardClimbDownHeld()
-    {
-        return Input.GetKey(climbDownKey) ||
-               (alternateClimbDownKey != KeyCode.None && Input.GetKey(alternateClimbDownKey));
-    }
-
-    private float GetVerticalAxisValue()
-    {
-        if (string.IsNullOrEmpty(verticalAxisName))
-            return 0f;
-
-        return Input.GetAxisRaw(verticalAxisName);
+        }
     }
 
     private void EnsureMobileButtonHooked()
@@ -657,6 +637,7 @@ public class PlayerInputModule : MonoBehaviour
             return;
 
         mobileJumpHoldHandler = hookedMobileJumpButton.GetComponent<PointerHoldHandler>();
+
         if (mobileJumpHoldHandler == null)
             mobileJumpHoldHandler = hookedMobileJumpButton.gameObject.AddComponent<PointerHoldHandler>();
 
