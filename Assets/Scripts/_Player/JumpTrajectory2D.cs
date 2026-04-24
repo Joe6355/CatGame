@@ -18,6 +18,19 @@ public class JumpTrajectory2D : MonoBehaviour
         "Collider2D игрока. Нужен, чтобы траектория не проходила сквозь объекты реальным размером коллайдера.")]
     private Collider2D playerCollider;
 
+    [Header("Общее включение из настроек")]
+    [SerializeField, Tooltip("Главный переключатель. Если ВЫКЛ — никакая траектория не рисуется.")]
+    private bool trajectoryEnabled = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — при запуске берёт состояние из PlayerPrefs.")]
+    private bool loadStateFromPlayerPrefs = true;
+
+    [SerializeField, Tooltip("Ключ сохранения. Должен совпадать с ключом в SettingsTabsSwitcher.")]
+    private string trajectoryPrefsKey = "Settings.ShowJumpTrajectory";
+
+    [SerializeField, Tooltip("Значение по умолчанию, если сохранения ещё нет.")]
+    private bool defaultTrajectoryEnabled = true;
+
     [Header("Какие траектории показывать")]
     [SerializeField, Tooltip(
         "Если ВКЛ — до прыжка показывается старая зарядная траектория.\n" +
@@ -111,8 +124,15 @@ public class JumpTrajectory2D : MonoBehaviour
     private readonly RaycastHit2D[] hitBuf = new RaycastHit2D[16];
     private ContactFilter2D filter;
 
+    public bool IsTrajectoryEnabled
+    {
+        get { return trajectoryEnabled; }
+    }
+
     private void Awake()
     {
+        LoadEnabledStateFromPrefs();
+
         primaryLineRenderer = GetComponent<LineRenderer>();
 
         ResolveReferences();
@@ -120,6 +140,9 @@ public class JumpTrajectory2D : MonoBehaviour
         CreateMaterialInstances();
         EnsureSuggestedRenderer();
         ApplySuggestedRendererStaticStyle();
+
+        if (!trajectoryEnabled)
+            ClearAllLines();
     }
 
     private void OnValidate()
@@ -137,11 +160,44 @@ public class JumpTrajectory2D : MonoBehaviour
         ConfigureFilter();
         EnsureSuggestedRenderer();
         ApplySuggestedRendererStaticStyle();
+
+        if (!trajectoryEnabled)
+            ClearAllLines();
     }
 
     private void OnDisable()
     {
         ClearAllLines();
+    }
+
+    public void SetTrajectoryEnabled(bool value)
+    {
+        trajectoryEnabled = value;
+
+        if (!trajectoryEnabled)
+            ClearAllLines();
+    }
+
+    public void SetTrajectoryEnabledAndSave(bool value)
+    {
+        SetTrajectoryEnabled(value);
+
+        if (!string.IsNullOrEmpty(trajectoryPrefsKey))
+        {
+            PlayerPrefs.SetInt(trajectoryPrefsKey, value ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+    }
+
+    private void LoadEnabledStateFromPrefs()
+    {
+        if (!loadStateFromPlayerPrefs)
+            return;
+
+        if (string.IsNullOrEmpty(trajectoryPrefsKey))
+            return;
+
+        trajectoryEnabled = PlayerPrefs.GetInt(trajectoryPrefsKey, defaultTrajectoryEnabled ? 1 : 0) != 0;
     }
 
     private void ResolveReferences()
@@ -226,6 +282,12 @@ public class JumpTrajectory2D : MonoBehaviour
 
     private void Update()
     {
+        if (!trajectoryEnabled)
+        {
+            ClearAllLines();
+            return;
+        }
+
         if (player == null)
         {
             ClearAllLines();
@@ -371,7 +433,9 @@ public class JumpTrajectory2D : MonoBehaviour
 
         target.useWorldSpace = true;
         target.positionCount = n;
-        target.SetPositions(tmpPositions);
+
+        for (int i = 0; i < n; i++)
+            target.SetPosition(i, tmpPositions[i]);
     }
 
     private void ApplyLineStyle(LineRenderer target, List<Vector3> buffer, bool useSuggestedStyle)

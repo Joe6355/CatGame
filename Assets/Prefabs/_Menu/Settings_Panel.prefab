@@ -19623,9 +19623,9 @@ RectTransform:
   - {fileID: 8216910973577374358}
   m_Father: {fileID: 7846009655467960150}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 170, y: -30}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 160, y: 20}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &5592325936394256971
@@ -19675,7 +19675,7 @@ MonoBehaviour:
   onValueChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_IsOn: 1
+  m_IsOn: 0
 --- !u!1 &7931791927432001137
 GameObject:
   m_ObjectHideFlags: 0
@@ -21506,6 +21506,14 @@ MonoBehaviour:
   assistInfoBtn: {fileID: 2841064540905250539}
   assistTooltipPanel: {fileID: 7024106183719212123}
   hideTooltipOnTabChange: 1
+  jumpTrajectoryToggle: {fileID: 5592325936394256971}
+  jumpTrajectoryBackgroundButton: {fileID: 0}
+  jumpTrajectory: {fileID: 0}
+  autoFindJumpTrajectoryInScene: 1
+  saveJumpTrajectorySetting: 1
+  jumpTrajectoryPrefsKey: Settings.ShowJumpTrajectory
+  defaultJumpTrajectoryVisible: 0
+  debugJumpTrajectoryToggle: 0
   closeAllTabsOnEnable: 1
   settingsRootFirstSelected: {fileID: 0}
   audioFirstSelected: {fileID: 0}
@@ -22595,7 +22603,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &7846009655467960150
 RectTransform:
   m_ObjectHideFlags: 0

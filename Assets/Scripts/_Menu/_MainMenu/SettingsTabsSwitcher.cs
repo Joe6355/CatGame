@@ -28,6 +28,31 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField] private GameObject assistTooltipPanel;
     [SerializeField] private bool hideTooltipOnTabChange = true;
 
+    [Header("Gameplay: траектория прыжка")]
+    [SerializeField, Tooltip("Toggle из Gameplay-вкладки. Сюда перетащи Tgl_Assist.")]
+    private Toggle jumpTrajectoryToggle;
+
+    [SerializeField, Tooltip("Необязательно. Если на дочернем Background висит Button, перетащи его сюда. Если Background обычный Image внутри Toggle — оставь пустым.")]
+    private Button jumpTrajectoryBackgroundButton;
+
+    [SerializeField, Tooltip("Ссылка на JumpTrajectory2D на игроке. Можно оставить пустым, скрипт попробует найти сам.")]
+    private JumpTrajectory2D jumpTrajectory;
+
+    [SerializeField, Tooltip("Если ВКЛ — SettingsTabsSwitcher сам попробует найти JumpTrajectory2D в сцене.")]
+    private bool autoFindJumpTrajectoryInScene = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — состояние галочки сохраняется в PlayerPrefs.")]
+    private bool saveJumpTrajectorySetting = true;
+
+    [SerializeField, Tooltip("Ключ сохранения. Такой же ключ должен быть в JumpTrajectory2D.")]
+    private string jumpTrajectoryPrefsKey = "Settings.ShowJumpTrajectory";
+
+    [SerializeField, Tooltip("Значение по умолчанию, если сохранения ещё нет.")]
+    private bool defaultJumpTrajectoryVisible = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда настройка меняется.")]
+    private bool debugJumpTrajectoryToggle = false;
+
     [Header("Стартовое поведение")]
     [SerializeField] private bool closeAllTabsOnEnable = true;
 
@@ -55,6 +80,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     private GameObject _currentTab;
     private GameObject _currentControlsSubPanel;
+
+    private bool _ignoreJumpTrajectoryToggleCallback;
 
     private void Awake()
     {
@@ -100,6 +127,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             assistInfoBtn.onClick.AddListener(ToggleAssistTooltip);
         }
 
+        SetupJumpTrajectoryToggle();
+
         if (assistTooltipPanel != null)
             assistTooltipPanel.SetActive(false);
 
@@ -115,6 +144,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         if (assistTooltipPanel != null)
             assistTooltipPanel.SetActive(false);
+
+        SyncJumpTrajectoryToggleWithSavedValue();
     }
 
     public void OpenAudioTab()
@@ -360,5 +391,113 @@ public class SettingsTabsSwitcher : MonoBehaviour
     private static bool IsSelectable(Button button)
     {
         return button != null && button.isActiveAndEnabled && button.interactable;
+    }
+
+    private void SetupJumpTrajectoryToggle()
+    {
+        ResolveJumpTrajectoryReference();
+
+        if (jumpTrajectoryToggle != null)
+        {
+            jumpTrajectoryToggle.onValueChanged.RemoveListener(OnJumpTrajectoryToggleChanged);
+            jumpTrajectoryToggle.onValueChanged.AddListener(OnJumpTrajectoryToggleChanged);
+        }
+
+        if (jumpTrajectoryBackgroundButton != null)
+        {
+            jumpTrajectoryBackgroundButton.onClick.RemoveListener(ToggleJumpTrajectoryFromBackgroundButton);
+            jumpTrajectoryBackgroundButton.onClick.AddListener(ToggleJumpTrajectoryFromBackgroundButton);
+        }
+
+        SyncJumpTrajectoryToggleWithSavedValue();
+    }
+
+    private void SyncJumpTrajectoryToggleWithSavedValue()
+    {
+        bool visible = ReadSavedJumpTrajectoryVisible();
+        ApplyJumpTrajectoryVisible(visible, false, false);
+    }
+
+    private void OnJumpTrajectoryToggleChanged(bool isOn)
+    {
+        if (_ignoreJumpTrajectoryToggleCallback)
+            return;
+
+        ApplyJumpTrajectoryVisible(isOn, true, true);
+    }
+
+    private void ToggleJumpTrajectoryFromBackgroundButton()
+    {
+        if (jumpTrajectoryToggle != null)
+        {
+            jumpTrajectoryToggle.isOn = !jumpTrajectoryToggle.isOn;
+            return;
+        }
+
+        bool current = ReadSavedJumpTrajectoryVisible();
+        ApplyJumpTrajectoryVisible(!current, true, true);
+    }
+
+    public void SetJumpTrajectoryVisibleFromUI(bool visible)
+    {
+        ApplyJumpTrajectoryVisible(visible, true, true);
+    }
+
+    public void ToggleJumpTrajectoryVisibleFromUI()
+    {
+        bool current = ReadSavedJumpTrajectoryVisible();
+        ApplyJumpTrajectoryVisible(!current, true, true);
+    }
+
+    private void ApplyJumpTrajectoryVisible(bool visible, bool save, bool log)
+    {
+        ResolveJumpTrajectoryReference();
+
+        if (jumpTrajectory != null)
+            jumpTrajectory.SetTrajectoryEnabled(visible);
+
+        if (save && saveJumpTrajectorySetting && !string.IsNullOrEmpty(jumpTrajectoryPrefsKey))
+        {
+            PlayerPrefs.SetInt(jumpTrajectoryPrefsKey, visible ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        if (jumpTrajectoryToggle != null && jumpTrajectoryToggle.isOn != visible)
+        {
+            _ignoreJumpTrajectoryToggleCallback = true;
+            jumpTrajectoryToggle.SetIsOnWithoutNotify(visible);
+            _ignoreJumpTrajectoryToggleCallback = false;
+        }
+
+        if (debugJumpTrajectoryToggle && log)
+            Debug.Log("[SettingsTabsSwitcher] Jump trajectory visible = " + visible);
+    }
+
+    private bool ReadSavedJumpTrajectoryVisible()
+    {
+        if (saveJumpTrajectorySetting && !string.IsNullOrEmpty(jumpTrajectoryPrefsKey) && PlayerPrefs.HasKey(jumpTrajectoryPrefsKey))
+            return PlayerPrefs.GetInt(jumpTrajectoryPrefsKey, defaultJumpTrajectoryVisible ? 1 : 0) != 0;
+
+        return defaultJumpTrajectoryVisible;
+    }
+
+    private void ResolveJumpTrajectoryReference()
+    {
+        if (jumpTrajectory != null)
+            return;
+
+        if (!autoFindJumpTrajectoryInScene)
+            return;
+
+        JumpTrajectory2D[] found = Resources.FindObjectsOfTypeAll<JumpTrajectory2D>();
+        for (int i = 0; i < found.Length; i++)
+        {
+            JumpTrajectory2D candidate = found[i];
+            if (candidate == null) continue;
+            if (!candidate.gameObject.scene.IsValid()) continue;
+
+            jumpTrajectory = candidate;
+            return;
+        }
     }
 }

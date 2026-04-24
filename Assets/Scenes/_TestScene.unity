@@ -2139,7 +2139,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 358.0001, y: 54}
+  m_AnchoredPosition: {x: 358.00006, y: 54}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &413439849
@@ -3136,7 +3136,7 @@ Transform:
   m_GameObject: {fileID: 616883574}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 13.585012, y: 0.25880003, z: -10}
+  m_LocalPosition: {x: 13.917215, y: 0.25861, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4377,7 +4377,7 @@ Transform:
   m_GameObject: {fileID: 956994266}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 13.579756, y: -2.1799998, z: -10}
+  m_LocalPosition: {x: 13.911345, y: -2.1799998, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -5948,6 +5948,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   player: {fileID: 1471706300}
   playerCollider: {fileID: 1471706301}
+  trajectoryEnabled: 1
+  loadStateFromPlayerPrefs: 1
+  trajectoryPrefsKey: Settings.ShowJumpTrajectory
+  defaultTrajectoryEnabled: 0
   showChargeTrajectory: 1
   showCurrentTrajectoryDuringApex: 1
   showSuggestedApexTrajectory: 1
@@ -6319,27 +6323,24 @@ MonoBehaviour:
   leftKey: 97
   rightKey: 100
   jumpKey: 32
-  apexThrowDownKey: 115
-  alternateApexThrowDownKey: 274
-  ledgeClimbUpKey: 119
-  alternateLedgeClimbUpKey: 273
-  fenceToggleKey: 102
-  climbUpKey: 119
-  climbDownKey: 115
-  alternateClimbUpKey: 273
-  alternateClimbDownKey: 274
+  downActionKey: 115
+  alternateDownActionKey: 274
+  upActionKey: 119
+  alternateUpActionKey: 273
+  interactKey: 102
   useGamepadJump: 1
   gamepadJumpKey: 330
-  gamepadFenceToggleKey: 332
-  useVerticalAxisForApexThrow: 1
+  gamepadInteractKey: 332
+  horizontalAxisName: Horizontal
   verticalAxisName: Vertical
+  useInputManagerAxisFallback: 1
+  useVerticalAxisForApexThrowFallback: 1
   apexThrowDownAxisThreshold: -0.65
-  useVerticalAxisForLedgeClimb: 1
+  useVerticalAxisForLedgeClimbFallback: 1
   ledgeClimbUpAxisThreshold: 0.65
-  useVerticalAxisForFenceClimb: 1
+  useVerticalAxisForFenceClimbFallback: 1
   fenceClimbAxisThreshold: 0.35
   useLegacyKeycodeRebind: 1
-  useInputManagerAxisFallback: 1
   useMobileControls: 0
   mobileJoystick: {fileID: 0}
   mobileJumpButton: {fileID: 0}
@@ -6819,7 +6820,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 358.0001, y: 101}
+  m_AnchoredPosition: {x: 358.00006, y: 101}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1546684875
@@ -7089,6 +7090,14 @@ MonoBehaviour:
   assistInfoBtn: {fileID: 0}
   assistTooltipPanel: {fileID: 0}
   hideTooltipOnTabChange: 1
+  jumpTrajectoryToggle: {fileID: 0}
+  jumpTrajectoryBackgroundButton: {fileID: 0}
+  jumpTrajectory: {fileID: 0}
+  autoFindJumpTrajectoryInScene: 1
+  saveJumpTrajectorySetting: 1
+  jumpTrajectoryPrefsKey: Settings.ShowJumpTrajectory
+  defaultJumpTrajectoryVisible: 1
+  debugJumpTrajectoryToggle: 0
   closeAllTabsOnEnable: 1
   settingsRootFirstSelected: {fileID: 0}
   audioFirstSelected: {fileID: 0}
