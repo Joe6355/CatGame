@@ -1,4 +1,6 @@
+using TMPro;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 public class SettingsTabsSwitcher : MonoBehaviour
@@ -23,19 +25,43 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField] private bool closeControlsSubPanelsOnControlsTabOpen = false;
     [SerializeField] private bool closeControlsSubPanelsWhenLeaveControlsTab = true;
 
-    [Header("Gameplay Tooltip")]
-    [SerializeField] private Button assistInfoBtn;
-    [SerializeField] private GameObject assistTooltipPanel;
-    [SerializeField] private bool hideTooltipOnTabChange = true;
+    [Header("Gameplay Tooltip Universal")]
+    [SerializeField, Tooltip("Одна общая панель подсказки. Твой Panel_AssistTooltip.")]
+    private GameObject assistTooltipPanel;
+
+    [SerializeField, Tooltip("TMP-текст внутри Panel_AssistTooltip. Можно оставить пустым — скрипт найдёт сам.")]
+    private TMP_Text assistTooltipText;
+
+    [SerializeField, Tooltip("Если ВКЛ — повторное нажатие на ту же кнопку ? закрывает подсказку.")]
+    private bool toggleTooltipOnSameButtonClick = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — подсказка скрывается при смене вкладки.")]
+    private bool hideTooltipOnTabChange = true;
+
+    [Header("Tooltip Element 0")]
+    [SerializeField, Tooltip("Кнопка ? для первой подсказки.")]
+    private Button tooltipButton0;
+
+    [SerializeField, TextArea(2, 8), Tooltip("Текст первой подсказки.")]
+    private string tooltipMessage0 =
+        "Показывает предполагаемую траекторию прыжка персонажа. Помогает заранее увидеть направление и дальность прыжка.";
+
+    [Header("Tooltip Element 1")]
+    [SerializeField, Tooltip("Кнопка ? для второй подсказки.")]
+    private Button tooltipButton1;
+
+    [SerializeField, TextArea(2, 8), Tooltip("Текст второй подсказки.")]
+    private string tooltipMessage1 =
+        "Включает визуальный эффект старого экрана: зерно, хроматические искажения, виньетку, свечение и лёгкое искривление изображения.";
 
     [Header("Gameplay: траектория прыжка")]
-    [SerializeField, Tooltip("Toggle из Gameplay-вкладки. Сюда перетащи Tgl_Assist.")]
+    [SerializeField, Tooltip("Toggle из Gameplay-вкладки.")]
     private Toggle jumpTrajectoryToggle;
 
-    [SerializeField, Tooltip("Необязательно. Если на дочернем Background висит Button, перетащи его сюда. Если Background обычный Image внутри Toggle — оставь пустым.")]
+    [SerializeField, Tooltip("Обычно оставь None. Используется только если Background сделан отдельной Button-кнопкой.")]
     private Button jumpTrajectoryBackgroundButton;
 
-    [SerializeField, Tooltip("Ссылка на JumpTrajectory2D на игроке. Можно оставить пустым, скрипт попробует найти сам.")]
+    [SerializeField, Tooltip("Ссылка на JumpTrajectory2D на игроке. Можно оставить пустым, если включён Auto Find.")]
     private JumpTrajectory2D jumpTrajectory;
 
     [SerializeField, Tooltip("Если ВКЛ — SettingsTabsSwitcher сам попробует найти JumpTrajectory2D в сцене.")]
@@ -53,35 +79,56 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда настройка меняется.")]
     private bool debugJumpTrajectoryToggle = false;
 
+    [Header("Gameplay: VHS / CRT / Post Processing")]
+    [SerializeField, Tooltip("Toggle, который включает/выключает VHS/CRT/PostFX эффект.")]
+    private Toggle postFxToggle;
+
+    [SerializeField, Tooltip("Обычно оставь None. Используется только если Background сделан отдельной Button-кнопкой.")]
+    private Button postFxBackgroundButton;
+
+    [SerializeField, Tooltip("Global Volume из сцены. Лучше перетащить вручную.")]
+    private Volume postFxVolume;
+
+    [SerializeField, Tooltip("Если ВКЛ — скрипт сам попробует найти Global Volume в сцене.")]
+    private bool autoFindPostFxInScene = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — эффект выключается через Volume.weight = 0. Если ВЫКЛ — выключается сам компонент Volume.")]
+    private bool controlPostFxByWeight = true;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Какой Weight ставить, когда эффект включён.")]
+    private float postFxEnabledWeight = 1f;
+
+    [SerializeField, Tooltip("Если ВКЛ — состояние сохраняется в PlayerPrefs.")]
+    private bool savePostFxSetting = true;
+
+    [SerializeField, Tooltip("Ключ сохранения VHS/PostFX.")]
+    private string postFxPrefsKey = "Settings.CRTPostFx";
+
+    [SerializeField, Tooltip("Значение по умолчанию, если сохранения ещё нет.")]
+    private bool defaultPostFxVisible = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда настройка меняется.")]
+    private bool debugPostFxToggle = false;
+
     [Header("Стартовое поведение")]
     [SerializeField] private bool closeAllTabsOnEnable = true;
 
-    [Header("UI selection defaults (optional)")]
-    [SerializeField, Tooltip("Кнопка по умолчанию в корне Settings, когда ни одна вкладка ещё не открыта. Если пусто — возьмёт первую доступную вкладку.")]
-    private Button settingsRootFirstSelected;
-
-    [SerializeField, Tooltip("Какая кнопка считается основной для вкладки Audio. Если пусто — сама кнопка вкладки Audio.")]
-    private Button audioFirstSelected;
-
-    [SerializeField, Tooltip("Какая кнопка считается основной для вкладки Controls. Если пусто — сама кнопка вкладки Controls.")]
-    private Button controlsFirstSelected;
-
-    [SerializeField, Tooltip("Какая кнопка считается основной для вкладки Gameplay. Если пусто — сама кнопка вкладки Gameplay.")]
-    private Button gameplayFirstSelected;
-
-    [SerializeField, Tooltip("Какая кнопка считается основной для вкладки Video. Если пусто — сама кнопка вкладки Video.")]
-    private Button videoFirstSelected;
-
-    [SerializeField, Tooltip("Какая кнопка выделяется внутри Keyboard-подпанели. Если пусто — Keyboard button или Controls default.")]
-    private Button keyboardFirstSelected;
-
-    [SerializeField, Tooltip("Какая кнопка выделяется внутри Gamepad-подпанели. Если пусто — Gamepad button или Controls default.")]
-    private Button gamepadFirstSelected;
+    [Header("UI selection defaults")]
+    [SerializeField] private Button settingsRootFirstSelected;
+    [SerializeField] private Button audioFirstSelected;
+    [SerializeField] private Button controlsFirstSelected;
+    [SerializeField] private Button gameplayFirstSelected;
+    [SerializeField] private Button videoFirstSelected;
+    [SerializeField] private Button keyboardFirstSelected;
+    [SerializeField] private Button gamepadFirstSelected;
 
     private GameObject _currentTab;
     private GameObject _currentControlsSubPanel;
 
     private bool _ignoreJumpTrajectoryToggleCallback;
+    private bool _ignorePostFxToggleCallback;
+
+    private Button _currentTooltipButton;
 
     private void Awake()
     {
@@ -121,17 +168,11 @@ public class SettingsTabsSwitcher : MonoBehaviour
             gamepadBtn.onClick.AddListener(OpenGamepadPanel);
         }
 
-        if (assistInfoBtn != null)
-        {
-            assistInfoBtn.onClick.RemoveAllListeners();
-            assistInfoBtn.onClick.AddListener(ToggleAssistTooltip);
-        }
-
+        SetupTooltipButtons();
         SetupJumpTrajectoryToggle();
+        SetupPostFxToggle();
 
-        if (assistTooltipPanel != null)
-            assistTooltipPanel.SetActive(false);
-
+        HideSharedTooltip();
         CloseAllTabs();
     }
 
@@ -142,10 +183,10 @@ public class SettingsTabsSwitcher : MonoBehaviour
         else
             CloseControlsSubPanels();
 
-        if (assistTooltipPanel != null)
-            assistTooltipPanel.SetActive(false);
+        HideSharedTooltip();
 
         SyncJumpTrajectoryToggleWithSavedValue();
+        SyncPostFxToggleWithSavedValue();
     }
 
     public void OpenAudioTab()
@@ -189,8 +230,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             _currentControlsSubPanel = null;
         }
 
-        if (hideTooltipOnTabChange && assistTooltipPanel != null)
-            assistTooltipPanel.SetActive(false);
+        if (hideTooltipOnTabChange)
+            HideSharedTooltip();
     }
 
     public void OpenKeyboardPanel()
@@ -263,17 +304,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         if (tabVideo != null) tabVideo.SetActive(false);
 
         CloseControlsSubPanels();
-
-        if (assistTooltipPanel != null)
-            assistTooltipPanel.SetActive(false);
-    }
-
-    public void ToggleAssistTooltip()
-    {
-        if (assistTooltipPanel == null) return;
-        if (tabGameplay != null && !tabGameplay.activeSelf) return;
-
-        assistTooltipPanel.SetActive(!assistTooltipPanel.activeSelf);
+        HideSharedTooltip();
     }
 
     public void OpenControlsKeyboard()
@@ -291,6 +322,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
     public Button GetPreferredSelectedButton()
     {
         Button preferred = GetPreferredSelectedButtonInternal();
+
         if (IsSelectable(preferred))
             return preferred;
 
@@ -304,6 +336,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         if (IsSelectable(controlsBtn)) return controlsBtn;
         if (IsSelectable(gameplayBtn)) return gameplayBtn;
         if (IsSelectable(videoBtn)) return videoBtn;
+
         return null;
     }
 
@@ -393,6 +426,106 @@ public class SettingsTabsSwitcher : MonoBehaviour
         return button != null && button.isActiveAndEnabled && button.interactable;
     }
 
+    // =========================================================
+    // Universal Tooltip
+    // =========================================================
+
+    private void SetupTooltipButtons()
+    {
+        SetupTooltipButton(tooltipButton0, tooltipMessage0);
+        SetupTooltipButton(tooltipButton1, tooltipMessage1);
+
+        ResolveTooltipText();
+    }
+
+    private void SetupTooltipButton(Button button, string message)
+    {
+        if (button == null)
+            return;
+
+        button.onClick.RemoveAllListeners();
+
+        Button capturedButton = button;
+        string capturedMessage = message;
+
+        button.onClick.AddListener(() =>
+        {
+            ToggleSharedTooltip(capturedButton, capturedMessage);
+        });
+    }
+
+    private void ResolveTooltipText()
+    {
+        if (assistTooltipText != null)
+            return;
+
+        if (assistTooltipPanel == null)
+            return;
+
+        assistTooltipText = assistTooltipPanel.GetComponentInChildren<TMP_Text>(true);
+    }
+
+    private void ToggleSharedTooltip(Button sourceButton, string message)
+    {
+        if (assistTooltipPanel == null)
+            return;
+
+        if (tabGameplay != null && !tabGameplay.activeSelf)
+            return;
+
+        ResolveTooltipText();
+
+        bool sameButton = _currentTooltipButton == sourceButton;
+        bool panelIsOpen = assistTooltipPanel.activeSelf;
+
+        if (toggleTooltipOnSameButtonClick && sameButton && panelIsOpen)
+        {
+            HideSharedTooltip();
+            return;
+        }
+
+        _currentTooltipButton = sourceButton;
+
+        if (assistTooltipText != null)
+            assistTooltipText.text = message;
+
+        assistTooltipPanel.SetActive(true);
+    }
+
+    public void HideSharedTooltip()
+    {
+        _currentTooltipButton = null;
+
+        if (assistTooltipPanel != null)
+            assistTooltipPanel.SetActive(false);
+    }
+
+    public void ToggleAssistTooltip()
+    {
+        if (assistTooltipPanel == null)
+            return;
+
+        if (tabGameplay != null && !tabGameplay.activeSelf)
+            return;
+
+        if (assistTooltipPanel.activeSelf)
+        {
+            HideSharedTooltip();
+            return;
+        }
+
+        ResolveTooltipText();
+
+        if (assistTooltipText != null && string.IsNullOrWhiteSpace(assistTooltipText.text))
+            assistTooltipText.text = "Подсказка для выбранной настройки.";
+
+        assistTooltipPanel.SetActive(true);
+    }
+
+    // =========================================================
+    // Jump Trajectory
+    // =========================================================
+
     private void SetupJumpTrajectoryToggle()
     {
         ResolveJumpTrajectoryReference();
@@ -475,8 +608,12 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     private bool ReadSavedJumpTrajectoryVisible()
     {
-        if (saveJumpTrajectorySetting && !string.IsNullOrEmpty(jumpTrajectoryPrefsKey) && PlayerPrefs.HasKey(jumpTrajectoryPrefsKey))
+        if (saveJumpTrajectorySetting &&
+            !string.IsNullOrEmpty(jumpTrajectoryPrefsKey) &&
+            PlayerPrefs.HasKey(jumpTrajectoryPrefsKey))
+        {
             return PlayerPrefs.GetInt(jumpTrajectoryPrefsKey, defaultJumpTrajectoryVisible ? 1 : 0) != 0;
+        }
 
         return defaultJumpTrajectoryVisible;
     }
@@ -490,13 +627,158 @@ public class SettingsTabsSwitcher : MonoBehaviour
             return;
 
         JumpTrajectory2D[] found = Resources.FindObjectsOfTypeAll<JumpTrajectory2D>();
+
         for (int i = 0; i < found.Length; i++)
         {
             JumpTrajectory2D candidate = found[i];
-            if (candidate == null) continue;
-            if (!candidate.gameObject.scene.IsValid()) continue;
+
+            if (candidate == null)
+                continue;
+
+            if (!candidate.gameObject.scene.IsValid())
+                continue;
 
             jumpTrajectory = candidate;
+            return;
+        }
+    }
+
+    // =========================================================
+    // VHS / CRT / PostFX
+    // =========================================================
+
+    private void SetupPostFxToggle()
+    {
+        ResolvePostFxReference();
+
+        if (postFxToggle != null)
+        {
+            postFxToggle.onValueChanged.RemoveListener(OnPostFxToggleChanged);
+            postFxToggle.onValueChanged.AddListener(OnPostFxToggleChanged);
+        }
+
+        if (postFxBackgroundButton != null)
+        {
+            postFxBackgroundButton.onClick.RemoveListener(TogglePostFxFromBackgroundButton);
+            postFxBackgroundButton.onClick.AddListener(TogglePostFxFromBackgroundButton);
+        }
+
+        SyncPostFxToggleWithSavedValue();
+    }
+
+    private void SyncPostFxToggleWithSavedValue()
+    {
+        bool visible = ReadSavedPostFxVisible();
+        ApplyPostFxVisible(visible, false, false);
+    }
+
+    private void OnPostFxToggleChanged(bool isOn)
+    {
+        if (_ignorePostFxToggleCallback)
+            return;
+
+        ApplyPostFxVisible(isOn, true, true);
+    }
+
+    private void TogglePostFxFromBackgroundButton()
+    {
+        if (postFxToggle != null)
+        {
+            postFxToggle.isOn = !postFxToggle.isOn;
+            return;
+        }
+
+        bool current = ReadSavedPostFxVisible();
+        ApplyPostFxVisible(!current, true, true);
+    }
+
+    public void SetPostFxVisibleFromUI(bool visible)
+    {
+        ApplyPostFxVisible(visible, true, true);
+    }
+
+    public void TogglePostFxVisibleFromUI()
+    {
+        bool current = ReadSavedPostFxVisible();
+        ApplyPostFxVisible(!current, true, true);
+    }
+
+    private void ApplyPostFxVisible(bool visible, bool save, bool log)
+    {
+        ResolvePostFxReference();
+
+        if (postFxVolume != null)
+            ApplyPostFxToVolume(postFxVolume, visible);
+
+        if (save && savePostFxSetting && !string.IsNullOrEmpty(postFxPrefsKey))
+        {
+            PlayerPrefs.SetInt(postFxPrefsKey, visible ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        if (postFxToggle != null && postFxToggle.isOn != visible)
+        {
+            _ignorePostFxToggleCallback = true;
+            postFxToggle.SetIsOnWithoutNotify(visible);
+            _ignorePostFxToggleCallback = false;
+        }
+
+        if (debugPostFxToggle && log)
+            Debug.Log("[SettingsTabsSwitcher] VHS/PostFX visible = " + visible);
+    }
+
+    private void ApplyPostFxToVolume(Volume volume, bool visible)
+    {
+        if (volume == null)
+            return;
+
+        if (controlPostFxByWeight)
+        {
+            volume.enabled = true;
+            volume.weight = visible ? postFxEnabledWeight : 0f;
+        }
+        else
+        {
+            volume.enabled = visible;
+        }
+    }
+
+    private bool ReadSavedPostFxVisible()
+    {
+        if (savePostFxSetting &&
+            !string.IsNullOrEmpty(postFxPrefsKey) &&
+            PlayerPrefs.HasKey(postFxPrefsKey))
+        {
+            return PlayerPrefs.GetInt(postFxPrefsKey, defaultPostFxVisible ? 1 : 0) != 0;
+        }
+
+        return defaultPostFxVisible;
+    }
+
+    private void ResolvePostFxReference()
+    {
+        if (postFxVolume != null)
+            return;
+
+        if (!autoFindPostFxInScene)
+            return;
+
+        Volume[] found = Resources.FindObjectsOfTypeAll<Volume>();
+
+        for (int i = 0; i < found.Length; i++)
+        {
+            Volume candidate = found[i];
+
+            if (candidate == null)
+                continue;
+
+            if (!candidate.gameObject.scene.IsValid())
+                continue;
+
+            if (!candidate.isGlobal)
+                continue;
+
+            postFxVolume = candidate;
             return;
         }
     }

@@ -9260,6 +9260,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1915840498}
   - component: {fileID: 1915840497}
+  - component: {fileID: 1915840499}
   m_Layer: 0
   m_Name: Global Volume
   m_TagString: Untagged
@@ -9299,6 +9300,26 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1915840499
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1915840496}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0f32da198312d544996ac408f41697e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  targetVolume: {fileID: 1915840497}
+  controlByWeight: 1
+  enabledWeight: 1
+  prefsKey: Settings.CRTPostFx
+  defaultEnabled: 1
+  applyOnAwake: 1
+  applyOnEnable: 1
+  debugLog: 0
 --- !u!1 &1967221244
 GameObject:
   m_ObjectHideFlags: 0
@@ -10760,6 +10781,10 @@ PrefabInstance:
       propertyPath: m_OnValueChanged.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
       objectReference: {fileID: 1889332356}
+    - target: {fileID: 1447129768425771963, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
+      propertyPath: postFxVolume
+      value: 
+      objectReference: {fileID: 1915840497}
     - target: {fileID: 6346686838709869014, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
       propertyPath: m_OnValueChanged.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
