@@ -54,6 +54,14 @@ public class SettingsTabsSwitcher : MonoBehaviour
     private string tooltipMessage1 =
         "Включает визуальный эффект старого экрана: зерно, хроматические искажения, виньетку, свечение и лёгкое искривление изображения.";
 
+    [Header("Tooltip Element 2")]
+    [SerializeField, Tooltip("Кнопка ? для третьей подсказки.")]
+    private Button tooltipButton2;
+
+    [SerializeField, TextArea(2, 8), Tooltip("Текст третьей подсказки.")]
+    private string tooltipMessage2 =
+        "Включает или выключает вибрацию геймпада при жёстком приземлении. Чем сильнее падение, тем заметнее отклик геймпада.";
+
     [Header("Gameplay: траектория прыжка")]
     [SerializeField, Tooltip("Toggle из Gameplay-вкладки.")]
     private Toggle jumpTrajectoryToggle;
@@ -110,6 +118,31 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда настройка меняется.")]
     private bool debugPostFxToggle = false;
 
+    [Header("Gameplay: вибрация геймпада")]
+    [SerializeField, Tooltip("Toggle, который включает/выключает вибрацию геймпада при жёстком приземлении.")]
+    private Toggle gamepadRumbleToggle;
+
+    [SerializeField, Tooltip("Обычно оставь None. Используется только если Background сделан отдельной Button-кнопкой.")]
+    private Button gamepadRumbleBackgroundButton;
+
+    [SerializeField, Tooltip("PlayerController из игровой сцены. Можно оставить пустым, если включён Auto Find.")]
+    private PlayerController playerController;
+
+    [SerializeField, Tooltip("Если ВКЛ — скрипт сам попробует найти PlayerController в сцене.")]
+    private bool autoFindPlayerControllerInScene = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — состояние сохраняется в PlayerPrefs.")]
+    private bool saveGamepadRumbleSetting = true;
+
+    [SerializeField, Tooltip("Ключ сохранения вибрации. Такой же ключ должен быть в PlayerController.")]
+    private string gamepadRumblePrefsKey = "Settings.GamepadRumble";
+
+    [SerializeField, Tooltip("Значение по умолчанию, если сохранения ещё нет.")]
+    private bool defaultGamepadRumbleEnabled = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда настройка меняется.")]
+    private bool debugGamepadRumbleToggle = false;
+
     [Header("Стартовое поведение")]
     [SerializeField] private bool closeAllTabsOnEnable = true;
 
@@ -127,6 +160,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     private bool _ignoreJumpTrajectoryToggleCallback;
     private bool _ignorePostFxToggleCallback;
+    private bool _ignoreGamepadRumbleToggleCallback;
 
     private Button _currentTooltipButton;
 
@@ -171,6 +205,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         SetupTooltipButtons();
         SetupJumpTrajectoryToggle();
         SetupPostFxToggle();
+        SetupGamepadRumbleToggle();
 
         HideSharedTooltip();
         CloseAllTabs();
@@ -187,6 +222,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         SyncJumpTrajectoryToggleWithSavedValue();
         SyncPostFxToggleWithSavedValue();
+        SyncGamepadRumbleToggleWithSavedValue();
     }
 
     public void OpenAudioTab()
@@ -434,6 +470,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
     {
         SetupTooltipButton(tooltipButton0, tooltipMessage0);
         SetupTooltipButton(tooltipButton1, tooltipMessage1);
+        SetupTooltipButton(tooltipButton2, tooltipMessage2);
 
         ResolveTooltipText();
     }
@@ -779,6 +816,127 @@ public class SettingsTabsSwitcher : MonoBehaviour
                 continue;
 
             postFxVolume = candidate;
+            return;
+        }
+    }
+
+    // =========================================================
+    // Gamepad Rumble
+    // =========================================================
+
+    private void SetupGamepadRumbleToggle()
+    {
+        ResolvePlayerControllerReference();
+
+        if (gamepadRumbleToggle != null)
+        {
+            gamepadRumbleToggle.onValueChanged.RemoveListener(OnGamepadRumbleToggleChanged);
+            gamepadRumbleToggle.onValueChanged.AddListener(OnGamepadRumbleToggleChanged);
+        }
+
+        if (gamepadRumbleBackgroundButton != null)
+        {
+            gamepadRumbleBackgroundButton.onClick.RemoveListener(ToggleGamepadRumbleFromBackgroundButton);
+            gamepadRumbleBackgroundButton.onClick.AddListener(ToggleGamepadRumbleFromBackgroundButton);
+        }
+
+        SyncGamepadRumbleToggleWithSavedValue();
+    }
+
+    private void SyncGamepadRumbleToggleWithSavedValue()
+    {
+        bool enabled = ReadSavedGamepadRumbleEnabled();
+        ApplyGamepadRumbleEnabled(enabled, false, false);
+    }
+
+    private void OnGamepadRumbleToggleChanged(bool isOn)
+    {
+        if (_ignoreGamepadRumbleToggleCallback)
+            return;
+
+        ApplyGamepadRumbleEnabled(isOn, true, true);
+    }
+
+    private void ToggleGamepadRumbleFromBackgroundButton()
+    {
+        if (gamepadRumbleToggle != null)
+        {
+            gamepadRumbleToggle.isOn = !gamepadRumbleToggle.isOn;
+            return;
+        }
+
+        bool current = ReadSavedGamepadRumbleEnabled();
+        ApplyGamepadRumbleEnabled(!current, true, true);
+    }
+
+    public void SetGamepadRumbleEnabledFromUI(bool enabled)
+    {
+        ApplyGamepadRumbleEnabled(enabled, true, true);
+    }
+
+    public void ToggleGamepadRumbleEnabledFromUI()
+    {
+        bool current = ReadSavedGamepadRumbleEnabled();
+        ApplyGamepadRumbleEnabled(!current, true, true);
+    }
+
+    private void ApplyGamepadRumbleEnabled(bool enabled, bool save, bool log)
+    {
+        ResolvePlayerControllerReference();
+
+        if (playerController != null)
+            playerController.SetLandingGamepadRumbleEnabled(enabled);
+
+        if (save && saveGamepadRumbleSetting && !string.IsNullOrEmpty(gamepadRumblePrefsKey))
+        {
+            PlayerPrefs.SetInt(gamepadRumblePrefsKey, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        if (gamepadRumbleToggle != null && gamepadRumbleToggle.isOn != enabled)
+        {
+            _ignoreGamepadRumbleToggleCallback = true;
+            gamepadRumbleToggle.SetIsOnWithoutNotify(enabled);
+            _ignoreGamepadRumbleToggleCallback = false;
+        }
+
+        if (debugGamepadRumbleToggle && log)
+            Debug.Log("[SettingsTabsSwitcher] Gamepad rumble enabled = " + enabled);
+    }
+
+    private bool ReadSavedGamepadRumbleEnabled()
+    {
+        if (saveGamepadRumbleSetting &&
+            !string.IsNullOrEmpty(gamepadRumblePrefsKey) &&
+            PlayerPrefs.HasKey(gamepadRumblePrefsKey))
+        {
+            return PlayerPrefs.GetInt(gamepadRumblePrefsKey, defaultGamepadRumbleEnabled ? 1 : 0) != 0;
+        }
+
+        return defaultGamepadRumbleEnabled;
+    }
+
+    private void ResolvePlayerControllerReference()
+    {
+        if (playerController != null)
+            return;
+
+        if (!autoFindPlayerControllerInScene)
+            return;
+
+        PlayerController[] found = Resources.FindObjectsOfTypeAll<PlayerController>();
+
+        for (int i = 0; i < found.Length; i++)
+        {
+            PlayerController candidate = found[i];
+
+            if (candidate == null)
+                continue;
+
+            if (!candidate.gameObject.scene.IsValid())
+                continue;
+
+            playerController = candidate;
             return;
         }
     }

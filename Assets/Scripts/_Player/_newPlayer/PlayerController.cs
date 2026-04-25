@@ -56,6 +56,15 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Tooltip("Если ВКЛ — жёсткое приземление дополнительно запускает вибрацию на геймпаде.")]
     private bool enableLandingGamepadRumble = true;
 
+    [SerializeField, Tooltip("Если ВКЛ — состояние вибрации берётся из PlayerPrefs.")]
+    private bool loadLandingGamepadRumbleFromPlayerPrefs = true;
+
+    [SerializeField, Tooltip("Ключ сохранения настройки вибрации геймпада.")]
+    private string landingGamepadRumblePrefsKey = "Settings.GamepadRumble";
+
+    [SerializeField, Tooltip("Значение по умолчанию, если сохранения ещё нет.")]
+    private bool defaultLandingGamepadRumbleEnabled = true;
+
     [SerializeField, Min(0f), Tooltip("Минимальная сила левого low-frequency мотора при слабом жёстком приземлении.")]
     private float landingRumbleMinLow = 0.20f;
 
@@ -104,6 +113,7 @@ public class PlayerController : MonoBehaviour
     private void Awake()
     {
         CacheComponents();
+        LoadLandingGamepadRumbleFromPrefs();
     }
 
     private void OnValidate()
@@ -612,6 +622,45 @@ public class PlayerController : MonoBehaviour
     {
         trackedMinAirborneY = 0f;
         hasAirborneFallData = false;
+    }
+
+    public void SetLandingGamepadRumbleEnabled(bool enabled)
+    {
+        enableLandingGamepadRumble = enabled;
+
+        if (!enableLandingGamepadRumble)
+            StopLandingGamepadRumble();
+    }
+
+    public void SetLandingGamepadRumbleEnabledAndSave(bool enabled)
+    {
+        SetLandingGamepadRumbleEnabled(enabled);
+
+        if (!string.IsNullOrEmpty(landingGamepadRumblePrefsKey))
+        {
+            PlayerPrefs.SetInt(landingGamepadRumblePrefsKey, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+    }
+
+    public bool IsLandingGamepadRumbleEnabled()
+    {
+        return enableLandingGamepadRumble;
+    }
+
+    private void LoadLandingGamepadRumbleFromPrefs()
+    {
+        if (!loadLandingGamepadRumbleFromPlayerPrefs)
+            return;
+
+        if (string.IsNullOrEmpty(landingGamepadRumblePrefsKey))
+            return;
+
+        enableLandingGamepadRumble =
+            PlayerPrefs.GetInt(landingGamepadRumblePrefsKey, defaultLandingGamepadRumbleEnabled ? 1 : 0) != 0;
+
+        if (!enableLandingGamepadRumble)
+            StopLandingGamepadRumble();
     }
 
     public void AllowAirControlFor(float duration)
