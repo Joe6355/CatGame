@@ -686,7 +686,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1858000666306339266, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -308.24512
+      value: -308.2451
       objectReference: {fileID: 0}
     - target: {fileID: 1950987398694347258, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
       propertyPath: m_IsActive
@@ -6655,6 +6655,7 @@ GameObject:
   - component: {fileID: 795001715}
   - component: {fileID: 795001724}
   - component: {fileID: 795001731}
+  - component: {fileID: 795001732}
   m_Layer: 7
   m_Name: Player
   m_TagString: Player
@@ -6682,6 +6683,7 @@ MonoBehaviour:
   bounceModule: {fileID: 795001716}
   presentationModule: {fileID: 795001715}
   ledgeModule: {fileID: 795001731}
+  fenceClimbModule: {fileID: 795001732}
   enableSprintCameraFeedback: 1
   enableLandingCameraShake: 1
   landingShakeMinFallSpeed: 10
@@ -6690,6 +6692,16 @@ MonoBehaviour:
   landingShakeMaxStrength: 0.8
   landingShakeHoldTime: 0.02
   landingShakeFadeTime: 0.12
+  enableLandingGamepadRumble: 1
+  loadLandingGamepadRumbleFromPlayerPrefs: 1
+  landingGamepadRumblePrefsKey: Settings.GamepadRumble
+  defaultLandingGamepadRumbleEnabled: 1
+  landingRumbleMinLow: 0.2
+  landingRumbleMaxLow: 0.85
+  landingRumbleMinHigh: 0.1
+  landingRumbleMaxHigh: 0.45
+  landingRumbleMinDuration: 0.06
+  landingRumbleMaxDuration: 0.18
 --- !u!114 &795001715
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6714,13 +6726,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2fb109293e3b56244a20d14ce39df5c3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  wallBounceFraction: 0.4
-  damping: 0.4
-  dampingExclusionTime: 0.25
-  wallBounceMinAbsY: 0.05
-  wallBounceApexWindow: 0.6
+  rb: {fileID: 795001722}
+  bodyCollider: {fileID: 795001729}
+  enableWallSlideAndJump: 1
+  wallMask:
+    serializedVersion: 2
+    m_Bits: 0
+  wallCheckDistance: 0.12
   wallNormalMinAbsX: 0.45
-  bounceCooldown: 0.02
+  wallInputDeadZone: 0.08
+  requireInputTowardWallForSlide: 1
+  wallSlideEnterMaxUpwardSpeed: 1.25
+  wallSlideMaxFallSpeed: 2.75
+  enableWallSlideDropDown: 1
+  wallSlideDropSuppressTime: 0.18
+  wallSlideDropMinFallSpeed: 6
+  wallJumpMemoryTime: 0.12
+  sameWallRegrabBlockTime: 0.14
+  wallSlideSuppressAfterJumpTime: 0.1
+  requireInputTowardWallForJump: 0
+  wallJumpHorizontalSpeed: 9.5
+  wallJumpVerticalSpeed: 12.5
+  overrideHorizontalSpeed: 1
+  overrideVerticalSpeed: 1
+  drawWallGizmos: 1
+  drawWallGizmosAlways: 0
+  debugLogs: 1
 --- !u!114 &795001717
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6816,19 +6847,24 @@ MonoBehaviour:
   leftKey: 97
   rightKey: 100
   jumpKey: 32
-  apexThrowDownKey: 115
-  alternateApexThrowDownKey: 274
-  ledgeClimbUpKey: 119
-  alternateLedgeClimbUpKey: 273
+  downActionKey: 115
+  alternateDownActionKey: 274
+  upActionKey: 119
+  alternateUpActionKey: 273
+  interactKey: 102
   useGamepadJump: 1
   gamepadJumpKey: 330
-  useVerticalAxisForApexThrow: 1
+  gamepadInteractKey: 332
+  horizontalAxisName: Horizontal
   verticalAxisName: Vertical
-  apexThrowDownAxisThreshold: -0.65
-  useVerticalAxisForLedgeClimb: 1
-  ledgeClimbUpAxisThreshold: 0.65
-  useLegacyKeycodeRebind: 1
   useInputManagerAxisFallback: 1
+  useVerticalAxisForApexThrowFallback: 1
+  apexThrowDownAxisThreshold: -0.65
+  useVerticalAxisForLedgeClimbFallback: 1
+  ledgeClimbUpAxisThreshold: 0.65
+  useVerticalAxisForFenceClimbFallback: 1
+  fenceClimbAxisThreshold: 0.35
+  useLegacyKeycodeRebind: 1
   useMobileControls: 0
   mobileJoystick: {fileID: 0}
   mobileJumpButton: {fileID: 0}
@@ -6948,6 +6984,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   player: {fileID: 795001714}
   playerCollider: {fileID: 795001729}
+  trajectoryEnabled: 1
+  loadStateFromPlayerPrefs: 1
+  trajectoryPrefsKey: Settings.ShowJumpTrajectory
+  defaultTrajectoryEnabled: 1
   showChargeTrajectory: 1
   showCurrentTrajectoryDuringApex: 1
   showSuggestedApexTrajectory: 1
@@ -7225,6 +7265,37 @@ MonoBehaviour:
   dropDownSpeed: 2.5
   useSmoothStepOnClimb: 1
   hangSnapEpsilon: 0.0005
+--- !u!114 &795001732
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 795001713}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ff1752133556b3f4195c81ad7afd562d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enableFenceClimb: 1
+  horizontalClimbSpeed: 2.4
+  verticalClimbSpeed: 2.8
+  innerBoundsPadding: 0.02
+  exitDropDownSpeed: 1.5
+  regrabCooldown: 0.15
+  resetSprintOnEnter: 1
+  resetJumpStateOnEnter: 1
+  allowJumpOffFence: 1
+  fenceJumpHorizontalSpeed: 5
+  fenceJumpVerticalSpeed: 10
+  interactionAnimator: {fileID: 0}
+  animatorFenceActiveBool: FenceActive
+  animatorFenceBackFacingBool: FenceBackFacing
+  animatorFenceMoveXFloat: FenceMoveX
+  animatorFenceMoveYFloat: FenceMoveY
+  animatorFenceEnterTrigger: FenceEnter
+  animatorFenceExitTrigger: FenceExit
+  setBackFacingBoolWhileClimbing: 1
 --- !u!1 &806312650
 GameObject:
   m_ObjectHideFlags: 0
@@ -8355,7 +8426,7 @@ Transform:
   m_GameObject: {fileID: 1011144432}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 14.682251, y: 1.9345832, z: -9.992633}
+  m_LocalPosition: {x: 13.691807, y: 1.9345832, z: -9.992633}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -11938,7 +12009,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 3
-  m_BackGroundColor: {r: 0.08235294, g: 0.07450981, b: 0.1254902, a: 0}
+  m_BackGroundColor: {r: 0.10588236, g: 0.10588236, b: 0.10588236, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 1
@@ -11956,9 +12027,9 @@ Camera:
   m_NormalizedViewPortRect:
     serializedVersion: 2
     x: 0
-    y: 0.0032102729
-    width: 0.9992032
-    height: 0.9919743
+    y: 0
+    width: 1
+    height: 1
   near clip plane: 0.3
   far clip plane: 1006.9
   field of view: 66.589966
@@ -12030,7 +12101,7 @@ Transform:
   m_GameObject: {fileID: 1384799365}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 14.682251, y: 1.9345832, z: -9.992633}
+  m_LocalPosition: {x: 13.691807, y: 1.9345832, z: -9.992633}
   m_LocalScale: {x: 1, y: 10832, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -12588,9 +12659,59 @@ MonoBehaviour:
   gamepadPanel: {fileID: 0}
   closeControlsSubPanelsOnControlsTabOpen: 0
   closeControlsSubPanelsWhenLeaveControlsTab: 1
-  assistInfoBtn: {fileID: 0}
   assistTooltipPanel: {fileID: 0}
+  assistTooltipText: {fileID: 0}
+  toggleTooltipOnSameButtonClick: 1
   hideTooltipOnTabChange: 1
+  tooltipButton0: {fileID: 0}
+  tooltipMessage0: "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442
+    \u043F\u0440\u0435\u0434\u043F\u043E\u043B\u0430\u0433\u0430\u0435\u043C\u0443\u044E
+    \u0442\u0440\u0430\u0435\u043A\u0442\u043E\u0440\u0438\u044E \u043F\u0440\u044B\u0436\u043A\u0430
+    \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u0436\u0430. \u041F\u043E\u043C\u043E\u0433\u0430\u0435\u0442
+    \u0437\u0430\u0440\u0430\u043D\u0435\u0435 \u0443\u0432\u0438\u0434\u0435\u0442\u044C
+    \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u0438 \u0434\u0430\u043B\u044C\u043D\u043E\u0441\u0442\u044C
+    \u043F\u0440\u044B\u0436\u043A\u0430."
+  tooltipButton1: {fileID: 0}
+  tooltipMessage1: "\u0412\u043A\u043B\u044E\u0447\u0430\u0435\u0442 \u0432\u0438\u0437\u0443\u0430\u043B\u044C\u043D\u044B\u0439
+    \u044D\u0444\u0444\u0435\u043A\u0442 \u0441\u0442\u0430\u0440\u043E\u0433\u043E
+    \u044D\u043A\u0440\u0430\u043D\u0430: \u0437\u0435\u0440\u043D\u043E, \u0445\u0440\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438\u0435
+    \u0438\u0441\u043A\u0430\u0436\u0435\u043D\u0438\u044F, \u0432\u0438\u043D\u044C\u0435\u0442\u043A\u0443,
+    \u0441\u0432\u0435\u0447\u0435\u043D\u0438\u0435 \u0438 \u043B\u0451\u0433\u043A\u043E\u0435
+    \u0438\u0441\u043A\u0440\u0438\u0432\u043B\u0435\u043D\u0438\u0435 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F."
+  tooltipButton2: {fileID: 0}
+  tooltipMessage2: "\u0412\u043A\u043B\u044E\u0447\u0430\u0435\u0442 \u0438\u043B\u0438
+    \u0432\u044B\u043A\u043B\u044E\u0447\u0430\u0435\u0442 \u0432\u0438\u0431\u0440\u0430\u0446\u0438\u044E
+    \u0433\u0435\u0439\u043C\u043F\u0430\u0434\u0430 \u043F\u0440\u0438 \u0436\u0451\u0441\u0442\u043A\u043E\u043C
+    \u043F\u0440\u0438\u0437\u0435\u043C\u043B\u0435\u043D\u0438\u0438. \u0427\u0435\u043C
+    \u0441\u0438\u043B\u044C\u043D\u0435\u0435 \u043F\u0430\u0434\u0435\u043D\u0438\u0435,
+    \u0442\u0435\u043C \u0437\u0430\u043C\u0435\u0442\u043D\u0435\u0435 \u043E\u0442\u043A\u043B\u0438\u043A
+    \u0433\u0435\u0439\u043C\u043F\u0430\u0434\u0430."
+  jumpTrajectoryToggle: {fileID: 0}
+  jumpTrajectoryBackgroundButton: {fileID: 0}
+  jumpTrajectory: {fileID: 0}
+  autoFindJumpTrajectoryInScene: 1
+  saveJumpTrajectorySetting: 1
+  jumpTrajectoryPrefsKey: Settings.ShowJumpTrajectory
+  defaultJumpTrajectoryVisible: 1
+  debugJumpTrajectoryToggle: 0
+  postFxToggle: {fileID: 0}
+  postFxBackgroundButton: {fileID: 0}
+  postFxVolume: {fileID: 0}
+  autoFindPostFxInScene: 1
+  controlPostFxByWeight: 1
+  postFxEnabledWeight: 1
+  savePostFxSetting: 1
+  postFxPrefsKey: Settings.CRTPostFx
+  defaultPostFxVisible: 1
+  debugPostFxToggle: 0
+  gamepadRumbleToggle: {fileID: 0}
+  gamepadRumbleBackgroundButton: {fileID: 0}
+  playerController: {fileID: 0}
+  autoFindPlayerControllerInScene: 1
+  saveGamepadRumbleSetting: 1
+  gamepadRumblePrefsKey: Settings.GamepadRumble
+  defaultGamepadRumbleEnabled: 1
+  debugGamepadRumbleToggle: 0
   closeAllTabsOnEnable: 1
   settingsRootFirstSelected: {fileID: 0}
   audioFirstSelected: {fileID: 0}
