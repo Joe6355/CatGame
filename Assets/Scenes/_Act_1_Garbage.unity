@@ -686,7 +686,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1858000666306339266, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -308.24512
+      value: -308.2451
       objectReference: {fileID: 0}
     - target: {fileID: 1950987398694347258, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
       propertyPath: m_IsActive
@@ -8426,7 +8426,11 @@ Transform:
   m_GameObject: {fileID: 1011144432}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+<<<<<<< HEAD
   m_LocalPosition: {x: 14.8188095, y: 1.9345832, z: -9.992633}
+=======
+  m_LocalPosition: {x: 13.691807, y: 1.9345832, z: -9.992633}
+>>>>>>> remotes/origin/artNao
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -12009,7 +12013,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 3
-  m_BackGroundColor: {r: 0.08235294, g: 0.07450981, b: 0.1254902, a: 0}
+  m_BackGroundColor: {r: 0.10588236, g: 0.10588236, b: 0.10588236, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 1
@@ -12101,7 +12105,11 @@ Transform:
   m_GameObject: {fileID: 1384799365}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+<<<<<<< HEAD
   m_LocalPosition: {x: 14.8188095, y: 1.9345832, z: -9.992633}
+=======
+  m_LocalPosition: {x: 13.691807, y: 1.9345832, z: -9.992633}
+>>>>>>> remotes/origin/artNao
   m_LocalScale: {x: 1, y: 10832, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

@@ -98,8 +98,8 @@ MonoBehaviour:
     m_OverrideState: 0
     m_Value: {x: 0.5, y: 0.5}
   scale:
-    m_OverrideState: 0
-    m_Value: 0.94
+    m_OverrideState: 1
+    m_Value: 0.98
 --- !u!114 &-1265514563593268156
 MonoBehaviour:
   m_ObjectHideFlags: 3
