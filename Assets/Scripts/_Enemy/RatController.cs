@@ -266,6 +266,9 @@ public class RatController : MonoBehaviour
     [SerializeField, Tooltip("Если включено — пока предмет удерживается крысой, у него отключаются MonoBehaviour, Collider2D и Rigidbody2D.simulated. После дропа всё вернется.")]
     private bool disableHeldItemLogicUntilDrop = true;
 
+    private const float BodyTouchDropDistanceTolerance = 0.001f;
+    private const float BodyTouchDropSweepPadding = 0.04f;
+
     private RatState currentState;
     private bool stateInitialized = false;
 
@@ -296,6 +299,9 @@ public class RatController : MonoBehaviour
     private HeldColliderCache[] heldItemColliderCaches = new HeldColliderCache[0];
     private HeldRigidbodyCache[] heldItemRigidbodyCaches = new HeldRigidbodyCache[0];
     private Renderer[] heldItemRenderers = new Renderer[0];
+
+    private bool hasLastBodyDropCheckCenter = false;
+    private Vector2 lastBodyDropCheckCenter = Vector2.zero;
 
     private Transform VisualTarget => visualRoot != null ? visualRoot : transform;
     private bool HasUndroppedHeldItem => enableOneTimeItemDrop && !heldItemDropped && heldItemInstance != null;
@@ -349,6 +355,8 @@ public class RatController : MonoBehaviour
 
             if (rb != null) rb.position = pos;
             else transform.position = new Vector3(pos.x, pos.y, transform.position.z);
+
+            ResetBodyDropSweepPosition();
         }
 
         ResetBurrowTriggers();
@@ -374,13 +382,19 @@ public class RatController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Проверяем касание до и после движения. Это важно, когда крыса быстро убегает
+        // и физическое столкновение с игроком отключено через IgnoreCollision.
+        TryDropHeldItemByBodyTouch();
         HandleMovement();
+        TryDropHeldItemByBodyTouch();
     }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (!enabled) return;
         if (!IsPlayerCollider(other)) return;
+
+        TryDropHeldItemBySpecificPlayerCollider(other);
 
         if (ignoreSolidCollisionWithPlayer)
             IgnoreCollisionWithPlayerRoot(other);
@@ -396,6 +410,8 @@ public class RatController : MonoBehaviour
             Collider2D resolvedMain = ResolveMainBodyCollider();
             if (HasUndroppedHeldItem && resolvedMain != null && collision.otherCollider == resolvedMain)
                 DropHeldItem();
+            else
+                TryDropHeldItemBySpecificPlayerCollider(collision.collider);
         }
 
         if (!ignoreSolidCollisionWithPlayer) return;
@@ -679,6 +695,8 @@ public class RatController : MonoBehaviour
 
             transform.position = pos;
         }
+
+        ResetBodyDropSweepPosition();
     }
 
     private void SnapToBurrowPoint()
@@ -705,6 +723,8 @@ public class RatController : MonoBehaviour
 
             transform.position = pos;
         }
+
+        ResetBodyDropSweepPosition();
     }
 
     private RatState GetStateAfterBurrow()
@@ -1361,30 +1381,99 @@ public class RatController : MonoBehaviour
 
     private void TryDropHeldItemByBodyTouch()
     {
-        if (!HasUndroppedHeldItem) return;
+        if (!HasUndroppedHeldItem)
+        {
+            ResetBodyDropSweepPosition();
+            return;
+        }
 
         Collider2D bodyCol = ResolveMainBodyCollider();
-        if (bodyCol == null) return;
-        if (!bodyCol.enabled) return;
+        if (bodyCol == null || !bodyCol.enabled || !bodyCol.gameObject.activeInHierarchy)
+        {
+            ResetBodyDropSweepPosition();
+            return;
+        }
+
+        Vector2 currentBodyCenter = bodyCol.bounds.center;
 
         Collider2D[] playerCols = GetPlayerCollidersByTag();
-        if (playerCols == null || playerCols.Length == 0) return;
+        if (playerCols == null || playerCols.Length == 0)
+        {
+            RememberBodyDropSweepPosition(currentBodyCenter);
+            return;
+        }
 
         for (int i = 0; i < playerCols.Length; i++)
         {
             Collider2D playerCol = playerCols[i];
-            if (playerCol == null || !playerCol.enabled) continue;
-
-            if (!bodyCol.bounds.Intersects(playerCol.bounds))
-                continue;
-
-            ColliderDistance2D distance = bodyCol.Distance(playerCol);
-            if (distance.isOverlapped || distance.distance <= 0.001f)
+            if (IsBodyTouchingPlayerCollider(bodyCol, playerCol))
             {
                 DropHeldItem();
+                ResetBodyDropSweepPosition();
                 return;
             }
         }
+
+        RememberBodyDropSweepPosition(currentBodyCenter);
+    }
+
+    private void TryDropHeldItemBySpecificPlayerCollider(Collider2D playerCol)
+    {
+        if (!HasUndroppedHeldItem) return;
+        if (playerCol == null || !IsPlayerCollider(playerCol)) return;
+
+        Collider2D bodyCol = ResolveMainBodyCollider();
+        if (bodyCol == null || !bodyCol.enabled || !bodyCol.gameObject.activeInHierarchy) return;
+
+        if (IsBodyTouchingPlayerCollider(bodyCol, playerCol))
+        {
+            DropHeldItem();
+            ResetBodyDropSweepPosition();
+        }
+    }
+
+    private bool IsBodyTouchingPlayerCollider(Collider2D bodyCol, Collider2D playerCol)
+    {
+        if (bodyCol == null) return false;
+        if (playerCol == null || !playerCol.enabled || !playerCol.gameObject.activeInHierarchy) return false;
+
+        Bounds bodyBounds = bodyCol.bounds;
+        Bounds playerBounds = playerCol.bounds;
+
+        if (bodyBounds.Intersects(playerBounds))
+        {
+            ColliderDistance2D distance = bodyCol.Distance(playerCol);
+            if (distance.isOverlapped || distance.distance <= BodyTouchDropDistanceTolerance)
+                return true;
+        }
+
+        if (!hasLastBodyDropCheckCenter)
+            return false;
+
+        Bounds previousBodyBounds = bodyBounds;
+        previousBodyBounds.center = lastBodyDropCheckCenter;
+
+        Bounds sweptBodyBounds = bodyBounds;
+        sweptBodyBounds.Encapsulate(previousBodyBounds.min);
+        sweptBodyBounds.Encapsulate(previousBodyBounds.max);
+        sweptBodyBounds.Expand(BodyTouchDropSweepPadding);
+
+        Bounds expandedPlayerBounds = playerBounds;
+        expandedPlayerBounds.Expand(BodyTouchDropSweepPadding);
+
+        return sweptBodyBounds.Intersects(expandedPlayerBounds);
+    }
+
+    private void RememberBodyDropSweepPosition(Vector2 center)
+    {
+        lastBodyDropCheckCenter = center;
+        hasLastBodyDropCheckCenter = true;
+    }
+
+    private void ResetBodyDropSweepPosition()
+    {
+        hasLastBodyDropCheckCenter = false;
+        lastBodyDropCheckCenter = Vector2.zero;
     }
 
     private Collider2D[] GetPlayerCollidersByTag()
