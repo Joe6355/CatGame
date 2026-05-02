@@ -266,6 +266,52 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 3925951137916042527, guid: 1e4d132e54ff3814aa0e0427232e3805, type: 3}
   m_PrefabInstance: {fileID: 7309497358192759360}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &68193894 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 4741791296206702956, guid: 1e4d132e54ff3814aa0e0427232e3805, type: 3}
+  m_PrefabInstance: {fileID: 7309497358192759360}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 68193892}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &68193896
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 68193892}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 061bcdb76f341414abb91d3104fbd2c1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  modalCanvasGroup: {fileID: 68193897}
+  modalRaycastBlocker: {fileID: 68193894}
+  forceModalActiveStateOnEnable: 1
+  firstSelected: {fileID: 0}
+  clearSelectionOnOpen: 1
+  panelsToLockWhileOpen:
+  - {fileID: 2105361507}
+  keepLockedPanelsVisible: 1
+  clearSelectionFromLockedPanels: 1
+  restorePreviousSelectionOnClose: 0
+  debugLogs: 0
+--- !u!225 &68193897
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 68193892}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
 --- !u!1 &112329120
 GameObject:
   m_ObjectHideFlags: 0
@@ -756,9 +802,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 0.9921569, g: 0.9921569, b: 0.03529412, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -965,7 +1011,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 2100000, guid: 956aea36732a9aa44a7a632684353295, type: 2}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -1313,9 +1359,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -1373,17 +1419,21 @@ MonoBehaviour:
   targetText: {fileID: 1046830862}
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   highlightedColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  pressedColor: {r: 0.94117653, g: 0.227451, b: 0.043137256, a: 1}
+  pressedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   selectedColor: {r: 1, g: 0.9215687, b: 0.015686275, a: 1}
   enableEffects: 1
   useSelectedColor: 1
-  ignoreMouseHoverWhenKeyboardNavigation: 1
   selectButtonOnMouseHover: 1
+  useMouseRectFallback: 1
+  manualClickFallback: 1
+  forwardChildClickToOwnerButton: 1
+  mouseMoveThreshold: 0.05
+  respectParentCanvasGroups: 1
   resetColorOnEnable: 1
   resetColorOnDisable: 1
   clearEventSystemSelectionOnDisable: 1
   enableBounce: 0
-  bounceTarget: {fileID: 0}
+  bounceTarget: {fileID: 398694767}
   downOffset: 4
   upOffset: 7
   duration: 0.25
@@ -1529,7 +1579,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -1776,9 +1826,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -1836,17 +1886,21 @@ MonoBehaviour:
   targetText: {fileID: 1016907221}
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   highlightedColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  pressedColor: {r: 0.94117653, g: 0.227451, b: 0.043137256, a: 1}
+  pressedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   selectedColor: {r: 1, g: 0.9215687, b: 0.015686275, a: 1}
   enableEffects: 1
   useSelectedColor: 1
-  ignoreMouseHoverWhenKeyboardNavigation: 1
   selectButtonOnMouseHover: 1
+  useMouseRectFallback: 1
+  manualClickFallback: 1
+  forwardChildClickToOwnerButton: 1
+  mouseMoveThreshold: 0.05
+  respectParentCanvasGroups: 1
   resetColorOnEnable: 1
   resetColorOnDisable: 1
   clearEventSystemSelectionOnDisable: 1
   enableBounce: 0
-  bounceTarget: {fileID: 0}
+  bounceTarget: {fileID: 521633153}
   downOffset: 4
   upOffset: 7
   duration: 0.25
@@ -2941,6 +2995,8 @@ GameObject:
   - component: {fileID: 660514547}
   - component: {fileID: 660514549}
   - component: {fileID: 660514548}
+  - component: {fileID: 660514551}
+  - component: {fileID: 660514550}
   m_Layer: 5
   m_Name: Continue_Panel
   m_TagString: Untagged
@@ -3008,6 +3064,41 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 660514546}
   m_CullTransparentMesh: 1
+--- !u!114 &660514550
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 660514546}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 061bcdb76f341414abb91d3104fbd2c1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  modalCanvasGroup: {fileID: 660514551}
+  modalRaycastBlocker: {fileID: 660514548}
+  forceModalActiveStateOnEnable: 1
+  firstSelected: {fileID: 0}
+  clearSelectionOnOpen: 1
+  panelsToLockWhileOpen:
+  - {fileID: 2105361507}
+  keepLockedPanelsVisible: 1
+  clearSelectionFromLockedPanels: 1
+  restorePreviousSelectionOnClose: 0
+  debugLogs: 0
+--- !u!225 &660514551
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 660514546}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
 --- !u!1 &693300632
 GameObject:
   m_ObjectHideFlags: 0
@@ -4115,9 +4206,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -4175,17 +4266,21 @@ MonoBehaviour:
   targetText: {fileID: 972672475}
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   highlightedColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  pressedColor: {r: 0.94117653, g: 0.227451, b: 0.043137256, a: 1}
+  pressedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   selectedColor: {r: 1, g: 0.9215687, b: 0.015686275, a: 1}
   enableEffects: 1
   useSelectedColor: 1
-  ignoreMouseHoverWhenKeyboardNavigation: 1
   selectButtonOnMouseHover: 1
+  useMouseRectFallback: 1
+  manualClickFallback: 1
+  forwardChildClickToOwnerButton: 1
+  mouseMoveThreshold: 0.05
+  respectParentCanvasGroups: 1
   resetColorOnEnable: 1
   resetColorOnDisable: 1
   clearEventSystemSelectionOnDisable: 1
   enableBounce: 0
-  bounceTarget: {fileID: 0}
+  bounceTarget: {fileID: 919781192}
   downOffset: 4
   upOffset: 7
   duration: 0.25
@@ -4657,10 +4752,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.8679245, g: 0.8679245, b: 0.8679245, a: 0.039215688}
-  m_RaycastTarget: 1
+  m_Color: {r: 0.8679245, g: 0.8679245, b: 0.8679245, a: 0.015686275}
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -4746,7 +4841,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -5180,7 +5275,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -5480,7 +5575,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -6334,9 +6429,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -6394,17 +6489,21 @@ MonoBehaviour:
   targetText: {fileID: 424088222}
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   highlightedColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  pressedColor: {r: 0.94117653, g: 0.227451, b: 0.043137256, a: 1}
+  pressedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   selectedColor: {r: 1, g: 0.9215687, b: 0.015686275, a: 1}
   enableEffects: 1
   useSelectedColor: 1
-  ignoreMouseHoverWhenKeyboardNavigation: 1
   selectButtonOnMouseHover: 1
+  useMouseRectFallback: 1
+  manualClickFallback: 1
+  forwardChildClickToOwnerButton: 1
+  mouseMoveThreshold: 0.05
+  respectParentCanvasGroups: 1
   resetColorOnEnable: 1
   resetColorOnDisable: 1
   clearEventSystemSelectionOnDisable: 1
   enableBounce: 0
-  bounceTarget: {fileID: 0}
+  bounceTarget: {fileID: 1274830449}
   downOffset: 4
   upOffset: 7
   duration: 0.25
@@ -6612,7 +6711,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -7373,6 +7472,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1420040541}
   - component: {fileID: 1420040540}
+  - component: {fileID: 1420040542}
   m_Layer: 0
   m_Name: _SoundFXManager
   m_TagString: Untagged
@@ -7408,6 +7508,26 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1420040542
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1420040539}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 16548f8e2d6a6f348aeaacfe02de869a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  buttonClickClip: {fileID: 8300000, guid: 88414cd94d3b87647babec95caecef89, type: 3}
+  clickVolume: 1
+  searchMode: 1
+  includeInactiveButtons: 1
+  rescanPeriodically: 1
+  rescanInterval: 1
+  ignoreNotInteractableButtons: 1
+  debugLogs: 1
 --- !u!1 &1421340460
 GameObject:
   m_ObjectHideFlags: 0
@@ -8741,9 +8861,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 0}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -8801,17 +8921,21 @@ MonoBehaviour:
   targetText: {fileID: 1294693402}
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   highlightedColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  pressedColor: {r: 0.94117653, g: 0.227451, b: 0.043137256, a: 1}
+  pressedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   selectedColor: {r: 1, g: 0.9215687, b: 0.015686275, a: 1}
   enableEffects: 1
   useSelectedColor: 1
-  ignoreMouseHoverWhenKeyboardNavigation: 1
   selectButtonOnMouseHover: 1
+  useMouseRectFallback: 1
+  manualClickFallback: 1
+  forwardChildClickToOwnerButton: 1
+  mouseMoveThreshold: 0.05
+  respectParentCanvasGroups: 1
   resetColorOnEnable: 1
   resetColorOnDisable: 1
   clearEventSystemSelectionOnDisable: 1
   enableBounce: 0
-  bounceTarget: {fileID: 0}
+  bounceTarget: {fileID: 1769274177}
   downOffset: 4
   upOffset: 7
   duration: 0.25
@@ -9047,7 +9171,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -9493,9 +9617,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -9702,7 +9826,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -9982,6 +10106,7 @@ GameObject:
   - component: {fileID: 2105361505}
   - component: {fileID: 2105361504}
   - component: {fileID: 2105361503}
+  - component: {fileID: 2105361507}
   m_Layer: 5
   m_Name: ButtonsColumn
   m_TagString: Untagged
@@ -10091,6 +10216,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2105361501}
   m_CullTransparentMesh: 1
+--- !u!225 &2105361507
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2105361501}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
 --- !u!1 &2109905743
 GameObject:
   m_ObjectHideFlags: 0
@@ -10659,6 +10796,52 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 8304212735767873580, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
   m_PrefabInstance: {fileID: 9024524042295455726}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &5434068767382205758 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 396757908393210777, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
+  m_PrefabInstance: {fileID: 9024524042295455726}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5434068767382205755}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &5434068767382205760
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5434068767382205755}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 061bcdb76f341414abb91d3104fbd2c1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  modalCanvasGroup: {fileID: 5434068767382205761}
+  modalRaycastBlocker: {fileID: 5434068767382205758}
+  forceModalActiveStateOnEnable: 1
+  firstSelected: {fileID: 0}
+  clearSelectionOnOpen: 1
+  panelsToLockWhileOpen:
+  - {fileID: 2105361507}
+  keepLockedPanelsVisible: 1
+  clearSelectionFromLockedPanels: 1
+  restorePreviousSelectionOnClose: 0
+  debugLogs: 0
+--- !u!225 &5434068767382205761
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5434068767382205755}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
 --- !u!114 &7161508280675862897 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 3319643919551965135, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
@@ -10800,7 +10983,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4208954131880737227, guid: 1e4d132e54ff3814aa0e0427232e3805, type: 3}
       propertyPath: m_SizeDelta.y
-      value: -59.507874
+      value: -51.13611
       objectReference: {fileID: 0}
     - target: {fileID: 6800469568636743309, guid: 1e4d132e54ff3814aa0e0427232e3805, type: 3}
       propertyPath: m_AnchoredPosition.y
@@ -10817,7 +11000,13 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7326644781671688257, guid: 1e4d132e54ff3814aa0e0427232e3805, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 68193897}
+    - targetCorrespondingSourceObject: {fileID: 7326644781671688257, guid: 1e4d132e54ff3814aa0e0427232e3805, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 68193896}
   m_SourcePrefab: {fileID: 100100000, guid: 1e4d132e54ff3814aa0e0427232e3805, type: 3}
 --- !u!114 &7724383056728013936 stripped
 MonoBehaviour:
@@ -11024,7 +11213,13 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8304212735767873580, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5434068767382205761}
+    - targetCorrespondingSourceObject: {fileID: 8304212735767873580, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5434068767382205760}
   m_SourcePrefab: {fileID: 100100000, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

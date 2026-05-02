@@ -9,28 +9,74 @@ using UnityEngine.UI;
 public class UIButtonTextColor : MonoBehaviour,
     IPointerEnterHandler,
     IPointerExitHandler,
+    IPointerMoveHandler,
     IPointerDownHandler,
     IPointerUpHandler,
+    IPointerClickHandler,
     ISelectHandler,
     IDeselectHandler
 {
     private static readonly HashSet<UIButtonTextColor> All = new HashSet<UIButtonTextColor>();
+    private static readonly List<UIButtonTextColor> RefreshBuffer = new List<UIButtonTextColor>();
 
-    private static bool suppressPointerHoverVisuals;
+    private static bool hasMousePosition;
+    private static Vector2 lastMousePosition;
+    private static bool mouseMovedThisFrame;
+    private static bool mouseButtonUsedThisFrame;
+    private static int mouseStateFrame = -1;
+
+    private static int lastManualClickFrame = -1000;
 
     public static void SetSuppressPointerHoverVisuals(bool value)
     {
-        suppressPointerHoverVisuals = value;
+        // Оставлено для совместимости с MainMenuPanelsUI.
+        // Мышь больше не блокируется этим флагом.
         RefreshAll();
     }
 
     private static void RefreshAll()
     {
-        foreach (UIButtonTextColor item in All)
+        RefreshBuffer.Clear();
+        RefreshBuffer.AddRange(All);
+
+        for (int i = 0; i < RefreshBuffer.Count; i++)
         {
+            UIButtonTextColor item = RefreshBuffer[i];
+
             if (item != null && item.isActiveAndEnabled)
                 item.RefreshColor();
         }
+    }
+
+    private static void UpdateGlobalMouseState(float threshold)
+    {
+        if (mouseStateFrame == Time.frameCount)
+            return;
+
+        Vector2 currentMousePosition = Input.mousePosition;
+
+        if (!hasMousePosition)
+        {
+            hasMousePosition = true;
+            lastMousePosition = currentMousePosition;
+            mouseMovedThisFrame = false;
+        }
+        else
+        {
+            float sqrDistance = (currentMousePosition - lastMousePosition).sqrMagnitude;
+            mouseMovedThisFrame = sqrDistance > threshold * threshold;
+            lastMousePosition = currentMousePosition;
+        }
+
+        mouseButtonUsedThisFrame =
+            Input.GetMouseButtonDown(0) ||
+            Input.GetMouseButtonDown(1) ||
+            Input.GetMouseButtonDown(2) ||
+            Input.GetMouseButtonUp(0) ||
+            Input.GetMouseButtonUp(1) ||
+            Input.GetMouseButtonUp(2);
+
+        mouseStateFrame = Time.frameCount;
     }
 
     [Header("Target")]
@@ -41,7 +87,7 @@ public class UIButtonTextColor : MonoBehaviour,
     public Color normalColor = Color.white;
     public Color highlightedColor = Color.yellow;
     public Color pressedColor = Color.gray;
-    public Color selectedColor = Color.cyan;
+    public Color selectedColor = Color.white;
 
     [Header("Effects Toggle")]
     public bool enableEffects = true;
@@ -49,12 +95,25 @@ public class UIButtonTextColor : MonoBehaviour,
     [Header("Selected State")]
     public bool useSelectedColor = true;
 
-    [Header("Mouse / Keyboard Conflict Fix")]
-    [Tooltip("Если ВКЛ — hover мыши не будет подсвечивать вторую кнопку при управлении клавиатурой/геймпадом.")]
-    public bool ignoreMouseHoverWhenKeyboardNavigation = true;
-
-    [Tooltip("Если ВКЛ — при наведении мышью кнопка сразу становится selected в EventSystem.")]
+    [Header("Mouse Fix")]
+    [Tooltip("Если ВКЛ — наведение мышью сразу делает кнопку selected в EventSystem.")]
     public bool selectButtonOnMouseHover = true;
+
+    [Tooltip("Если ВКЛ — скрипт сам проверяет мышь внутри RectTransform кнопки. Нужно для твоей текущей структуры UI.")]
+    public bool useMouseRectFallback = true;
+
+    [Tooltip("Если ВКЛ — при MouseUp скрипт сам вызовет onClick, если штатный Button.onClick не сработал.")]
+    public bool manualClickFallback = true;
+
+    [Tooltip("Если ВКЛ — клик по дочернему TMP/Text будет прокинут в родительский Button.")]
+    public bool forwardChildClickToOwnerButton = true;
+
+    [Tooltip("Минимальное движение мыши, после которого мышь считается активной.")]
+    public float mouseMoveThreshold = 0.05f;
+
+    [Header("CanvasGroup Gate")]
+    [Tooltip("Если ВКЛ — кнопка не реагирует, когда один из родительских CanvasGroup выключил interactable/blocksRaycasts или alpha = 0.")]
+    public bool respectParentCanvasGroups = true;
 
     [Header("Reset")]
     public bool resetColorOnEnable = true;
@@ -73,10 +132,16 @@ public class UIButtonTextColor : MonoBehaviour,
     public float duration = 0.15f;
 
     private Button ownerButton;
+    private RectTransform ownerRect;
     private RectTransform targetRect;
+    private Canvas ownerCanvas;
 
     private bool isPointerInside;
     private bool isPointerPressed;
+    private bool fallbackMousePressedInside;
+
+    private int lastNativePointerClickFrame = -1000;
+    private int lastOwnerButtonClickFrame = -1000;
 
     private Coroutine bounceCoroutine;
     private Vector2 bounceBasePosition;
@@ -86,6 +151,7 @@ public class UIButtonTextColor : MonoBehaviour,
     {
         targetText = GetComponentInChildren<TMP_Text>(true);
         ownerButton = GetComponentInParent<Button>();
+        ownerRect = ownerButton != null ? ownerButton.GetComponent<RectTransform>() : GetComponent<RectTransform>();
         targetRect = GetComponent<RectTransform>();
         bounceTarget = targetRect;
     }
@@ -93,6 +159,8 @@ public class UIButtonTextColor : MonoBehaviour,
     private void Awake()
     {
         ownerButton = GetComponentInParent<Button>();
+        ownerRect = ownerButton != null ? ownerButton.GetComponent<RectTransform>() : GetComponent<RectTransform>();
+        ownerCanvas = GetComponentInParent<Canvas>();
 
         if (targetText == null)
             targetText = GetComponentInChildren<TMP_Text>(true);
@@ -107,8 +175,12 @@ public class UIButtonTextColor : MonoBehaviour,
     {
         All.Add(this);
 
+        if (ownerButton != null)
+            ownerButton.onClick.AddListener(RecordOwnerButtonClick);
+
         isPointerInside = false;
         isPointerPressed = false;
+        fallbackMousePressedInside = false;
 
         StopBounceAndRestore();
 
@@ -120,8 +192,12 @@ public class UIButtonTextColor : MonoBehaviour,
 
     private void OnDisable()
     {
+        if (ownerButton != null)
+            ownerButton.onClick.RemoveListener(RecordOwnerButtonClick);
+
         isPointerInside = false;
         isPointerPressed = false;
+        fallbackMousePressedInside = false;
 
         StopBounceAndRestore();
 
@@ -138,7 +214,175 @@ public class UIButtonTextColor : MonoBehaviour,
 
     private void OnDestroy()
     {
+        if (ownerButton != null)
+            ownerButton.onClick.RemoveListener(RecordOwnerButtonClick);
+
         All.Remove(this);
+    }
+
+    private void Update()
+    {
+        if (!enableEffects)
+            return;
+
+        if (!useMouseRectFallback)
+            return;
+
+        if (!CanOwnerButtonBeSelected())
+            return;
+
+        UpdateGlobalMouseState(mouseMoveThreshold);
+
+        bool mouseInside = IsMouseInsideOwnerRect();
+
+        if ((mouseMovedThisFrame || mouseButtonUsedThisFrame) && mouseInside)
+        {
+            isPointerInside = true;
+
+            if (selectButtonOnMouseHover)
+                SelectOwnerButton();
+
+            RefreshAll();
+        }
+
+        if (mouseMovedThisFrame && !mouseInside && isPointerInside)
+        {
+            isPointerInside = false;
+            isPointerPressed = false;
+            RefreshAll();
+        }
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            fallbackMousePressedInside = mouseInside;
+
+            if (mouseInside)
+            {
+                isPointerPressed = true;
+
+                if (selectButtonOnMouseHover)
+                    SelectOwnerButton();
+
+                RefreshAll();
+            }
+        }
+
+        if (Input.GetMouseButtonUp(0))
+        {
+            bool shouldManualClick =
+                manualClickFallback &&
+                fallbackMousePressedInside &&
+                mouseInside &&
+                CanOwnerButtonBeSelected() &&
+                IsOwnerSelectedByEventSystem();
+
+            fallbackMousePressedInside = false;
+            isPointerPressed = false;
+
+            RefreshAll();
+
+            if (shouldManualClick)
+                StartCoroutine(ManualClickAtEndOfFrame(Time.frameCount));
+        }
+    }
+
+    private void RecordOwnerButtonClick()
+    {
+        lastOwnerButtonClickFrame = Time.frameCount;
+    }
+
+    private IEnumerator ManualClickAtEndOfFrame(int capturedFrame)
+    {
+        yield return new WaitForEndOfFrame();
+
+        if (!CanOwnerButtonBeSelected())
+            yield break;
+
+        if (!IsOwnerSelectedByEventSystem())
+            yield break;
+
+        if (!IsMouseInsideOwnerRect())
+            yield break;
+
+        // Если штатный Button.onClick уже сработал в этот кадр — вручную не дублируем.
+        if (lastOwnerButtonClickFrame == capturedFrame)
+            yield break;
+
+        if (lastNativePointerClickFrame == capturedFrame)
+            yield break;
+
+        if (lastManualClickFrame == capturedFrame)
+            yield break;
+
+        lastManualClickFrame = capturedFrame;
+
+        ownerButton.onClick.Invoke();
+    }
+
+    private Camera GetEventCamera()
+    {
+        if (ownerCanvas == null)
+            return null;
+
+        if (ownerCanvas.renderMode == RenderMode.ScreenSpaceOverlay)
+            return null;
+
+        if (ownerCanvas.worldCamera != null)
+            return ownerCanvas.worldCamera;
+
+        return Camera.main;
+    }
+
+    private bool IsMouseInsideOwnerRect()
+    {
+        if (ownerRect == null)
+            return false;
+
+        return RectTransformUtility.RectangleContainsScreenPoint(
+            ownerRect,
+            Input.mousePosition,
+            GetEventCamera()
+        );
+    }
+
+    private bool IsAllowedByParentCanvasGroups()
+    {
+        if (!respectParentCanvasGroups)
+            return true;
+
+        if (ownerRect == null)
+            return true;
+
+        Transform current = ownerRect.transform;
+
+        while (current != null)
+        {
+            CanvasGroup[] groups = current.GetComponents<CanvasGroup>();
+
+            for (int i = 0; i < groups.Length; i++)
+            {
+                CanvasGroup group = groups[i];
+
+                if (group == null || !group.enabled)
+                    continue;
+
+                if (!group.interactable)
+                    return false;
+
+                if (!group.blocksRaycasts)
+                    return false;
+
+                if (group.alpha <= 0.001f)
+                    return false;
+
+                if (group.ignoreParentGroups)
+                    return true;
+            }
+
+            current = current.parent;
+        }
+
+        return true;
     }
 
     private void SetColor(Color color)
@@ -161,14 +405,6 @@ public class UIButtonTextColor : MonoBehaviour,
             return ownerButton.gameObject;
 
         return gameObject;
-    }
-
-    private bool CanUsePointerVisuals()
-    {
-        if (!ignoreMouseHoverWhenKeyboardNavigation)
-            return true;
-
-        return !suppressPointerHoverVisuals;
     }
 
     private bool IsOwnerSelectedByEventSystem()
@@ -203,6 +439,9 @@ public class UIButtonTextColor : MonoBehaviour,
         if (EventSystem.current == null)
             return false;
 
+        if (!IsAllowedByParentCanvasGroups())
+            return false;
+
         return true;
     }
 
@@ -216,7 +455,6 @@ public class UIButtonTextColor : MonoBehaviour,
         if (EventSystem.current.currentSelectedGameObject == ownerObject)
             return;
 
-        EventSystem.current.SetSelectedGameObject(null);
         EventSystem.current.SetSelectedGameObject(ownerObject);
 
         RefreshAll();
@@ -230,22 +468,33 @@ public class UIButtonTextColor : MonoBehaviour,
             return;
         }
 
-        bool ownerIsSelected = IsOwnerSelectedByEventSystem();
-        bool canUsePointerVisuals = CanUsePointerVisuals();
+        if (!CanOwnerButtonBeSelected())
+        {
+            SetColor(normalColor);
+            return;
+        }
 
-        if (ownerIsSelected && canUsePointerVisuals && isPointerPressed)
+        bool ownerIsSelected = IsOwnerSelectedByEventSystem();
+
+        if (!ownerIsSelected)
+        {
+            SetColor(normalColor);
+            return;
+        }
+
+        if (isPointerPressed)
         {
             SetColor(pressedColor);
             return;
         }
 
-        if (ownerIsSelected && canUsePointerVisuals && isPointerInside)
+        if (isPointerInside)
         {
             SetColor(highlightedColor);
             return;
         }
 
-        if (ownerIsSelected && useSelectedColor)
+        if (useSelectedColor)
         {
             SetColor(selectedColor);
             return;
@@ -288,10 +537,25 @@ public class UIButtonTextColor : MonoBehaviour,
             EventSystem.current.SetSelectedGameObject(null);
     }
 
+    private bool ShouldForwardNativeClickToOwnerButton()
+    {
+        if (!forwardChildClickToOwnerButton)
+            return false;
+
+        if (!CanOwnerButtonBeSelected())
+            return false;
+
+        if (ownerButton.gameObject == gameObject)
+            return false;
+
+        return true;
+    }
+
     public void ForceResetVisualState()
     {
         isPointerInside = false;
         isPointerPressed = false;
+        fallbackMousePressedInside = false;
 
         StopBounceAndRestore();
 
@@ -305,6 +569,7 @@ public class UIButtonTextColor : MonoBehaviour,
     {
         isPointerInside = false;
         isPointerPressed = false;
+        fallbackMousePressedInside = false;
 
         RefreshColor();
     }
@@ -319,13 +584,25 @@ public class UIButtonTextColor : MonoBehaviour,
         if (!enableEffects)
             return;
 
-        if (!CanUsePointerVisuals())
-        {
-            isPointerInside = false;
-            isPointerPressed = false;
-            RefreshAll();
+        if (!CanOwnerButtonBeSelected())
             return;
-        }
+
+        isPointerInside = true;
+        isPointerPressed = false;
+
+        if (selectButtonOnMouseHover)
+            SelectOwnerButton();
+
+        RefreshAll();
+    }
+
+    public void OnPointerMove(PointerEventData eventData)
+    {
+        if (!enableEffects)
+            return;
+
+        if (!CanOwnerButtonBeSelected())
+            return;
 
         isPointerInside = true;
 
@@ -351,7 +628,8 @@ public class UIButtonTextColor : MonoBehaviour,
         if (!enableEffects)
             return;
 
-        suppressPointerHoverVisuals = false;
+        if (!CanOwnerButtonBeSelected())
+            return;
 
         isPointerPressed = true;
         isPointerInside = true;
@@ -367,9 +645,39 @@ public class UIButtonTextColor : MonoBehaviour,
             return;
 
         isPointerPressed = false;
-        isPointerInside = IsRaycastInsideOwner(eventData);
+        isPointerInside = IsRaycastInsideOwner(eventData) || IsMouseInsideOwnerRect();
 
         RefreshAll();
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (!enableEffects)
+            return;
+
+        if (!CanOwnerButtonBeSelected())
+            return;
+
+        lastNativePointerClickFrame = Time.frameCount;
+
+        isPointerPressed = false;
+        isPointerInside = true;
+
+        SelectOwnerButton();
+        RefreshAll();
+
+        if (!ShouldForwardNativeClickToOwnerButton())
+            return;
+
+        if (lastManualClickFrame == Time.frameCount)
+            return;
+
+        lastManualClickFrame = Time.frameCount;
+
+        ownerButton.onClick.Invoke();
+
+        if (eventData != null)
+            eventData.Use();
     }
 
     public void OnSelect(BaseEventData eventData)
