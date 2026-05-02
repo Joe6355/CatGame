@@ -298,7 +298,7 @@ BoxCollider2D:
   m_IsTrigger: 1
   m_UsedByEffector: 0
   m_UsedByComposite: 0
-  m_Offset: {x: -0.22331905, y: 0.21745753}
+  m_Offset: {x: 0.21598625, y: 0.21745753}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
@@ -309,7 +309,7 @@ BoxCollider2D:
     adaptiveTiling: 0
   m_AutoTiling: 0
   serializedVersion: 2
-  m_Size: {x: 12.981382, y: 2.308618}
+  m_Size: {x: 8.344654, y: 2.308618}
   m_EdgeRadius: 0
 --- !u!114 &6878783515192149052
 MonoBehaviour:
@@ -340,7 +340,7 @@ MonoBehaviour:
   detectionTriggerCompensationMultiplier: 1.9
   keepBurrowDetectionWorkingWhenHidden: 1
   patrolSpeed: 2
-  fleeSpeed: 4.5
+  fleeSpeed: 6
   reachDistanceX: 0.08
   snapToAOnStart: 0
   snapYToPatrolPoint: 0
@@ -686,6 +686,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8185948220217076529}
+  - component: {fileID: 1820885675443992903}
   m_Layer: 0
   m_Name: _RatObject
   m_TagString: Untagged
@@ -712,6 +713,24 @@ Transform:
   - {fileID: 671880899439119627}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1820885675443992903
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7407454708214576276}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &8575823645357506565
 GameObject:
   m_ObjectHideFlags: 0

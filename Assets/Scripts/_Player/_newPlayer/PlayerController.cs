@@ -86,6 +86,7 @@ public class PlayerController : MonoBehaviour
     private Rigidbody2D rb;
     private float inputX = 0f;
     private bool resetSprintAfterLanding = false;
+    private bool wallSlideFastDownHeld = false;
 
     private float trackedMinAirborneY = 0f;
     private bool hasAirborneFallData = false;
@@ -201,6 +202,7 @@ public class PlayerController : MonoBehaviour
         bool fenceControlled = fenceClimbModule != null && fenceClimbModule.ApplyFenceMotion(rb);
         if (fenceControlled)
         {
+            wallSlideFastDownHeld = false;
             environmentModule.ClearFrameWind();
             return;
         }
@@ -208,13 +210,14 @@ public class PlayerController : MonoBehaviour
         bool ledgeControlled = ledgeModule != null && ledgeModule.ApplyLedgeMotion(rb, movementModule);
         if (ledgeControlled)
         {
+            wallSlideFastDownHeld = false;
             environmentModule.ClearFrameWind();
             return;
         }
 
         bounceModule?.RefreshWallState(inputX, IsGroundedNow, Time.time);
         movementModule.ApplyMovement(BuildMovementContext());
-        bounceModule?.ApplyWallSlide(rb, inputX, IsGroundedNow, Time.time);
+        bounceModule?.ApplyWallSlide(rb, inputX, IsGroundedNow, Time.time, wallSlideFastDownHeld);
 
         TrackAirborneLandingData();
         environmentModule.ClearFrameWind();
@@ -226,6 +229,7 @@ public class PlayerController : MonoBehaviour
         ResetLandingTracking();
         StopLandingGamepadRumble();
         resetSprintAfterLanding = false;
+        wallSlideFastDownHeld = false;
         fenceClimbModule?.ForceCancel(false);
         ledgeModule?.ForceCancel();
         bounceModule?.ResetWallState();
@@ -289,6 +293,7 @@ public class PlayerController : MonoBehaviour
     private void HandleDesktopInput(PlayerInputModule.DesktopInputSnapshot snapshot)
     {
         bool jumpPressed = snapshot.JumpDownSource != PlayerInputModule.HoldSource.None;
+        wallSlideFastDownHeld = false;
 
         if (snapshot.IsRebinding)
         {
@@ -355,13 +360,13 @@ public class PlayerController : MonoBehaviour
 
         bounceModule?.RefreshWallState(inputX, IsGroundedNow, Time.time);
 
-        if (snapshot.ApexThrowDownPressed && bounceModule != null && bounceModule.TryStartWallSlideDrop(Time.time))
-            return;
+        bool useWallFastSlide = snapshot.ApexThrowDownHeld && bounceModule != null && bounceModule.CanDropFromWallSlide;
+        wallSlideFastDownHeld = useWallFastSlide;
 
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
         jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
 
-        if (snapshot.ApexThrowDownPressed)
+        if (snapshot.ApexThrowDownPressed && !useWallFastSlide)
         {
             PlayerJumpModule.ApexThrowResult apexThrowResult = jumpModule.TryPerformApexThrow(apexCtx, rawInputX);
             if (apexThrowResult.DidThrow)
@@ -389,6 +394,7 @@ public class PlayerController : MonoBehaviour
 
     private void HandleMobileInput(PlayerInputModule.MobileInputSnapshot snapshot)
     {
+        wallSlideFastDownHeld = false;
         if (fenceClimbModule != null && fenceClimbModule.BlocksStandardController)
         {
             inputX = 0f;
@@ -442,13 +448,13 @@ public class PlayerController : MonoBehaviour
 
         bounceModule?.RefreshWallState(inputX, IsGroundedNow, Time.time);
 
-        if (snapshot.ApexThrowDownPressed && bounceModule != null && bounceModule.TryStartWallSlideDrop(Time.time))
-            return;
+        bool useWallFastSlide = snapshot.ApexThrowDownHeld && bounceModule != null && bounceModule.CanDropFromWallSlide;
+        wallSlideFastDownHeld = useWallFastSlide;
 
         PlayerJumpModule.JumpContext apexCtx = BuildJumpContext();
         jumpModule.UpdateApexThrowState(apexCtx, rawInputX);
 
-        if (snapshot.ApexThrowDownPressed)
+        if (snapshot.ApexThrowDownPressed && !useWallFastSlide)
         {
             PlayerJumpModule.ApexThrowResult apexThrowResult = jumpModule.TryPerformApexThrow(apexCtx, rawInputX);
             if (apexThrowResult.DidThrow)
@@ -698,6 +704,7 @@ public class PlayerController : MonoBehaviour
     {
         inputX = 0f;
         resetSprintAfterLanding = false;
+        wallSlideFastDownHeld = false;
         inputModule.ResetModuleInputState(clearMobileHold);
         jumpModule.ResetJumpInputState();
         movementModule.ResetSprint();

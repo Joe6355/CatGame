@@ -170,26 +170,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 6378037751693642262, guid: 2af9a04728735544cbdd4d67567d2648, type: 3}
-      propertyPath: m_Color.a
-      value: 0.3764706
-      objectReference: {fileID: 0}
-    - target: {fileID: 6378037751693642262, guid: 2af9a04728735544cbdd4d67567d2648, type: 3}
-      propertyPath: m_Color.b
-      value: 0.3584906
-      objectReference: {fileID: 0}
-    - target: {fileID: 6378037751693642262, guid: 2af9a04728735544cbdd4d67567d2648, type: 3}
-      propertyPath: m_Color.g
-      value: 0.3584906
-      objectReference: {fileID: 0}
-    - target: {fileID: 6378037751693642262, guid: 2af9a04728735544cbdd4d67567d2648, type: 3}
-      propertyPath: m_Color.r
-      value: 0.3584906
-      objectReference: {fileID: 0}
-    - target: {fileID: 6378037751693642262, guid: 2af9a04728735544cbdd4d67567d2648, type: 3}
-      propertyPath: m_Materials.Array.data[0]
-      value: 
-      objectReference: {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
     - target: {fileID: 7566450406675146343, guid: 2af9a04728735544cbdd4d67567d2648, type: 3}
       propertyPath: m_Name
       value: PlatformLedge
@@ -871,18 +851,6 @@ PrefabInstance:
     - target: {fileID: 241042984498690761, guid: 93d0c878ca2b1e64b9847186e1ee9d3d, type: 3}
       propertyPath: m_Name
       value: Player
-      objectReference: {fileID: 0}
-    - target: {fileID: 8466129566695290985, guid: 93d0c878ca2b1e64b9847186e1ee9d3d, type: 3}
-      propertyPath: sprintJumpMultiplier
-      value: 2.17
-      objectReference: {fileID: 0}
-    - target: {fileID: 8466129566695290985, guid: 93d0c878ca2b1e64b9847186e1ee9d3d, type: 3}
-      propertyPath: apexThrowDownwardSpeed
-      value: 30
-      objectReference: {fileID: 0}
-    - target: {fileID: 8514594900998400268, guid: 93d0c878ca2b1e64b9847186e1ee9d3d, type: 3}
-      propertyPath: sprintSpeedMultiplier
-      value: 2
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2287,57 +2255,9 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 269107769}
     m_Modifications:
-    - target: {fileID: 3687009131520553832, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: m_Size.x
-      value: 8.344654
-      objectReference: {fileID: 0}
-    - target: {fileID: 3687009131520553832, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: m_Enabled
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 3687009131520553832, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: m_Offset.x
-      value: 0.21598625
-      objectReference: {fileID: 0}
-    - target: {fileID: 3687009131520553832, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: m_IsTrigger
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6878783515192149052, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: fleeSpeed
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 6878783515192149052, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: patrolSpeed
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 6878783515192149052, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: mainBodyCollider
-      value: 
-      objectReference: {fileID: 285635320}
-    - target: {fileID: 6878783515192149052, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: enableObstacleJump
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6878783515192149052, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: snapYToPatrolPoint
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6878783515192149052, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: ignoreSolidCollisionWithPlayer
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6878783515192149052, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: autoIgnorePlayerCollisionsOnStart
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 7407454708214576276, guid: c10779bef726653418aac65308a1f5fa, type: 3}
       propertyPath: m_Name
       value: _RatObject
-      objectReference: {fileID: 0}
-    - target: {fileID: 7407454708214576276, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: m_IsActive
-      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8185948220217076529, guid: c10779bef726653418aac65308a1f5fa, type: 3}
       propertyPath: m_LocalPosition.x
@@ -2378,10 +2298,6 @@ PrefabInstance:
     - target: {fileID: 8185948220217076529, guid: c10779bef726653418aac65308a1f5fa, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8526110560787381622, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: m_Enabled
-      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2606,10 +2522,10 @@ Camera:
   m_LensShift: {x: 0, y: 0}
   m_NormalizedViewPortRect:
     serializedVersion: 2
-    x: 0
-    y: 0
-    width: 1
-    height: 1
+    x: 0.00096061477
+    y: 0.0018214936
+    width: 0.9971181
+    height: 0.9945355
   near clip plane: 0.3
   far clip plane: 1006.9
   field of view: 62.765102
@@ -3422,11 +3338,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1528250211}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!61 &285635320 stripped
-BoxCollider2D:
-  m_CorrespondingSourceObject: {fileID: 8526110560787381622, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-  m_PrefabInstance: {fileID: 182076926}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &286605606 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -4794,6 +4705,7 @@ GameObject:
   m_Component:
   - component: {fileID: 407828720}
   - component: {fileID: 407828721}
+  - component: {fileID: 407828722}
   m_Layer: 0
   m_Name: Musor_20 (5)
   m_TagString: Untagged
@@ -4868,6 +4780,24 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &407828722
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 407828719}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1001 &414618118
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5308,6 +5238,7 @@ GameObject:
   - component: {fileID: 440525796}
   - component: {fileID: 440525798}
   - component: {fileID: 440525797}
+  - component: {fileID: 440525799}
   m_Layer: 0
   m_Name: Red_Lamp (1)
   m_TagString: Untagged
@@ -5404,6 +5335,24 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &440525799
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 440525795}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &443203175 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -5461,6 +5410,7 @@ GameObject:
   m_Component:
   - component: {fileID: 459633546}
   - component: {fileID: 459633545}
+  - component: {fileID: 459633547}
   m_Layer: 0
   m_Name: Musor_19
   m_TagString: Untagged
@@ -5535,6 +5485,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &459633547
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 459633544}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &471836927 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -5712,6 +5680,7 @@ GameObject:
   m_Component:
   - component: {fileID: 483425674}
   - component: {fileID: 483425673}
+  - component: {fileID: 483425675}
   m_Layer: 0
   m_Name: Musor_20
   m_TagString: Untagged
@@ -5786,6 +5755,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &483425675
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 483425672}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &483687415
 GameObject:
   m_ObjectHideFlags: 0
@@ -6157,6 +6144,7 @@ GameObject:
   m_Component:
   - component: {fileID: 495019364}
   - component: {fileID: 495019365}
+  - component: {fileID: 495019366}
   m_Layer: 0
   m_Name: Musor_21 (1)
   m_TagString: Untagged
@@ -6231,6 +6219,24 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &495019366
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 495019363}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &500893577
 GameObject:
   m_ObjectHideFlags: 0
@@ -6686,6 +6692,7 @@ GameObject:
   m_Component:
   - component: {fileID: 534854842}
   - component: {fileID: 534854841}
+  - component: {fileID: 534854843}
   m_Layer: 0
   m_Name: Musor_19 (3)
   m_TagString: Untagged
@@ -6760,6 +6767,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &534854843
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 534854840}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &536228117 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -7164,6 +7189,7 @@ GameObject:
   m_Component:
   - component: {fileID: 556638780}
   - component: {fileID: 556638781}
+  - component: {fileID: 556638782}
   m_Layer: 0
   m_Name: Musor_19 (6)
   m_TagString: Untagged
@@ -7238,6 +7264,24 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &556638782
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 556638779}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &558542000
 GameObject:
   m_ObjectHideFlags: 0
@@ -9868,6 +9912,7 @@ GameObject:
   m_Component:
   - component: {fileID: 747232382}
   - component: {fileID: 747232381}
+  - component: {fileID: 747232383}
   m_Layer: 0
   m_Name: Musor_19 (2)
   m_TagString: Untagged
@@ -9942,6 +9987,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &747232383
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 747232380}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1001 &749353651
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -10501,6 +10564,7 @@ GameObject:
   m_Component:
   - component: {fileID: 786706459}
   - component: {fileID: 786706458}
+  - component: {fileID: 786706460}
   m_Layer: 0
   m_Name: Musor_24
   m_TagString: Untagged
@@ -10575,6 +10639,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &786706460
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 786706457}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &800522350 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -12430,6 +12512,7 @@ GameObject:
   m_Component:
   - component: {fileID: 983249773}
   - component: {fileID: 983249772}
+  - component: {fileID: 983249774}
   m_Layer: 0
   m_Name: Musor_20 (1)
   m_TagString: Untagged
@@ -12504,6 +12587,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &983249774
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 983249771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &985068679 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -12954,6 +13055,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1064226998}
   - component: {fileID: 1064226997}
+  - component: {fileID: 1064226999}
   m_Layer: 0
   m_Name: Musor_21
   m_TagString: Untagged
@@ -13028,6 +13130,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1064226999
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1064226996}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &1077916310
 GameObject:
   m_ObjectHideFlags: 0
@@ -15216,6 +15336,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1124631387}
   - component: {fileID: 1124631388}
+  - component: {fileID: 1124631389}
   m_Layer: 0
   m_Name: Musor_19 (5)
   m_TagString: Untagged
@@ -15290,6 +15411,24 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &1124631389
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1124631386}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &1125563957 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -16466,6 +16605,7 @@ GameObject:
   - component: {fileID: 1239636993}
   - component: {fileID: 1239636992}
   - component: {fileID: 1239636991}
+  - component: {fileID: 1239636994}
   m_Layer: 0
   m_Name: Red_Lamp
   m_TagString: Untagged
@@ -16562,6 +16702,24 @@ Transform:
   - {fileID: 1699800021}
   m_Father: {fileID: 2099633176}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1239636994
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1239636990}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &1240541701 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -18455,6 +18613,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1413686609}
   - component: {fileID: 1413686608}
+  - component: {fileID: 1413686610}
   m_Layer: 0
   m_Name: Musor_22 (1)
   m_TagString: Untagged
@@ -18529,6 +18688,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1413686610
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1413686607}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &1419645510
 GameObject:
   m_ObjectHideFlags: 0
@@ -18959,22 +19136,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 361799440}
     m_Modifications:
-    - target: {fileID: 3690046168205189301, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
-      propertyPath: m_Color.b
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 3690046168205189301, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
-      propertyPath: m_Color.g
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 3690046168205189301, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
-      propertyPath: m_Color.r
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 3690046168205189301, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
-      propertyPath: m_SortingOrder
-      value: -1
-      objectReference: {fileID: 0}
     - target: {fileID: 4751723163839006899, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
       propertyPath: m_Name
       value: SpikeTrap
@@ -19039,6 +19200,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1447273602}
   - component: {fileID: 1447273601}
+  - component: {fileID: 1447273603}
   m_Layer: 0
   m_Name: Musor_20 (3)
   m_TagString: Untagged
@@ -19113,6 +19275,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1447273603
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1447273600}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &1451485162
 GameObject:
   m_ObjectHideFlags: 0
@@ -19338,6 +19518,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1452944509}
   - component: {fileID: 1452944508}
+  - component: {fileID: 1452944510}
   m_Layer: 0
   m_Name: Musor_23
   m_TagString: Untagged
@@ -19412,6 +19593,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1452944510
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1452944507}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &1457475647 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -45750,6 +45949,7 @@ GameObject:
   - component: {fileID: 1634650291}
   - component: {fileID: 1634650293}
   - component: {fileID: 1634650292}
+  - component: {fileID: 1634650294}
   m_Layer: 0
   m_Name: Red_Lamp (2)
   m_TagString: Untagged
@@ -45846,6 +46046,24 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &1634650294
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1634650290}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &1634847243
 GameObject:
   m_ObjectHideFlags: 0
@@ -47035,6 +47253,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1738869451}
   - component: {fileID: 1738869450}
+  - component: {fileID: 1738869452}
   m_Layer: 0
   m_Name: Musor_20 (2)
   m_TagString: Untagged
@@ -47109,6 +47328,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1738869452
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1738869449}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &1739073364
 GameObject:
   m_ObjectHideFlags: 0
@@ -47500,6 +47737,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1752259385}
   - component: {fileID: 1752259384}
+  - component: {fileID: 1752259386}
   m_Layer: 0
   m_Name: Musor_22
   m_TagString: Untagged
@@ -47574,6 +47812,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1752259386
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1752259383}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &1755196735 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -49560,6 +49816,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2013665162}
   - component: {fileID: 2013665161}
+  - component: {fileID: 2013665163}
   m_Layer: 0
   m_Name: Musor_19 (1)
   m_TagString: Untagged
@@ -49634,6 +49891,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2013665163
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2013665160}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!4 &2020489410 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
@@ -50510,6 +50785,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2108385499}
   - component: {fileID: 2108385498}
+  - component: {fileID: 2108385500}
   m_Layer: 0
   m_Name: Musor_19 (4)
   m_TagString: Untagged
@@ -50584,6 +50860,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1393406767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2108385500
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2108385497}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1001 &2123462719
 PrefabInstance:
   m_ObjectHideFlags: 0

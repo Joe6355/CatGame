@@ -18,6 +18,7 @@ public class PlayerInputModule : MonoBehaviour
         public float ClimbY;
         public bool IsRebinding;
         public bool ApexThrowDownPressed;
+        public bool ApexThrowDownHeld;
         public bool LedgeUpPressed;
         public bool FenceTogglePressed;
         public HoldSource JumpDownSource;
@@ -31,6 +32,7 @@ public class PlayerInputModule : MonoBehaviour
         public bool JumpHeld;
         public bool JumpReleased;
         public bool ApexThrowDownPressed;
+        public bool ApexThrowDownHeld;
         public bool LedgeUpPressed;
         public bool FenceTogglePressed;
     }
@@ -156,6 +158,7 @@ public class PlayerInputModule : MonoBehaviour
             ClimbY = 0f,
             IsRebinding = false,
             ApexThrowDownPressed = false,
+            ApexThrowDownHeld = false,
             LedgeUpPressed = false,
             FenceTogglePressed = false,
             JumpDownSource = HoldSource.None
@@ -182,7 +185,8 @@ public class PlayerInputModule : MonoBehaviour
         }
 
         snapshot.ClimbY = useRebind ? GetRebindClimbVerticalValue() : GetFallbackClimbVerticalValue();
-        snapshot.ApexThrowDownPressed = GetDesktopDownActionPressed(useRebind);
+        snapshot.ApexThrowDownHeld = GetDesktopDownActionHeld(useRebind);
+        snapshot.ApexThrowDownPressed = GetDesktopDownActionPressedFromHeld(snapshot.ApexThrowDownHeld);
         snapshot.LedgeUpPressed = GetDesktopUpActionPressed(useRebind);
         snapshot.FenceTogglePressed = useRebind ? GetRebindInteractPressed() : GetFallbackInteractPressed();
 
@@ -200,11 +204,13 @@ public class PlayerInputModule : MonoBehaviour
             JumpDown = currentHeld && !prevMobileJumpHeld,
             JumpHeld = currentHeld,
             JumpReleased = !currentHeld && prevMobileJumpHeld,
-            ApexThrowDownPressed = GetMobileDownActionPressed(),
+            ApexThrowDownHeld = GetMobileDownActionHeld(),
+            ApexThrowDownPressed = false,
             LedgeUpPressed = GetMobileUpActionPressed(),
             FenceTogglePressed = false
         };
 
+        snapshot.ApexThrowDownPressed = GetMobileDownActionPressedFromHeld(snapshot.ApexThrowDownHeld);
         prevMobileJumpHeld = currentHeld;
         return snapshot;
     }
@@ -395,9 +401,13 @@ public class PlayerInputModule : MonoBehaviour
         return gamepadJumpKey != KeyCode.None && Input.GetKeyUp(gamepadJumpKey);
     }
 
-    private bool GetDesktopDownActionPressed(bool useRebind)
+    private bool GetDesktopDownActionHeld(bool useRebind)
     {
-        bool currentHeld = useRebind ? GetRebindDownActionHeld() : GetFallbackDownActionHeld();
+        return useRebind ? GetRebindDownActionHeld() : GetFallbackDownActionHeld();
+    }
+
+    private bool GetDesktopDownActionPressedFromHeld(bool currentHeld)
+    {
         bool pressed = currentHeld && !prevDesktopDownActionHeld;
 
         prevDesktopDownActionHeld = currentHeld;
@@ -422,13 +432,16 @@ public class PlayerInputModule : MonoBehaviour
         return keyboard || axis;
     }
 
-    private bool GetMobileDownActionPressed()
+    private bool GetMobileDownActionHeld()
     {
-        bool currentHeld = false;
+        if (mobileJoystick == null)
+            return false;
 
-        if (mobileJoystick != null)
-            currentHeld = mobileJoystick.Vertical <= apexThrowDownAxisThreshold;
+        return mobileJoystick.Vertical <= apexThrowDownAxisThreshold;
+    }
 
+    private bool GetMobileDownActionPressedFromHeld(bool currentHeld)
+    {
         bool pressed = currentHeld && !prevMobileDownActionHeld;
 
         prevMobileDownActionHeld = currentHeld;

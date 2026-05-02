@@ -108,6 +108,7 @@ GameObject:
   - component: {fileID: 323657909512024456}
   - component: {fileID: 373036314910152018}
   - component: {fileID: 2662803038699614630}
+  - component: {fileID: 8986411781125966784}
   m_Layer: 7
   m_Name: Player
   m_TagString: Player
@@ -553,7 +554,7 @@ MonoBehaviour:
   jumpHoldGroundedIgnoreTime: 0.1
   jumpRepeatCooldown: 0.1
   boostJumpDuringSprint: 1
-  sprintJumpMultiplier: 1.5
+  sprintJumpMultiplier: 2.17
   coyoteTime: 0.12
   jumpBufferTime: 0.1
   enableOrbJumpRefresh: 1
@@ -563,7 +564,7 @@ MonoBehaviour:
   apexThrowMinTimeAfterJump: 0
   apexThrowEnterMaxUpwardSpeed: 5
   apexThrowAvailableDuration: 2
-  apexThrowDownwardSpeed: 20
+  apexThrowDownwardSpeed: 30
   showApexThrowTrajectoryPreview: 1
 --- !u!114 &8514594900998400268
 MonoBehaviour:
@@ -589,7 +590,7 @@ MonoBehaviour:
   jumpAirInertiaControlMultiplier: 0.45
   sprintStartDelay: 1
   sprintRampDuration: 1
-  sprintSpeedMultiplier: 1.5
+  sprintSpeedMultiplier: 2
   sprintInputDeadZone: 0.2
   blockSprintIntoWall: 1
   sprintWallCheckDistance: 0.6
@@ -727,6 +728,30 @@ MonoBehaviour:
   animatorFenceEnterTrigger: FenceEnter
   animatorFenceExitTrigger: FenceExit
   setBackFacingBoolWhileClimbing: 1
+--- !u!114 &8986411781125966784
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 241042984498690761}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 609bf4d9f93ef3b478ea38ccd3a41511, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  activationCenter: {fileID: 222853416962602856}
+  enableDistance: 25
+  disableDistance: 30
+  checkInterval: 0.25
+  maxChecksPerStep: 99999
+  autoFindTargetsOnAwake: 1
+  includeInactiveTargets: 1
+  applyStateOnStart: 1
+  manualTargets: []
+  protectActivationCenterParents: 1
+  debugLogs: 1
+  drawGizmos: 1
 --- !u!1 &1331290118613720012
 GameObject:
   m_ObjectHideFlags: 0

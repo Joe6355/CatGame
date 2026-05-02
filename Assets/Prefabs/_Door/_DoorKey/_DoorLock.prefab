@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 1630774883893230760}
   - component: {fileID: 5241443836568376666}
   - component: {fileID: 4540505389292131884}
+  - component: {fileID: 2884489631774907297}
   m_Layer: 0
   m_Name: _DoorLock
   m_TagString: Untagged
@@ -99,6 +100,24 @@ MonoBehaviour:
   openDelay: 1.4
   oneShot: 1
   doorAnimator: {fileID: 3015530458859669374}
+--- !u!114 &2884489631774907297
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3959835523474498942}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cullingPoint: {fileID: 0}
+  alwaysActive: 0
+  allowStartDisabled: 1
+  extraEnableDistance: 0
+  extraDisableDistance: 0
+  debugLogs: 0
 --- !u!1 &8058347742948635510
 GameObject:
   m_ObjectHideFlags: 0

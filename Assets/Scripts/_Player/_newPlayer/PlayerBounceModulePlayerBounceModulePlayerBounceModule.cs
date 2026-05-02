@@ -47,15 +47,18 @@ public class PlayerBounceModule : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("Максимальная скорость падения вниз во время wall slide.")]
     private float wallSlideMaxFallSpeed = 2.75f;
 
-    [Header("Wall Drop Down")]
-    [SerializeField, Tooltip("Если ВКЛ — во время wall slide можно нажать S / стик вниз, чтобы сорваться со стены и начать падать вниз.")]
+    [Header("Wall Fast Slide Down")]
+    [SerializeField, Tooltip("Если ВКЛ — во время wall slide можно удерживать S / стик вниз / кнопку паунса, чтобы скатываться по стене быстрее.")]
     private bool enableWallSlideDropDown = true;
 
-    [SerializeField, Min(0f), Tooltip("Сколько секунд после wall drop нельзя снова прилипнуть к этой же стене.")]
+    [SerializeField, Min(0f), Tooltip("Сколько секунд после старого одноразового wall drop нельзя снова прилипнуть к этой же стене. Для нового удержания вниз почти не используется, оставлено для совместимости.")]
     private float wallSlideDropSuppressTime = 0.18f;
 
-    [SerializeField, Min(0f), Tooltip("Минимальная скорость падения вниз, которая будет задана при wall drop.")]
+    [SerializeField, Min(0f), Tooltip("Скорость быстрого скатывания вниз по стене, пока удерживается S / стик вниз / кнопка паунса.")]
     private float wallSlideDropMinFallSpeed = 6f;
+
+    [SerializeField, Tooltip("Если ВКЛ — при удержании вниз скорость быстрого wall slide ставится сразу. Если ВЫКЛ — игрок разгоняется вниз гравитацией до лимита.")]
+    private bool forceFastWallSlideSpeedImmediately = true;
 
     [Header("Wall Jump")]
     [SerializeField, Min(0f), Tooltip("Память стены после потери контакта. В течение этого окна можно всё ещё сделать wall jump.")]
@@ -109,10 +112,12 @@ public class PlayerBounceModule : MonoBehaviour
     private float slideSuppressedUntil = -999f;
 
     private bool isWallSliding = false;
+    private bool isFastWallSliding = false;
 
     public bool IsWallSliding => isWallSliding;
     public bool HasWallContact => currentWallSide != WallSide.None;
     public bool CanDropFromWallSlide => enableWallSlideAndJump && enableWallSlideDropDown && isWallSliding;
+    public bool IsFastWallSliding => isFastWallSliding;
 
     private void Reset()
     {
@@ -139,7 +144,7 @@ public class PlayerBounceModule : MonoBehaviour
         wallSlideMaxFallSpeed = Mathf.Max(0f, wallSlideMaxFallSpeed);
 
         wallSlideDropSuppressTime = Mathf.Max(0f, wallSlideDropSuppressTime);
-        wallSlideDropMinFallSpeed = Mathf.Max(0f, wallSlideDropMinFallSpeed);
+        wallSlideDropMinFallSpeed = Mathf.Max(wallSlideMaxFallSpeed, wallSlideDropMinFallSpeed);
 
         wallJumpMemoryTime = Mathf.Max(0f, wallJumpMemoryTime);
         sameWallRegrabBlockTime = Mathf.Max(0f, sameWallRegrabBlockTime);
@@ -156,6 +161,7 @@ public class PlayerBounceModule : MonoBehaviour
             now + Mathf.Max(0f, wallSlideSuppressAfterJumpTime * 0.5f));
 
         isWallSliding = false;
+        isFastWallSliding = false;
     }
 
     public void RefreshWallState(float inputX, bool isGrounded, float now)
@@ -164,6 +170,7 @@ public class PlayerBounceModule : MonoBehaviour
         {
             ClearCurrentWallContact(false);
             SetWallSliding(false, null);
+            SetFastWallSliding(false);
             return;
         }
 
@@ -191,13 +198,40 @@ public class PlayerBounceModule : MonoBehaviour
 
     public void ApplyWallSlide(Rigidbody2D body, float inputX, bool isGrounded, float now)
     {
+        ApplyWallSlide(body, inputX, isGrounded, now, false);
+    }
+
+    public void ApplyWallSlide(Rigidbody2D body, float inputX, bool isGrounded, float now, bool downActionHeld)
+    {
         if (!enableWallSlideAndJump || body == null)
             return;
 
         RefreshWallState(inputX, isGrounded, now);
 
         if (!isWallSliding)
+        {
+            SetFastWallSliding(false);
             return;
+        }
+
+        bool fastSlideHeld = enableWallSlideDropDown && downActionHeld;
+        SetFastWallSliding(fastSlideHeld);
+
+        if (fastSlideHeld)
+        {
+            float fastVy = -Mathf.Abs(Mathf.Max(wallSlideMaxFallSpeed, wallSlideDropMinFallSpeed));
+
+            if (forceFastWallSlideSpeedImmediately)
+            {
+                body.velocity = new Vector2(body.velocity.x, fastVy);
+            }
+            else if (body.velocity.y < fastVy)
+            {
+                body.velocity = new Vector2(body.velocity.x, fastVy);
+            }
+
+            return;
+        }
 
         float minVy = -Mathf.Abs(wallSlideMaxFallSpeed);
         if (body.velocity.y < minVy)
@@ -224,6 +258,7 @@ public class PlayerBounceModule : MonoBehaviour
         slideSuppressedUntil = now + Mathf.Max(0f, wallSlideDropSuppressTime);
 
         isWallSliding = false;
+        isFastWallSliding = false;
         currentWallSide = WallSide.None;
         currentWallNormal = Vector2.zero;
         currentWallCollider = null;
@@ -303,6 +338,7 @@ public class PlayerBounceModule : MonoBehaviour
         blockedWallSideUntil = now + Mathf.Max(0f, sameWallRegrabBlockTime);
         slideSuppressedUntil = now + Mathf.Max(0f, wallSlideSuppressAfterJumpTime);
         isWallSliding = false;
+        isFastWallSliding = false;
 
         if (debugLogs)
         {
@@ -327,6 +363,7 @@ public class PlayerBounceModule : MonoBehaviour
         blockedWallSideUntil = -999f;
         slideSuppressedUntil = -999f;
         isWallSliding = false;
+        isFastWallSliding = false;
     }
 
     public void ResetBounceState()
@@ -502,6 +539,23 @@ public class PlayerBounceModule : MonoBehaviour
         {
             Debug.Log("[PlayerBounceModule] Wall slide END", this);
         }
+    }
+
+    private void SetFastWallSliding(bool value)
+    {
+        if (isFastWallSliding == value)
+            return;
+
+        isFastWallSliding = value;
+
+        if (!debugLogs)
+            return;
+
+        Debug.Log(
+            isFastWallSliding
+                ? $"[PlayerBounceModule] Wall fast slide START, targetVy={-Mathf.Abs(Mathf.Max(wallSlideMaxFallSpeed, wallSlideDropMinFallSpeed)):0.###}"
+                : "[PlayerBounceModule] Wall fast slide END",
+            this);
     }
 
     private void LogWallContactChange(
