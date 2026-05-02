@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 using TMPro;
@@ -73,6 +74,77 @@ public class MenuDiagnosticsConsole : MonoBehaviour
 
     [SerializeField, Tooltip("RectTransform Content внутри Scroll View.")]
     private RectTransform consoleContent;
+
+
+    [Header("Developer Commands")]
+    [SerializeField, Tooltip("TMP_InputField для ввода команд. Добавь его внутрь ConsolePanel под Scroll_View_Console.")]
+    private TMP_InputField commandInput;
+
+    [SerializeField, Tooltip("Если ВКЛ — при открытии консоли курсор сразу ставится в поле ввода команд.")]
+    private bool focusCommandInputOnConsoleOpen = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — после ввода команды поле автоматически очищается.")]
+    private bool clearCommandInputAfterSubmit = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — после команды поле ввода снова получает фокус.")]
+    private bool refocusCommandInputAfterSubmit = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — в консоль будет добавлена стартовая подсказка про команду info.")]
+    private bool printCommandHintOnStart = true;
+
+    [Header("Developer Commands: Player")]
+    [SerializeField, Tooltip("Корневой объект игрока. Если пусто — консоль попробует найти игрока по тегу или по PlayerController.")]
+    private Transform commandPlayerRoot;
+
+    [SerializeField, Tooltip("Rigidbody2D игрока. Если пусто — будет найден на Command Player Root.")]
+    private Rigidbody2D commandPlayerRigidbody;
+
+    [SerializeField, Tooltip("Теги, по которым консоль будет искать игрока, если ссылка не назначена вручную.")]
+    private string[] commandPlayerTags = { "Player", "player" };
+
+    [Header("Command: fly")]
+    [SerializeField, Min(0f), Tooltip("Скорость полёта игрока после команды fly.")]
+    private float commandFlySpeed = 8f;
+
+    [SerializeField, Tooltip("Если ВКЛ — при включении/выключении fly скорость Rigidbody2D будет сбрасываться в 0.")]
+    private bool resetPlayerVelocityOnFlyToggle = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — если список ниже пустой, консоль сама попробует отключить PlayerController на время fly.")]
+    private bool autoDisablePlayerControllerWhileFlying = true;
+
+    [SerializeField, Tooltip("Скрипты, которые надо выключать на время fly. Обычно достаточно PlayerController.")]
+    private MonoBehaviour[] scriptsToDisableWhileFlying;
+
+    [Header("Command: speed")]
+    [SerializeField, Min(0.01f), Tooltip("Множитель скорости для команды speed без числа.")]
+    private float defaultSpeedMultiplier = 2f;
+
+    [SerializeField, Tooltip("Скрипты, в которых команда speed будет искать поля скорости. Если пусто — ищет во всех MonoBehaviour на игроке и его детях.")]
+    private MonoBehaviour[] speedTargetScripts;
+
+    [SerializeField, Tooltip("Имена float/int полей скорости, которые команда speed имеет право умножать.")]
+    private string[] speedFieldNames =
+    {
+        "moveSpeed",
+        "movementSpeed",
+        "walkSpeed",
+        "runSpeed",
+        "sprintSpeed",
+        "maxSpeed",
+        "maxMoveSpeed",
+        "maxGroundSpeed",
+        "groundSpeed",
+        "groundMoveSpeed",
+        "baseMoveSpeed",
+        "normalMoveSpeed",
+        "airSpeed",
+        "airControlSpeed",
+        "climbSpeed",
+        "climbMoveSpeed",
+        "fenceClimbSpeed",
+        "pounceSpeed",
+        "wallSlideSpeed"
+    };
 
     [SerializeField, Tooltip("Открывать консоль сразу при старте.")]
     private bool openConsoleOnStart = false;
@@ -199,6 +271,17 @@ public class MenuDiagnosticsConsole : MonoBehaviour
     private readonly List<string> _consoleLines = new List<string>(256);
     private readonly StringBuilder _builder = new StringBuilder(4096);
 
+    private readonly Dictionary<string, Action<string[]>> _developerCommands = new Dictionary<string, Action<string[]>>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<FieldKey, object> _originalSpeedValues = new Dictionary<FieldKey, object>();
+    private readonly List<MonoBehaviour> _scriptsDisabledByFly = new List<MonoBehaviour>();
+
+    private bool _flyEnabled;
+    private bool _speedModified;
+    private bool _hasOriginalGravityScale;
+    private float _originalGravityScale = 1f;
+    private float _lastCommandTimeScale = 1f;
+
+
     private bool _consoleVisible;
     private bool _forceDiagnosticsOnNextConsoleOpen;
     private Coroutine _scrollRoutine;
@@ -206,6 +289,37 @@ public class MenuDiagnosticsConsole : MonoBehaviour
     private GameObject _managerRuntimeRoot;
     private GameObject _consoleRuntimeRoot;
     private bool _hasExplicitConsolePersistentRoot;
+
+
+    private struct FieldKey : IEquatable<FieldKey>
+    {
+        public readonly MonoBehaviour Target;
+        public readonly FieldInfo Field;
+
+        public FieldKey(MonoBehaviour target, FieldInfo field)
+        {
+            Target = target;
+            Field = field;
+        }
+
+        public bool Equals(FieldKey other)
+        {
+            return Target == other.Target && Field == other.Field;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is FieldKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return ((Target != null ? Target.GetHashCode() : 0) * 397) ^ (Field != null ? Field.GetHashCode() : 0);
+            }
+        }
+    }
 
     private void Awake()
     {
@@ -231,8 +345,15 @@ public class MenuDiagnosticsConsole : MonoBehaviour
 
         SceneManager.sceneLoaded += OnSceneLoaded;
 
+        RegisterDeveloperCommands();
+        RegisterCommandInput();
+        ResolveCommandPlayer();
+
         ApplyVersionToMainMenuText();
         SetConsoleVisible(openConsoleOnStart, false);
+
+        if (printCommandHintOnStart)
+            AddLine(Severity.Info, "Commands: type info in the input field for command list.", false);
 
         if (runDiagnosticsOnAwake)
             RunDiagnostics("Awake");
@@ -249,6 +370,9 @@ public class MenuDiagnosticsConsole : MonoBehaviour
             I = null;
 
         SceneManager.sceneLoaded -= OnSceneLoaded;
+        UnregisterCommandInput();
+        DisableFly(false);
+        ResetPlayerSpeed(false);
     }
 
     private void OnValidate()
@@ -264,11 +388,19 @@ public class MenuDiagnosticsConsole : MonoBehaviour
 
         if (minContentHeight < 0f)
             minContentHeight = 0f;
+
+        if (commandFlySpeed < 0f)
+            commandFlySpeed = 0f;
+
+        if (defaultSpeedMultiplier < 0.01f)
+            defaultSpeedMultiplier = 0.01f;
     }
 
     private void Update()
     {
-        if (_consoleVisible && Input.GetKeyDown(clearConsoleKey))
+        bool typingCommand = IsCommandInputFocused();
+
+        if (_consoleVisible && !typingCommand && Input.GetKeyDown(clearConsoleKey))
         {
             ClearConsoleAndMarkDirty();
             return;
@@ -289,16 +421,20 @@ public class MenuDiagnosticsConsole : MonoBehaviour
             }
         }
 
-        if (Input.GetKeyDown(runDiagnosticsKey))
+        if (!typingCommand && Input.GetKeyDown(runDiagnosticsKey))
         {
             _forceDiagnosticsOnNextConsoleOpen = false;
             RunDiagnostics("Hotkey");
         }
+
+        if (_flyEnabled)
+            UpdateFlyMovement();
     }
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         ApplyVersionToMainMenuText();
+        ResolveCommandPlayer();
 
         if (clearConsoleOnSceneLoaded)
             ClearConsoleText();
@@ -345,6 +481,623 @@ public class MenuDiagnosticsConsole : MonoBehaviour
 
         if (refreshImmediately)
             RefreshConsoleText();
+
+        if (visible && focusCommandInputOnConsoleOpen)
+            FocusCommandInput();
+    }
+
+    private void RegisterCommandInput()
+    {
+        if (commandInput == null)
+            return;
+
+        commandInput.onSubmit.RemoveListener(SubmitDeveloperCommand);
+        commandInput.onSubmit.AddListener(SubmitDeveloperCommand);
+    }
+
+    private void UnregisterCommandInput()
+    {
+        if (commandInput == null)
+            return;
+
+        commandInput.onSubmit.RemoveListener(SubmitDeveloperCommand);
+    }
+
+    private void FocusCommandInput()
+    {
+        if (!_consoleVisible || commandInput == null || !commandInput.gameObject.activeInHierarchy)
+            return;
+
+        commandInput.ActivateInputField();
+        commandInput.Select();
+
+        if (EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(commandInput.gameObject);
+    }
+
+    private bool IsCommandInputFocused()
+    {
+        if (commandInput == null)
+            return false;
+
+        if (commandInput.isFocused)
+            return true;
+
+        return EventSystem.current != null && EventSystem.current.currentSelectedGameObject == commandInput.gameObject;
+    }
+
+
+    private void RegisterDeveloperCommands()
+    {
+        _developerCommands.Clear();
+
+        _developerCommands["clear"] = CmdClear;
+        _developerCommands["cls"] = CmdClear;
+
+        _developerCommands["info"] = CmdInfo;
+        _developerCommands["help"] = CmdInfo;
+
+        _developerCommands["diag"] = CmdDiagnostics;
+        _developerCommands["diagnostics"] = CmdDiagnostics;
+
+        _developerCommands["fly"] = CmdFly;
+        _developerCommands["speed"] = CmdSpeed;
+
+        _developerCommands["pos"] = CmdPosition;
+        _developerCommands["tp"] = CmdTeleport;
+        _developerCommands["teleport"] = CmdTeleport;
+
+        _developerCommands["gravity"] = CmdGravity;
+        _developerCommands["time"] = CmdTimeScale;
+        _developerCommands["scene"] = CmdScene;
+        _developerCommands["reload"] = CmdReloadScene;
+    }
+
+    private void SubmitDeveloperCommand(string rawCommand)
+    {
+        if (string.IsNullOrWhiteSpace(rawCommand))
+        {
+            if (refocusCommandInputAfterSubmit)
+                FocusCommandInput();
+
+            return;
+        }
+
+        string commandLine = rawCommand.Trim();
+
+        if (clearCommandInputAfterSubmit && commandInput != null)
+            commandInput.text = string.Empty;
+
+        AddLine(Severity.Info, "> " + commandLine, false);
+
+        string[] parts = commandLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            RefreshConsoleText();
+            if (refocusCommandInputAfterSubmit)
+                FocusCommandInput();
+            return;
+        }
+
+        string commandName = parts[0];
+        string[] args = new string[Mathf.Max(0, parts.Length - 1)];
+        for (int i = 1; i < parts.Length; i++)
+            args[i - 1] = parts[i];
+
+        if (_developerCommands.TryGetValue(commandName, out Action<string[]> command))
+        {
+            try
+            {
+                command.Invoke(args);
+            }
+            catch (Exception e)
+            {
+                AddLine(Severity.Warning, "Command error: " + e.Message, true);
+            }
+        }
+        else
+        {
+            AddLine(Severity.Warning, "Unknown command: " + commandName + ". Type info.", false);
+        }
+
+        RefreshConsoleText();
+
+        if (refocusCommandInputAfterSubmit)
+            FocusCommandInput();
+    }
+
+    private void CmdClear(string[] args)
+    {
+        ClearConsoleText();
+    }
+
+    private void CmdInfo(string[] args)
+    {
+        AddLine(Severity.Info, "Available commands:", false);
+        AddLine(Severity.Info, "clear / cls — очистить консоль", false);
+        AddLine(Severity.Info, "info / help — показать список команд", false);
+        AddLine(Severity.Info, "diag — запустить диагностику меню", false);
+        AddLine(Severity.Info, "fly — включить/выключить полёт игрока", false);
+        AddLine(Severity.Info, "speed — включить/выключить ускорение игрока x" + FormatFloat(defaultSpeedMultiplier), false);
+        AddLine(Severity.Info, "speed 3 — поставить множитель скорости x3", false);
+        AddLine(Severity.Info, "speed reset / speed off — вернуть обычную скорость", false);
+        AddLine(Severity.Info, "pos — показать позицию игрока", false);
+        AddLine(Severity.Info, "tp x y — телепортировать игрока. Пример: tp 10 4", false);
+        AddLine(Severity.Info, "gravity 0 — изменить gravityScale игрока", false);
+        AddLine(Severity.Info, "gravity reset — вернуть исходную гравитацию", false);
+        AddLine(Severity.Info, "time 0.5 — изменить Time.timeScale", false);
+        AddLine(Severity.Info, "time reset — вернуть Time.timeScale = 1", false);
+        AddLine(Severity.Info, "scene — показать имя текущей сцены", false);
+        AddLine(Severity.Info, "reload — перезагрузить текущую сцену", false);
+    }
+
+    private void CmdDiagnostics(string[] args)
+    {
+        RunDiagnostics("Command: diag");
+    }
+
+    private void CmdFly(string[] args)
+    {
+        if (_flyEnabled)
+            DisableFly(true);
+        else
+            EnableFly();
+    }
+
+    private void EnableFly()
+    {
+        ResolveCommandPlayer();
+
+        if (commandPlayerRigidbody == null)
+        {
+            AddLine(Severity.Warning, "fly: Rigidbody2D игрока не найден.", false);
+            return;
+        }
+
+        if (!_hasOriginalGravityScale)
+        {
+            _originalGravityScale = commandPlayerRigidbody.gravityScale;
+            _hasOriginalGravityScale = true;
+        }
+
+        _flyEnabled = true;
+        commandPlayerRigidbody.gravityScale = 0f;
+
+        if (resetPlayerVelocityOnFlyToggle)
+            commandPlayerRigidbody.velocity = Vector2.zero;
+
+        DisableMovementScriptsForFly();
+
+        AddLine(Severity.Ok, "fly: ON", false);
+    }
+
+    private void DisableFly(bool print)
+    {
+        if (!_flyEnabled)
+            return;
+
+        _flyEnabled = false;
+
+        if (commandPlayerRigidbody != null)
+        {
+            if (_hasOriginalGravityScale)
+                commandPlayerRigidbody.gravityScale = _originalGravityScale;
+
+            if (resetPlayerVelocityOnFlyToggle)
+                commandPlayerRigidbody.velocity = Vector2.zero;
+        }
+
+        RestoreScriptsDisabledByFly();
+
+        if (print)
+            AddLine(Severity.Ok, "fly: OFF", false);
+    }
+
+    private void UpdateFlyMovement()
+    {
+        if (commandPlayerRigidbody == null)
+        {
+            ResolveCommandPlayer();
+            if (commandPlayerRigidbody == null)
+                return;
+        }
+
+        float x = 0f;
+        float y = 0f;
+
+        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
+            x -= 1f;
+        if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
+            x += 1f;
+        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.Space))
+            y += 1f;
+        if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
+            y -= 1f;
+
+        Vector2 move = new Vector2(x, y);
+        if (move.sqrMagnitude > 1f)
+            move.Normalize();
+
+        commandPlayerRigidbody.velocity = move * commandFlySpeed;
+    }
+
+    private void DisableMovementScriptsForFly()
+    {
+        _scriptsDisabledByFly.Clear();
+
+        if (scriptsToDisableWhileFlying != null && scriptsToDisableWhileFlying.Length > 0)
+        {
+            for (int i = 0; i < scriptsToDisableWhileFlying.Length; i++)
+                DisableScriptForFly(scriptsToDisableWhileFlying[i]);
+
+            return;
+        }
+
+        if (!autoDisablePlayerControllerWhileFlying)
+            return;
+
+        ResolveCommandPlayer();
+
+        if (commandPlayerRoot == null)
+            return;
+
+        PlayerController controller = commandPlayerRoot.GetComponent<PlayerController>();
+        if (controller == null)
+            controller = commandPlayerRoot.GetComponentInChildren<PlayerController>(true);
+
+        DisableScriptForFly(controller);
+    }
+
+    private void DisableScriptForFly(MonoBehaviour script)
+    {
+        if (script == null)
+            return;
+
+        if (script == this)
+            return;
+
+        if (!script.enabled)
+            return;
+
+        script.enabled = false;
+        _scriptsDisabledByFly.Add(script);
+    }
+
+    private void RestoreScriptsDisabledByFly()
+    {
+        for (int i = 0; i < _scriptsDisabledByFly.Count; i++)
+        {
+            MonoBehaviour script = _scriptsDisabledByFly[i];
+            if (script != null)
+                script.enabled = true;
+        }
+
+        _scriptsDisabledByFly.Clear();
+    }
+
+    private void CmdSpeed(string[] args)
+    {
+        if (args == null || args.Length == 0)
+        {
+            if (_speedModified)
+                ResetPlayerSpeed(true);
+            else
+                ApplyPlayerSpeed(defaultSpeedMultiplier);
+
+            return;
+        }
+
+        string first = args[0].ToLowerInvariant();
+
+        if (first == "reset" || first == "off" || first == "normal")
+        {
+            ResetPlayerSpeed(true);
+            return;
+        }
+
+        if (!TryParseFloat(args[0], out float multiplier) || multiplier <= 0f)
+        {
+            AddLine(Severity.Warning, "speed: неверное значение. Пример: speed 2 или speed reset", false);
+            return;
+        }
+
+        ApplyPlayerSpeed(multiplier);
+    }
+
+    private void ApplyPlayerSpeed(float multiplier)
+    {
+        ResolveCommandPlayer();
+
+        MonoBehaviour[] targets = GetSpeedTargets();
+        if (targets == null || targets.Length == 0)
+        {
+            AddLine(Severity.Warning, "speed: скрипты скорости не найдены. Заполни Speed Target Scripts или Command Player Root.", false);
+            return;
+        }
+
+        if (_speedModified)
+            ResetPlayerSpeed(false);
+
+        int changed = 0;
+
+        for (int i = 0; i < targets.Length; i++)
+        {
+            MonoBehaviour target = targets[i];
+            if (target == null)
+                continue;
+
+            Type type = target.GetType();
+
+            for (int n = 0; n < speedFieldNames.Length; n++)
+            {
+                string fieldName = speedFieldNames[n];
+                if (string.IsNullOrWhiteSpace(fieldName))
+                    continue;
+
+                FieldInfo field = type.GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (field == null)
+                    continue;
+
+                if (field.FieldType != typeof(float) && field.FieldType != typeof(int))
+                    continue;
+
+                FieldKey key = new FieldKey(target, field);
+                if (!_originalSpeedValues.ContainsKey(key))
+                    _originalSpeedValues.Add(key, field.GetValue(target));
+
+                object original = _originalSpeedValues[key];
+
+                if (field.FieldType == typeof(float))
+                {
+                    field.SetValue(target, (float)original * multiplier);
+                    changed++;
+                }
+                else if (field.FieldType == typeof(int))
+                {
+                    field.SetValue(target, Mathf.RoundToInt((int)original * multiplier));
+                    changed++;
+                }
+            }
+        }
+
+        if (changed <= 0)
+        {
+            AddLine(Severity.Warning, "speed: подходящие поля скорости не найдены. Добавь имена полей в Speed Field Names.", false);
+            return;
+        }
+
+        _speedModified = true;
+        AddLine(Severity.Ok, "speed: ON x" + FormatFloat(multiplier) + " | changed fields: " + changed, false);
+    }
+
+    private void ResetPlayerSpeed(bool print)
+    {
+        foreach (KeyValuePair<FieldKey, object> pair in _originalSpeedValues)
+        {
+            if (pair.Key.Target == null || pair.Key.Field == null)
+                continue;
+
+            pair.Key.Field.SetValue(pair.Key.Target, pair.Value);
+        }
+
+        _speedModified = false;
+
+        if (print)
+            AddLine(Severity.Ok, "speed: OFF", false);
+    }
+
+    private MonoBehaviour[] GetSpeedTargets()
+    {
+        if (speedTargetScripts != null && speedTargetScripts.Length > 0)
+            return speedTargetScripts;
+
+        ResolveCommandPlayer();
+
+        if (commandPlayerRoot == null)
+            return Array.Empty<MonoBehaviour>();
+
+        return commandPlayerRoot.GetComponentsInChildren<MonoBehaviour>(true);
+    }
+
+    private void CmdPosition(string[] args)
+    {
+        ResolveCommandPlayer();
+
+        if (commandPlayerRoot == null)
+        {
+            AddLine(Severity.Warning, "pos: игрок не найден.", false);
+            return;
+        }
+
+        Vector3 p = commandPlayerRoot.position;
+        AddLine(Severity.Info, "player position: x=" + FormatFloat(p.x) + " y=" + FormatFloat(p.y) + " z=" + FormatFloat(p.z), false);
+    }
+
+    private void CmdTeleport(string[] args)
+    {
+        ResolveCommandPlayer();
+
+        if (commandPlayerRoot == null)
+        {
+            AddLine(Severity.Warning, "tp: игрок не найден.", false);
+            return;
+        }
+
+        if (args == null || args.Length < 2)
+        {
+            AddLine(Severity.Warning, "tp: нужно указать x y. Пример: tp 10 4", false);
+            return;
+        }
+
+        if (!TryParseFloat(args[0], out float x) || !TryParseFloat(args[1], out float y))
+        {
+            AddLine(Severity.Warning, "tp: неверные координаты. Пример: tp 10 4", false);
+            return;
+        }
+
+        Vector3 p = commandPlayerRoot.position;
+        p.x = x;
+        p.y = y;
+        commandPlayerRoot.position = p;
+
+        if (commandPlayerRigidbody != null)
+            commandPlayerRigidbody.velocity = Vector2.zero;
+
+        AddLine(Severity.Ok, "tp: player moved to x=" + FormatFloat(x) + " y=" + FormatFloat(y), false);
+    }
+
+    private void CmdGravity(string[] args)
+    {
+        ResolveCommandPlayer();
+
+        if (commandPlayerRigidbody == null)
+        {
+            AddLine(Severity.Warning, "gravity: Rigidbody2D игрока не найден.", false);
+            return;
+        }
+
+        if (!_hasOriginalGravityScale)
+        {
+            _originalGravityScale = commandPlayerRigidbody.gravityScale;
+            _hasOriginalGravityScale = true;
+        }
+
+        if (args == null || args.Length == 0)
+        {
+            AddLine(Severity.Info, "gravity: current = " + FormatFloat(commandPlayerRigidbody.gravityScale), false);
+            return;
+        }
+
+        string first = args[0].ToLowerInvariant();
+        if (first == "reset" || first == "normal")
+        {
+            commandPlayerRigidbody.gravityScale = _originalGravityScale;
+            AddLine(Severity.Ok, "gravity: reset to " + FormatFloat(_originalGravityScale), false);
+            return;
+        }
+
+        if (!TryParseFloat(args[0], out float value))
+        {
+            AddLine(Severity.Warning, "gravity: неверное значение. Пример: gravity 0 или gravity reset", false);
+            return;
+        }
+
+        commandPlayerRigidbody.gravityScale = value;
+        AddLine(Severity.Ok, "gravity: " + FormatFloat(value), false);
+    }
+
+    private void CmdTimeScale(string[] args)
+    {
+        if (args == null || args.Length == 0)
+        {
+            AddLine(Severity.Info, "time: current Time.timeScale = " + FormatFloat(Time.timeScale), false);
+            return;
+        }
+
+        string first = args[0].ToLowerInvariant();
+        if (first == "reset" || first == "normal")
+        {
+            Time.timeScale = 1f;
+            Time.fixedDeltaTime = 0.02f;
+            AddLine(Severity.Ok, "time: reset to 1", false);
+            return;
+        }
+
+        if (!TryParseFloat(args[0], out float value))
+        {
+            AddLine(Severity.Warning, "time: неверное значение. Пример: time 0.5 или time reset", false);
+            return;
+        }
+
+        value = Mathf.Clamp(value, 0f, 10f);
+        _lastCommandTimeScale = Time.timeScale;
+        Time.timeScale = value;
+        Time.fixedDeltaTime = 0.02f * Mathf.Max(value, 0.0001f);
+
+        AddLine(Severity.Ok, "time: " + FormatFloat(value) + " | previous: " + FormatFloat(_lastCommandTimeScale), false);
+    }
+
+    private void CmdScene(string[] args)
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        AddLine(Severity.Info, "scene: " + scene.name + " | buildIndex: " + scene.buildIndex, false);
+    }
+
+    private void CmdReloadScene(string[] args)
+    {
+        DisableFly(false);
+        ResetPlayerSpeed(false);
+
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+
+        Scene scene = SceneManager.GetActiveScene();
+        AddLine(Severity.Info, "reload: " + scene.name, false);
+        RefreshConsoleText();
+
+        SceneManager.LoadScene(scene.buildIndex);
+    }
+
+    private void ResolveCommandPlayer()
+    {
+        if (commandPlayerRoot != null)
+        {
+            if (commandPlayerRigidbody == null)
+                commandPlayerRigidbody = commandPlayerRoot.GetComponent<Rigidbody2D>();
+
+            return;
+        }
+
+        if (commandPlayerTags != null)
+        {
+            for (int i = 0; i < commandPlayerTags.Length; i++)
+            {
+                string tagName = commandPlayerTags[i];
+                if (string.IsNullOrWhiteSpace(tagName))
+                    continue;
+
+                GameObject found = null;
+
+                try
+                {
+                    found = GameObject.FindGameObjectWithTag(tagName);
+                }
+                catch
+                {
+                    // Tag may not exist in the project. Ignore.
+                }
+
+                if (found == null)
+                    continue;
+
+                commandPlayerRoot = found.transform;
+                commandPlayerRigidbody = found.GetComponent<Rigidbody2D>();
+                return;
+            }
+        }
+
+        List<PlayerController> players = FindSceneComponents<PlayerController>(SceneManager.GetActiveScene(), true);
+        if (players.Count > 0 && players[0] != null)
+        {
+            commandPlayerRoot = players[0].transform;
+            commandPlayerRigidbody = commandPlayerRoot.GetComponent<Rigidbody2D>();
+        }
+    }
+
+    private static bool TryParseFloat(string raw, out float value)
+    {
+        value = 0f;
+
+        if (string.IsNullOrWhiteSpace(raw))
+            return false;
+
+        raw = raw.Replace(',', '.');
+        return float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static string FormatFloat(float value)
+    {
+        return value.ToString("0.###", CultureInfo.InvariantCulture);
     }
 
     private GameObject ResolveManagerPersistentRoot()
