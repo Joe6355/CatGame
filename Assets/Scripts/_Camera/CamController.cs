@@ -13,12 +13,32 @@ public class CamController : MonoBehaviour
     public static Action<float> ChangeCameraYOffsetEvent;
     public static Action<float> ChangeSprintZoomBlendEvent;
 
-    [Header("ScreenX offsets (A/D)")]
+    [Header("ScreenX offsets")]
     [SerializeField] private float leftOffset = 0.35f;
     [SerializeField] private float rightOffset = 0.65f;
-    [SerializeField] private bool enableADTest = false;
 
-    [SerializeField, Tooltip("Плавность смены ScreenX при тесте A/D (сек).")]
+    [SerializeField, Tooltip("Если ВКЛ — камера будет смещаться по A/D и геймпадной оси Horizontal.")]
+    private bool enableHorizontalLookOffset = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — дополнительно читать клавиши A/D напрямую.")]
+    private bool useKeyboardADForOffset = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — читать Input Manager Axis, обычно Horizontal. Через неё обычно работает геймпад.")]
+    private bool useAxisForOffset = true;
+
+    [SerializeField, Tooltip("Имя оси из Project Settings -> Input Manager. Обычно Horizontal.")]
+    private string horizontalAxisName = "Horizontal";
+
+    [SerializeField, Range(0f, 1f), Tooltip("Мёртвая зона оси геймпада. Если стик меньше этого значения — камера не смещается.")]
+    private float horizontalAxisDeadZone = 0.25f;
+
+    [SerializeField, Tooltip("Если ВКЛ — когда игрок отпустил ввод, камера возвращается в центр.")]
+    private bool returnToCenterWhenNoInput = false;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Центральное положение камеры по ScreenX.")]
+    private float centerOffset = 0.5f;
+
+    [SerializeField, Tooltip("Плавность смены ScreenX.")]
     private float screenXLerpTime = 0.25f;
 
     [Header("Vertical Offset (TrackedObjectOffset)")]
@@ -63,6 +83,8 @@ public class CamController : MonoBehaviour
     private float sprintZoomBlendTarget = 0f;
     private bool runtimeBaseInitialized = false;
 
+    private float lastScreenXTarget = 0.5f;
+
     private void Reset()
     {
         CacheComponents();
@@ -72,12 +94,16 @@ public class CamController : MonoBehaviour
     {
         CacheComponents();
         EnsureBaseSizeInitialized(false);
+        lastScreenXTarget = centerOffset;
     }
 
     private void Start()
     {
         EnsureBaseSizeInitialized(true);
         ApplyCombinedLensSize(true);
+
+        if (transposer != null)
+            lastScreenXTarget = transposer.m_ScreenX;
     }
 
     private void OnValidate()
@@ -87,6 +113,11 @@ public class CamController : MonoBehaviour
         sprintZoomLerpTime = Mathf.Max(0.01f, sprintZoomLerpTime);
         screenXLerpTime = Mathf.Max(0.0001f, screenXLerpTime);
         yOffsetLerpTime = Mathf.Max(0.0001f, yOffsetLerpTime);
+
+        leftOffset = Mathf.Clamp01(leftOffset);
+        rightOffset = Mathf.Clamp01(rightOffset);
+        centerOffset = Mathf.Clamp01(centerOffset);
+        horizontalAxisDeadZone = Mathf.Clamp01(horizontalAxisDeadZone);
 
         if (!Application.isPlaying)
             return;
@@ -121,16 +152,74 @@ public class CamController : MonoBehaviour
 
     private void Update()
     {
-        if (!enableADTest || transposer == null)
-            return;
-
-        if (Input.GetKeyDown(KeyCode.A)) SetScreenX(leftOffset, screenXLerpTime);
-        if (Input.GetKeyDown(KeyCode.D)) SetScreenX(rightOffset, screenXLerpTime);
+        UpdateHorizontalLookOffset();
     }
 
     private void LateUpdate()
     {
         UpdateSprintZoomRuntime();
+    }
+
+    private void UpdateHorizontalLookOffset()
+    {
+        if (!enableHorizontalLookOffset || transposer == null)
+            return;
+
+        float horizontal = ReadHorizontalOffsetInput();
+
+        if (horizontal < -horizontalAxisDeadZone)
+        {
+            SetScreenXIfChanged(leftOffset, screenXLerpTime);
+            return;
+        }
+
+        if (horizontal > horizontalAxisDeadZone)
+        {
+            SetScreenXIfChanged(rightOffset, screenXLerpTime);
+            return;
+        }
+
+        if (returnToCenterWhenNoInput)
+            SetScreenXIfChanged(centerOffset, screenXLerpTime);
+    }
+
+    private float ReadHorizontalOffsetInput()
+    {
+        float result = 0f;
+
+        if (useAxisForOffset && !string.IsNullOrWhiteSpace(horizontalAxisName))
+        {
+            try
+            {
+                result = Input.GetAxisRaw(horizontalAxisName);
+            }
+            catch
+            {
+                result = 0f;
+            }
+        }
+
+        if (useKeyboardADForOffset)
+        {
+            if (Input.GetKey(KeyCode.A))
+                result = -1f;
+
+            if (Input.GetKey(KeyCode.D))
+                result = 1f;
+        }
+
+        return Mathf.Clamp(result, -1f, 1f);
+    }
+
+    private void SetScreenXIfChanged(float x, float duration)
+    {
+        x = Mathf.Clamp01(x);
+
+        if (Mathf.Abs(lastScreenXTarget - x) < 0.0001f)
+            return;
+
+        lastScreenXTarget = x;
+        SetScreenX(x, duration);
     }
 
     private void Shake(float strength, float time, float fadeTime)

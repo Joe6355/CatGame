@@ -532,8 +532,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   useBoxGroundCheck: 1
-  groundBoxSize: {x: 0.93, y: 0.06}
-  groundBoxOffset: {x: 0.13, y: -0.7}
+  groundBoxSize: {x: 0.79, y: 0.06}
+  groundBoxOffset: {x: 0.1, y: -0.7}
   groundCheck: {fileID: 3140944467604895463}
   groundCheckRadius: 0.12
   useEdgeAssist: 0
@@ -556,12 +556,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   jumpForce: 13
-  jumpReleaseVerticalMultiplier: 0.4
+  jumpReleaseVerticalMultiplier: 0.65
   maxJumpHoldTime: 0.18
-  jumpHoldAcceleration: 150
-  jumpHoldTargetVelocityMultiplier: 1.05
+  jumpHoldAcceleration: 90
+  jumpHoldTargetVelocityMultiplier: 1.03
   minUpwardSpeedForHeldJump: 0.15
   jumpHoldGroundedIgnoreTime: 0.1
+  usePlayableShortJump: 1
+  minShortJumpHoldTime: 0.08
+  earlyReleaseCutDelay: 0.035
+  releasedShortJumpSustainMultiplier: 0.6
   jumpRepeatCooldown: 0.1
   boostJumpDuringSprint: 1
   sprintJumpMultiplier: 2.17
@@ -598,7 +602,7 @@ MonoBehaviour:
   airControlInputDeadZone: 0.05
   jumpAirInertiaDuration: 0.1
   jumpAirInertiaControlMultiplier: 0.45
-  sprintStartDelay: 1
+  sprintStartDelay: 1.6
   sprintRampDuration: 1
   sprintSpeedMultiplier: 2
   sprintInputDeadZone: 0.2
@@ -11317,7 +11321,7 @@ Transform:
   m_GameObject: {fileID: 4835050354689247662}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -0.16, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -16322,7 +16326,7 @@ Transform:
   m_GameObject: {fileID: 8115135668586630110}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 3.55, y: 7.733, z: 0}
+  m_LocalPosition: {x: 3.438, y: 7.733, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
