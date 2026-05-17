@@ -1,4 +1,4 @@
-using System;
+п»їusing System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -166,44 +166,44 @@ public class LegacyKeycodeRebind : MonoBehaviour
     [Serializable]
     public class RebindRow
     {
-        [Header("Что ребиндим")]
+        [Header("Р§С‚Рѕ СЂРµР±РёРЅРґРёРј")]
         public Device device = Device.Keyboard;
         public Action action = Action.Jump;
 
-        [Header("UI строки")]
+        [Header("UI СЃС‚СЂРѕРєРё")]
         public Graphic actionLabel;
         public Graphic keyLabel;
         public Button changeButton;
         public Button resetButton;
 
-        [Header("Кастомное имя")]
+        [Header("РљР°СЃС‚РѕРјРЅРѕРµ РёРјСЏ")]
         public string customActionName;
     }
 
     [Serializable]
     public class ResetConfirmUI
     {
-        [Header("Открытие")]
+        [Header("РћС‚РєСЂС‹С‚РёРµ")]
         public Button openResetButton;
 
-        [Header("Панель подтверждения")]
+        [Header("РџР°РЅРµР»СЊ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ")]
         public GameObject confirmPanel;
 
-        [Header("Кнопки")]
+        [Header("РљРЅРѕРїРєРё")]
         public Button confirmYesButton;
         public Button cancelButton;
 
-        [Header("Автовыделение")]
-        [Tooltip("Что выделить при открытии панели. Лучше ставить кнопку НЕТ.")]
+        [Header("РђРІС‚РѕРІС‹РґРµР»РµРЅРёРµ")]
+        [Tooltip("Р§С‚Рѕ РІС‹РґРµР»РёС‚СЊ РїСЂРё РѕС‚РєСЂС‹С‚РёРё РїР°РЅРµР»Рё. Р›СѓС‡С€Рµ СЃС‚Р°РІРёС‚СЊ РєРЅРѕРїРєСѓ РќР•Рў.")]
         public Button firstSelectedButton;
 
-        [Tooltip("Если firstSelectedButton не задан, сначала пробуем выделить cancelButton.")]
+        [Tooltip("Р•СЃР»Рё firstSelectedButton РЅРµ Р·Р°РґР°РЅ, СЃРЅР°С‡Р°Р»Р° РїСЂРѕР±СѓРµРј РІС‹РґРµР»РёС‚СЊ cancelButton.")]
         public bool preferCancelButton = true;
 
-        [Tooltip("Если кнопки явно не заданы, ищем первую активную кнопку внутри панели.")]
+        [Tooltip("Р•СЃР»Рё РєРЅРѕРїРєРё СЏРІРЅРѕ РЅРµ Р·Р°РґР°РЅС‹, РёС‰РµРј РїРµСЂРІСѓСЋ Р°РєС‚РёРІРЅСѓСЋ РєРЅРѕРїРєСѓ РІРЅСѓС‚СЂРё РїР°РЅРµР»Рё.")]
         public bool findFirstButtonInPanel = true;
 
-        [Tooltip("Сколько кадров подождать после SetActive(true), перед тем как выделять кнопку.")]
+        [Tooltip("РЎРєРѕР»СЊРєРѕ РєР°РґСЂРѕРІ РїРѕРґРѕР¶РґР°С‚СЊ РїРѕСЃР»Рµ SetActive(true), РїРµСЂРµРґ С‚РµРј РєР°Рє РІС‹РґРµР»СЏС‚СЊ РєРЅРѕРїРєСѓ.")]
         [Min(0)]
         public int selectDelayFrames = 1;
     }
@@ -231,22 +231,22 @@ public class LegacyKeycodeRebind : MonoBehaviour
         public bool currentHeld;
     }
 
-    [Header("Жизнь между сценами")]
+    [Header("Р–РёР·РЅСЊ РјРµР¶РґСѓ СЃС†РµРЅР°РјРё")]
     [SerializeField]
     private bool dontDestroyOnLoad = true;
 
-    [Header("Сохранение")]
+    [Header("РЎРѕС…СЂР°РЅРµРЅРёРµ")]
     [SerializeField]
     private string playerPrefsKey = DEFAULT_PLAYER_PREFS_KEY;
 
-    [Header("Дефолтные бинды")]
+    [Header("Р”РµС„РѕР»С‚РЅС‹Рµ Р±РёРЅРґС‹")]
     [SerializeField]
     private KeyboardBinds defaultKeyboard = new KeyboardBinds();
 
     [SerializeField]
     private GamepadBinds defaultGamepad = new GamepadBinds();
 
-    [Header("Текущие бинды")]
+    [Header("РўРµРєСѓС‰РёРµ Р±РёРЅРґС‹")]
     [SerializeField]
     private KeyboardBinds keyboard = new KeyboardBinds();
 
@@ -261,11 +261,11 @@ public class LegacyKeycodeRebind : MonoBehaviour
     [SerializeField]
     private ResetConfirmUI gamepadResetUI = new ResetConfirmUI();
 
-    [Header("UI: строки ребинда")]
+    [Header("UI: СЃС‚СЂРѕРєРё СЂРµР±РёРЅРґР°")]
     [SerializeField]
     private List<RebindRow> rows = new List<RebindRow>();
 
-    [Header("UI: ожидание новой кнопки")]
+    [Header("UI: РѕР¶РёРґР°РЅРёРµ РЅРѕРІРѕР№ РєРЅРѕРїРєРё")]
     [SerializeField]
     private GameObject waitingOverlay;
 
@@ -274,9 +274,9 @@ public class LegacyKeycodeRebind : MonoBehaviour
 
     [SerializeField, TextArea(2, 6)]
     private string waitingMessage =
-        "Нажми кнопку, стик, крестовину или курок...\nОчистить: Backspace/Delete\nОтмена: Esc / B";
+        "РќР°Р¶РјРё РєРЅРѕРїРєСѓ, СЃС‚РёРє, РєСЂРµСЃС‚РѕРІРёРЅСѓ РёР»Рё РєСѓСЂРѕРє...\nРћС‡РёСЃС‚РёС‚СЊ: Backspace/Delete\nРћС‚РјРµРЅР°: Esc / B";
 
-    [Header("Оси, которые можно ловить при ребинде")]
+    [Header("РћСЃРё, РєРѕС‚РѕСЂС‹Рµ РјРѕР¶РЅРѕ Р»РѕРІРёС‚СЊ РїСЂРё СЂРµР±РёРЅРґРµ")]
     [SerializeField]
     private List<AxisCaptureCandidate> axisCaptureCandidates = new List<AxisCaptureCandidate>
     {
@@ -289,14 +289,14 @@ public class LegacyKeycodeRebind : MonoBehaviour
         new AxisCaptureCandidate { device = Device.Gamepad, axisName = "Triggers", displayName = "Triggers Axis", allowPositive = true, allowNegative = true, captureThreshold = 0.65f, runtimeThreshold = 0.5f }
     };
 
-    [Header("Правила")]
+    [Header("РџСЂР°РІРёР»Р°")]
     [SerializeField]
     private bool preventDuplicatesPerDevice = true;
 
     [SerializeField]
     private int gamepadButtonsCount = 20;
 
-    [Header("Отмена / очистка")]
+    [Header("РћС‚РјРµРЅР° / РѕС‡РёСЃС‚РєР°")]
     [SerializeField]
     private KeyCode cancelKeyboardKey = KeyCode.Escape;
 
@@ -309,7 +309,7 @@ public class LegacyKeycodeRebind : MonoBehaviour
     [SerializeField]
     private KeyCode clearKeyboardKey2 = KeyCode.Delete;
 
-    [Header("UI защита")]
+    [Header("UI Р·Р°С‰РёС‚Р°")]
     [SerializeField]
     private float menuInputBlockDuration = 0.12f;
 
@@ -941,7 +941,7 @@ public class LegacyKeycodeRebind : MonoBehaviour
 
             if (IsForbiddenBindingKey(binding.key))
             {
-                SetOverlay(true, $"Кнопку {PrettyKey(binding.key)} нельзя назначить.\nНажми другую.\nОтмена: Esc / B");
+                SetOverlay(true, $"РљРЅРѕРїРєСѓ {PrettyKey(binding.key)} РЅРµР»СЊР·СЏ РЅР°Р·РЅР°С‡РёС‚СЊ.\nРќР°Р¶РјРё РґСЂСѓРіСѓСЋ.\nРћС‚РјРµРЅР°: Esc / B");
                 BlockOtherUiForAWhile();
                 return;
             }
@@ -949,7 +949,7 @@ public class LegacyKeycodeRebind : MonoBehaviour
 
         if (preventDuplicatesPerDevice && IsUsed(_rebindDevice, binding, _rebindAction))
         {
-            SetOverlay(true, $"Бинд {PrettyBinding(binding)} уже занят.\nНажми другой.\nОтмена: Esc / B");
+            SetOverlay(true, $"Р‘РёРЅРґ {PrettyBinding(binding)} СѓР¶Рµ Р·Р°РЅСЏС‚.\nРќР°Р¶РјРё РґСЂСѓРіРѕР№.\nРћС‚РјРµРЅР°: Esc / B");
             BlockOtherUiForAWhile();
             return;
         }
@@ -1854,28 +1854,28 @@ public class LegacyKeycodeRebind : MonoBehaviour
         switch (action)
         {
             case Action.MoveLeft:
-                return "Влево";
+                return "Р’Р»РµРІРѕ";
 
             case Action.MoveRight:
-                return "Вправо";
+                return "Р’РїСЂР°РІРѕ";
 
             case Action.Jump:
-                return "Прыжок";
+                return "РџСЂС‹Р¶РѕРє";
 
             case Action.UpAction:
-                return "Действие вверх";
+                return "Р”РµР№СЃС‚РІРёРµ РІРІРµСЂС…";
 
             case Action.DownAction:
-                return "Действие вниз / Pounce";
+                return "Р”РµР№СЃС‚РІРёРµ РІРЅРёР· / Pounce";
 
             case Action.Interact:
-                return "Взаимодействие";
+                return "Р’Р·Р°РёРјРѕРґРµР№СЃС‚РІРёРµ";
 
             case Action.Pause:
-                return "Пауза";
+                return "РџР°СѓР·Р°";
 
             case Action.Back:
-                return "Назад";
+                return "РќР°Р·Р°Рґ";
 
             default:
                 return action.ToString();
@@ -2010,5 +2010,113 @@ public class LegacyKeycodeRebind : MonoBehaviour
 
         if (legacyText != null)
             legacyText.text = value;
+    }
+
+
+    public static string GetBindingDisplayNameStatic(Device device, Action action)
+    {
+        EnsureRuntimeLoaded();
+        return PrettyBindingPublic(GetBindingStatic(device, action));
+    }
+
+    public string GetBindingDisplayName(Device device, Action action)
+    {
+        return GetBindingDisplayNameStatic(device, action);
+    }
+
+    private static string PrettyBindingPublic(InputBinding binding)
+    {
+        if (binding == null || binding.kind == BindingKind.None)
+            return "вЂ”";
+
+        switch (binding.kind)
+        {
+            case BindingKind.Button:
+                return PrettyKeyPublic(binding.key);
+
+            case BindingKind.AxisPositive:
+                return PrettyAxisPublic(binding.axisName, true);
+
+            case BindingKind.AxisNegative:
+                return PrettyAxisPublic(binding.axisName, false);
+
+            case BindingKind.None:
+            default:
+                return "вЂ”";
+        }
+    }
+
+    private static string PrettyKeyPublic(KeyCode key)
+    {
+        if (key == KeyCode.None)
+            return "вЂ”";
+
+        switch (key)
+        {
+            case KeyCode.Space: return "Space";
+            case KeyCode.LeftArrow: return "в†ђ";
+            case KeyCode.RightArrow: return "в†’";
+            case KeyCode.UpArrow: return "в†‘";
+            case KeyCode.DownArrow: return "в†“";
+
+            case KeyCode.Escape: return "Esc";
+            case KeyCode.Return: return "Enter";
+            case KeyCode.KeypadEnter: return "Num Enter";
+            case KeyCode.Backspace: return "Backspace";
+            case KeyCode.Delete: return "Delete";
+            case KeyCode.Tab: return "Tab";
+            case KeyCode.LeftShift: return "L Shift";
+            case KeyCode.RightShift: return "R Shift";
+            case KeyCode.LeftControl: return "L Ctrl";
+            case KeyCode.RightControl: return "R Ctrl";
+            case KeyCode.LeftAlt: return "L Alt";
+            case KeyCode.RightAlt: return "R Alt";
+
+            case KeyCode.JoystickButton0: return "A";
+            case KeyCode.JoystickButton1: return "B";
+            case KeyCode.JoystickButton2: return "X";
+            case KeyCode.JoystickButton3: return "Y";
+            case KeyCode.JoystickButton4: return "LB";
+            case KeyCode.JoystickButton5: return "RB";
+            case KeyCode.JoystickButton6: return "Back";
+            case KeyCode.JoystickButton7: return "Start";
+            case KeyCode.JoystickButton8: return "L3";
+            case KeyCode.JoystickButton9: return "R3";
+
+            default:
+                string raw = key.ToString();
+                raw = raw.Replace("Alpha", "");
+                raw = raw.Replace("Keypad", "Num ");
+                return raw;
+        }
+    }
+
+    private static string PrettyAxisPublic(string axisName, bool positive)
+    {
+        if (string.IsNullOrWhiteSpace(axisName))
+            return "Axis";
+
+        if (axisName == "GamepadHorizontal")
+            return positive ? "Left Stick в†’" : "Left Stick в†ђ";
+
+        if (axisName == "GamepadVertical")
+            return positive ? "Left Stick в†‘" : "Left Stick в†“";
+
+        if (axisName == "DPadX")
+            return positive ? "D-Pad в†’" : "D-Pad в†ђ";
+
+        if (axisName == "DPadY")
+            return positive ? "D-Pad в†‘" : "D-Pad в†“";
+
+        if (axisName == "LT")
+            return "LT";
+
+        if (axisName == "RT")
+            return "RT";
+
+        if (axisName == "Triggers")
+            return positive ? "RT" : "LT";
+
+        return positive ? axisName + " +" : axisName + " -";
     }
 }
