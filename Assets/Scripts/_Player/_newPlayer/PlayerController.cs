@@ -510,11 +510,53 @@ public class PlayerController : MonoBehaviour
 
     private void RefreshPresentation()
     {
+        if (presentationModule == null)
+            return;
+
+        bool isWallSliding =
+            bounceModule != null &&
+            bounceModule.IsWallSliding;
+
+        bool isLedgeActive =
+            ledgeModule != null &&
+            ledgeModule.IsActive;
+
+        bool isLedgeHanging =
+            ledgeModule != null &&
+            ledgeModule.IsHanging;
+
+        bool isLedgeClimbing =
+            ledgeModule != null &&
+            ledgeModule.IsClimbing;
+
+        bool isFenceClimbing =
+            fenceClimbModule != null &&
+            fenceClimbModule.IsActive;
+
+        Vector2 fenceMoveInput =
+            fenceClimbModule != null
+                ? fenceClimbModule.MoveInput
+                : Vector2.zero;
+
+        bool isSprintSkidActive =
+            movementModule != null &&
+            movementModule.IsSprintSkidActive;
+
         presentationModule.RefreshPresentation(
-            jumpModule.IsJumpHoldActiveForPresentation,
-            jumpModule.IsChargeVisualActive,
-            jumpModule.ChargeBarNormalizedForPresentation,
-            jumpModule.IsApexThrowAvailable);
+            rb,
+            IsGroundedNow,
+            inputX,
+            isSprintSkidActive,
+            isWallSliding,
+            isLedgeActive,
+            isLedgeHanging,
+            isLedgeClimbing,
+            isFenceClimbing,
+            fenceMoveInput,
+            jumpModule != null && jumpModule.IsJumpHoldActiveForPresentation,
+            jumpModule != null && jumpModule.IsChargeVisualActive,
+            jumpModule != null ? jumpModule.ChargeBarNormalizedForPresentation : 0f,
+            jumpModule != null && jumpModule.IsApexThrowAvailable);
     }
 
     private void PushSprintCameraFeedback()

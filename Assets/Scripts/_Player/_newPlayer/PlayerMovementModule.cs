@@ -99,21 +99,42 @@ public class PlayerMovementModule : MonoBehaviour
     [SerializeField, Range(0f, 1f), Tooltip("Минимальный уровень набранного спринта, после которого вообще разрешено оставлять остаточную инерцию.")]
     private float sprintInertiaMinBlend = 0.2f;
 
-    [Header("Skid / занос (заглушка)")]
-    [SerializeField, Tooltip("Если ВКЛ — модуль будет вычислять состояние заноса/торможения со спринта.")]
-    private bool enableSprintSkidPlaceholder = true;
+    [Header("Stop / Skid Animation")]
+    [SerializeField, Tooltip("Если ВКЛ — модуль будет вычислять состояние Stop/заноса для анимации.")]
+    private bool enableStopSkid = true;
 
-    [SerializeField, Range(0f, 1f), Tooltip("Минимальный уровень спринта/инерции, с которого вообще разрешено входить в skid state.")]
-    private float skidMinEnterBlend = 0.35f;
+    [SerializeField, Tooltip("Если ВКЛ — Stop включается, когда игрок отпустил A/D после набранного спринта.")]
+    private bool stopOnReleaseAfterSprint = true;
 
-    [SerializeField, Min(0f), Tooltip("Минимальная доля от базовой скорости moveSpeed, чтобы считать торможение 'настоящим заносом'.")]
-    private float skidMinSpeedRatio = 0.65f;
+    [SerializeField, Tooltip("Если ВКЛ — Stop включается при резком развороте на скорости.")]
+    private bool stopOnReverseInput = true;
 
-    [SerializeField, Min(0f), Tooltip("Минимальное время удержания skid state после входа.")]
-    private float skidMinHoldTime = 0.08f;
+    [SerializeField, Range(0f, 1f), Tooltip("Минимальный уровень спринта/инерции, с которого разрешено включать Stop.")]
+    private float stopMinEnterSprintBlend = 0.25f;
 
-    [SerializeField, Min(0f), Tooltip("При какой доле от moveSpeed можно окончательно выйти из skid state.")]
-    private float skidExitSpeedRatio = 0.15f;
+    [SerializeField, Min(0f), Tooltip("Минимальная скорость относительно moveSpeed, с которой разрешено включать Stop.\n0.6 = 60% от обычной скорости.")]
+    private float stopMinSpeedRatio = 0.55f;
+
+    [SerializeField, Min(0f), Tooltip("При какой скорости относительно moveSpeed можно выключить Stop.")]
+    private float stopExitSpeedRatio = 0.18f;
+
+    [SerializeField, Min(0f), Tooltip("Минимальное время удержания Stop, чтобы анимация не мигала.")]
+    private float stopMinHoldTime = 0.12f;
+
+    [SerializeField, Min(0f), Tooltip("Если ввод меньше этого значения, считаем, что игрок отпустил движение.")]
+    private float stopInputDeadZone = 0.08f;
+
+    [SerializeField, Tooltip("Если ВКЛ — когда игрок снова жмёт в сторону движения, Stop сразу сбрасывается.")]
+    private bool cancelStopOnSameDirectionInput = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — Stop может держаться, пока ещё есть sprint momentum.")]
+    private bool keepStopWhileSprintMomentum = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — во время Stop можно дополнительно усиливать торможение. Обычно лучше оставить ВЫКЛ, чтобы не ломать физику.")]
+    private bool applyExtraBrakeDuringStop = false;
+
+    [SerializeField, Min(0f), Tooltip("Дополнительное торможение во время Stop, если Apply Extra Brake During Stop включён.")]
+    private float extraStopBrake = 25f;
 
     [Header("Лёд (Tag = \"Ice\")")]
     [SerializeField, Tooltip("Ускорение на льду.")]
@@ -138,7 +159,10 @@ public class PlayerMovementModule : MonoBehaviour
     [SerializeField, Tooltip("Если ВКЛ — персонаж может менять сторону взгляда в воздухе.")]
     private bool allowFlipInAir = true;
 
-    private bool isFacingRight = true;
+    [SerializeField, Tooltip("Если ВКЛ — персонаж в стартовом состоянии считается смотрящим вправо.\nУ тебя спрайты смотрят влево, поэтому по умолчанию ВЫКЛ.")]
+    private bool startFacingRight = false;
+
+    private bool isFacingRight = false;
 
     private float sprintHeldDirection = 0f;
     private float sprintHeldTime = 0f;
@@ -147,9 +171,10 @@ public class PlayerMovementModule : MonoBehaviour
     private float sprintMomentumDirection = 0f;
     private float sprintMomentumBlend = 0f;
 
-    private bool isSprintSkidActive = false;
-    private float sprintSkidDirection = 0f;
-    private float skidHoldUntil = -999f;
+    private bool isStopSkidActive = false;
+    private float stopSkidDirection = 0f;
+    private float stopSkidBlend = 0f;
+    private float stopHoldUntil = -999f;
 
     private bool isForwardBlockedForSprint = false;
 
@@ -172,22 +197,34 @@ public class PlayerMovementModule : MonoBehaviour
     public bool IsSprintReady => sprintBlend >= 0.999f && !isForwardBlockedForSprint;
     public bool IsSprintActive => sprintBlend > 0.0001f;
     public bool HasSprintMomentum => sprintMomentumBlend > 0.0001f;
-    public bool IsSprintSkidActive => isSprintSkidActive;
-    public float SprintSkidDirection => sprintSkidDirection;
+
+    // Новые нормальные свойства Stop.
+    public bool IsStopping => isStopSkidActive;
+    public float StopDirection => stopSkidDirection;
+    public float StopBlend => stopSkidBlend;
+
+    // Старые имена оставлены, чтобы PlayerController / PlayerPresentationModule не сломались.
+    public bool IsSprintSkidActive => isStopSkidActive;
+    public float SprintSkidDirection => stopSkidDirection;
+
     public float SprintCameraBlend => Mathf.Clamp01(GetEffectiveSprintBlend());
     public bool IsForwardBlockedForSprint => isForwardBlockedForSprint;
-    public bool IsSprintMovementActive => GetEffectiveSprintBlend() > 0.0001f || isSprintSkidActive;
+    public bool IsSprintMovementActive => GetEffectiveSprintBlend() > 0.0001f || isStopSkidActive;
 
     private void Reset()
     {
         CacheComponents();
         ConfigureWallCastFilter();
+
+        isFacingRight = startFacingRight;
     }
 
     private void Awake()
     {
         CacheComponents();
         ConfigureWallCastFilter();
+
+        isFacingRight = startFacingRight;
     }
 
     private void OnValidate()
@@ -208,6 +245,28 @@ public class PlayerMovementModule : MonoBehaviour
 
         jumpAirInertiaDuration = Mathf.Max(0f, jumpAirInertiaDuration);
         jumpAirInertiaControlMultiplier = Mathf.Clamp01(jumpAirInertiaControlMultiplier);
+
+        sprintStartDelay = Mathf.Max(0f, sprintStartDelay);
+        sprintRampDuration = Mathf.Max(0f, sprintRampDuration);
+        sprintSpeedMultiplier = Mathf.Max(1f, sprintSpeedMultiplier);
+        sprintInputDeadZone = Mathf.Clamp01(sprintInputDeadZone);
+
+        sprintReleaseInertiaDuration = Mathf.Max(0f, sprintReleaseInertiaDuration);
+        sprintReverseInertiaDuration = Mathf.Max(0f, sprintReverseInertiaDuration);
+        sprintInertiaMinBlend = Mathf.Clamp01(sprintInertiaMinBlend);
+
+        stopMinEnterSprintBlend = Mathf.Clamp01(stopMinEnterSprintBlend);
+        stopMinSpeedRatio = Mathf.Max(0f, stopMinSpeedRatio);
+        stopExitSpeedRatio = Mathf.Max(0f, stopExitSpeedRatio);
+        stopMinHoldTime = Mathf.Max(0f, stopMinHoldTime);
+        stopInputDeadZone = Mathf.Max(0f, stopInputDeadZone);
+        extraStopBrake = Mathf.Max(0f, extraStopBrake);
+
+        iceAccel = Mathf.Max(0f, iceAccel);
+        iceBrake = Mathf.Max(0f, iceBrake);
+        iceMaxSpeedMul = Mathf.Max(0f, iceMaxSpeedMul);
+        normalAccel = Mathf.Max(0f, normalAccel);
+        normalBrake = Mathf.Max(0f, normalBrake);
     }
 
     public void AllowAirControlFor(float duration)
@@ -218,7 +277,7 @@ public class PlayerMovementModule : MonoBehaviour
     public void OnJumpPerformed(float takeoffVx)
     {
         jumpAirInertiaUntil = Time.time + Mathf.Max(0f, jumpAirInertiaDuration);
-        ClearSprintSkid();
+        ClearStopSkid();
     }
 
     public void SetAirVx(float vx)
@@ -230,7 +289,7 @@ public class PlayerMovementModule : MonoBehaviour
     {
         ResetActiveSprintState();
         ClearSprintMomentum();
-        ClearSprintSkid();
+        ClearStopSkid();
         isForwardBlockedForSprint = false;
         jumpAirInertiaUntil = -999f;
     }
@@ -268,7 +327,7 @@ public class PlayerMovementModule : MonoBehaviour
             return;
 
         UpdateSprintState(ctx);
-        UpdateSprintSkidPlaceholder(ctx);
+        UpdateStopSkidState(ctx);
 
         if (ctx.IsJumpCharging)
         {
@@ -323,7 +382,7 @@ public class PlayerMovementModule : MonoBehaviour
         {
             ResetActiveSprintState();
             ClearSprintMomentum();
-            ClearSprintSkid();
+            ClearStopSkid();
             return;
         }
 
@@ -370,6 +429,7 @@ public class PlayerMovementModule : MonoBehaviour
         {
             if (!enableSprintInertia)
                 ClearSprintMomentum();
+
             return;
         }
 
@@ -487,17 +547,17 @@ public class PlayerMovementModule : MonoBehaviour
         return inputX * moveSpeed * CurrentSprintMultiplier * speedMul;
     }
 
-    private void UpdateSprintSkidPlaceholder(MovementContext ctx)
+    private void UpdateStopSkidState(MovementContext ctx)
     {
-        if (!enableSprintSkidPlaceholder || ctx.Rigidbody == null)
+        if (!enableStopSkid || ctx.Rigidbody == null)
         {
-            ClearSprintSkid();
+            ClearStopSkid();
             return;
         }
 
         if (!ctx.IsGrounded)
         {
-            ClearSprintSkid();
+            ClearStopSkid();
             return;
         }
 
@@ -508,53 +568,108 @@ public class PlayerMovementModule : MonoBehaviour
             ? absLocalVx / Mathf.Max(moveSpeed, 0.0001f)
             : 0f;
 
-        bool noInput = Mathf.Abs(ctx.InputX) <= sprintInputDeadZone;
+        float effectiveSprint = GetEffectiveSprintBlend();
+
+        bool noInput =
+            Mathf.Abs(ctx.InputX) <= Mathf.Max(stopInputDeadZone, sprintInputDeadZone * 0.35f);
+
+        bool hasInput =
+            Mathf.Abs(ctx.InputX) > Mathf.Max(stopInputDeadZone, sprintInputDeadZone * 0.35f);
+
         bool reverseInput =
-            Mathf.Abs(ctx.InputX) > sprintInputDeadZone &&
+            hasInput &&
             absLocalVx > flipDeadZone &&
             Mathf.Sign(ctx.InputX) != Mathf.Sign(localVx);
 
-        bool enoughSprint = GetEffectiveSprintBlend() >= skidMinEnterBlend;
-        bool enoughSpeed = speedRatio >= skidMinSpeedRatio;
+        bool sameDirectionInput =
+            hasInput &&
+            absLocalVx > flipDeadZone &&
+            Mathf.Sign(ctx.InputX) == Mathf.Sign(localVx);
 
-        bool shouldEnterSkid = enoughSprint && enoughSpeed && (noInput || reverseInput);
+        bool enoughSprint =
+            effectiveSprint >= stopMinEnterSprintBlend ||
+            sprintMomentumBlend >= stopMinEnterSprintBlend;
 
-        if (shouldEnterSkid)
+        bool enoughSpeed =
+            speedRatio >= stopMinSpeedRatio;
+
+        bool releaseStop =
+            stopOnReleaseAfterSprint &&
+            noInput &&
+            enoughSprint &&
+            enoughSpeed;
+
+        bool reverseStop =
+            stopOnReverseInput &&
+            reverseInput &&
+            enoughSpeed;
+
+        bool shouldEnterStop = releaseStop || reverseStop;
+
+        if (shouldEnterStop)
         {
-            isSprintSkidActive = true;
+            isStopSkidActive = true;
 
             if (absLocalVx > flipDeadZone)
-                sprintSkidDirection = Mathf.Sign(localVx);
+                stopSkidDirection = Mathf.Sign(localVx);
             else if (Mathf.Abs(sprintMomentumDirection) > 0.001f)
-                sprintSkidDirection = Mathf.Sign(sprintMomentumDirection);
+                stopSkidDirection = Mathf.Sign(sprintMomentumDirection);
 
-            skidHoldUntil = Mathf.Max(skidHoldUntil, ctx.Now + Mathf.Max(0f, skidMinHoldTime));
+            stopSkidBlend = Mathf.Clamp01(Mathf.Max(speedRatio, effectiveSprint));
+            stopHoldUntil = Mathf.Max(stopHoldUntil, ctx.Now + Mathf.Max(0f, stopMinHoldTime));
             return;
         }
 
-        if (!isSprintSkidActive)
+        if (!isStopSkidActive)
+        {
+            stopSkidBlend = 0f;
             return;
+        }
 
-        bool keepMinHold = ctx.Now < skidHoldUntil;
-        bool keepByMomentum = HasSprintMomentum && absLocalVx > moveSpeed * skidExitSpeedRatio;
-        bool keepBySpeed = absLocalVx > moveSpeed * skidExitSpeedRatio && reverseInput;
+        if (cancelStopOnSameDirectionInput && sameDirectionInput && ctx.Now >= stopHoldUntil)
+        {
+            ClearStopSkid();
+            return;
+        }
 
-        if (keepMinHold || keepByMomentum || keepBySpeed)
+        bool keepMinHold = ctx.Now < stopHoldUntil;
+
+        bool keepByMomentum =
+            keepStopWhileSprintMomentum &&
+            HasSprintMomentum &&
+            absLocalVx > moveSpeed * stopExitSpeedRatio;
+
+        bool keepByReverse =
+            reverseInput &&
+            absLocalVx > moveSpeed * stopExitSpeedRatio;
+
+        bool keepByNoInputSpeed =
+            noInput &&
+            absLocalVx > moveSpeed * stopExitSpeedRatio &&
+            effectiveSprint > 0.0001f;
+
+        if (keepMinHold || keepByMomentum || keepByReverse || keepByNoInputSpeed)
         {
             if (absLocalVx > flipDeadZone)
-                sprintSkidDirection = Mathf.Sign(localVx);
+                stopSkidDirection = Mathf.Sign(localVx);
 
+            float speedBlend = moveSpeed > 0.0001f
+                ? Mathf.InverseLerp(stopExitSpeedRatio, Mathf.Max(stopMinSpeedRatio, stopExitSpeedRatio + 0.001f), speedRatio)
+                : 0f;
+
+            stopSkidBlend = Mathf.Clamp01(Mathf.Max(speedBlend, effectiveSprint));
             return;
         }
 
-        ClearSprintSkid();
+        ClearStopSkid();
     }
 
-    private void ClearSprintSkid()
+    private void ClearStopSkid()
     {
-        isSprintSkidActive = false;
-        sprintSkidDirection = 0f;
-        skidHoldUntil = -999f;
+        isStopSkidActive = false;
+        stopSkidDirection = 0f;
+        stopSkidBlend = 0f;
+        stopHoldUntil = -999f;
     }
 
     private void ApplyAirMovement(MovementContext ctx)
@@ -621,10 +736,20 @@ public class PlayerMovementModule : MonoBehaviour
             ? accel
             : brake;
 
+        float desired = Mathf.Clamp(target, -maxSpeed, +maxSpeed);
+
         float newVx = Mathf.MoveTowards(
             cur,
-            Mathf.Clamp(target, -maxSpeed, +maxSpeed),
+            desired,
             rate * ctx.FixedDeltaTime);
+
+        if (applyExtraBrakeDuringStop && isStopSkidActive)
+        {
+            bool noInput = Mathf.Abs(ctx.InputX) <= Mathf.Max(stopInputDeadZone, sprintInputDeadZone * 0.35f);
+
+            if (noInput)
+                newVx = Mathf.MoveTowards(newVx, 0f, extraStopBrake * ctx.FixedDeltaTime);
+        }
 
         newVx += ctx.PlatformVX + ctx.ExternalWindVX;
 
@@ -674,6 +799,7 @@ public class PlayerMovementModule : MonoBehaviour
             return false;
 
         CacheComponents();
+
         if (bodyCollider == null)
             return false;
 
@@ -689,6 +815,7 @@ public class PlayerMovementModule : MonoBehaviour
         for (int i = 0; i < hitCount; i++)
         {
             RaycastHit2D hit = sprintWallHits[i];
+
             if (hit.collider == null)
                 continue;
 
@@ -736,12 +863,14 @@ public class PlayerMovementModule : MonoBehaviour
     private void DrawSprintWallCheckGizmo()
     {
         CacheComponents();
+
         if (bodyCollider == null)
             return;
 
         Bounds b = bodyCollider.bounds;
 
         float dir;
+
         if (Application.isPlaying)
         {
             if (Mathf.Abs(sprintHeldDirection) > 0.001f)
