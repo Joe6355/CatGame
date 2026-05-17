@@ -8,23 +8,36 @@ public class PlayerJumpModule : MonoBehaviour
     private float jumpForce = 12f;
 
     [Header("Контролируемая высота прыжка")]
-    [SerializeField, Range(0f, 1f), Tooltip("Во сколько раз режется текущая скорость вверх, если кнопку отпустили рано.\nНиже = короче тап-прыжок.")]
-    private float jumpReleaseVerticalMultiplier = 0.5f;
+    [SerializeField, Range(0f, 1f), Tooltip("Во сколько раз режется текущая скорость вверх, если кнопку отпустили рано.\nВыше = короткий прыжок мягче и выше.\nРекоменд: 0.60–0.75.")]
+    private float jumpReleaseVerticalMultiplier = 0.68f;
 
-    [SerializeField, Min(0f), Tooltip("Максимальное время, сколько удержание может продлевать подъём.")]
-    private float maxJumpHoldTime = 0.16f;
+    [SerializeField, Min(0f), Tooltip("Максимальное время, сколько удержание может продлевать подъём.\nРекоменд: 0.18–0.24.")]
+    private float maxJumpHoldTime = 0.20f;
 
-    [SerializeField, Min(0f), Tooltip("Насколько активно во время удержания поддерживается вертикальная скорость вверх.")]
-    private float jumpHoldAcceleration = 110f;
+    [SerializeField, Min(0f), Tooltip("Насколько активно во время удержания поддерживается вертикальная скорость вверх.\nСлишком много = почти любое удержание даёт высокий прыжок.\nРекоменд: 60–85.")]
+    private float jumpHoldAcceleration = 75f;
 
-    [SerializeField, Min(0f), Tooltip("К какой доле стартовой скорости тянем прыжок во время удержания.")]
-    private float jumpHoldTargetVelocityMultiplier = 1.08f;
+    [SerializeField, Min(0f), Tooltip("К какой доле стартовой скорости тянем прыжок во время удержания.\nРекоменд: 1.00–1.04.")]
+    private float jumpHoldTargetVelocityMultiplier = 1.03f;
 
     [SerializeField, Min(0f), Tooltip("Если скорость вверх стала меньше этого порога, фаза удержания завершается.")]
     private float minUpwardSpeedForHeldJump = 0.15f;
 
     [SerializeField, Min(0f), Tooltip("Сколько секунд после старта прыжка игнорируем устаревшее grounded-состояние.\nНужно, чтобы контролируемая высота не умирала в первый же момент после отрыва.")]
     private float jumpHoldGroundedIgnoreTime = 0.1f;
+
+    [Header("Мягкий короткий прыжок")]
+    [SerializeField, Tooltip("Если ВКЛ — быстрый тап Space даёт стабильный короткий прыжок, а не микропрыжок на 1 кадр.")]
+    private bool usePlayableShortJump = true;
+
+    [SerializeField, Min(0f), Tooltip("Минимальное время, будто кнопка прыжка удерживалась, даже если игрок отпустил её мгновенно.\nЭто делает слабый прыжок играбельным.\nРекоменд: 0.065–0.095.")]
+    private float minShortJumpHoldTime = 0.08f;
+
+    [SerializeField, Min(0f), Tooltip("Небольшая задержка перед обрезанием прыжка после раннего отпускания.\nУбирает слишком резкую реакцию на микротап.\nРекоменд: 0.025–0.055.")]
+    private float earlyReleaseCutDelay = 0.035f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Насколько сильно поддерживать прыжок в гарантированное короткое окно, если кнопка уже отпущена.\n0 = не поддерживать, 1 = как обычное удержание.\nРекоменд: 0.45–0.75.")]
+    private float releasedShortJumpSustainMultiplier = 0.60f;
 
     [Header("Задержка между прыжками")]
     [SerializeField, Range(0f, 5f), Tooltip("Минимальная задержка между стартами двух прыжков.")]
@@ -116,6 +129,9 @@ public class PlayerJumpModule : MonoBehaviour
     private float controlledJumpAcceleration = 0f;
     private bool controlledJumpCutConsumed = false;
 
+    private bool controlledJumpReleaseRequested = false;
+    private float controlledJumpReleaseRequestedAt = -999f;
+
     private int orbJumpRefreshCharges = 0;
     private float orbRefreshGrantedAt = -999f;
 
@@ -162,6 +178,10 @@ public class PlayerJumpModule : MonoBehaviour
         jumpHoldTargetVelocityMultiplier = Mathf.Max(1f, jumpHoldTargetVelocityMultiplier);
         minUpwardSpeedForHeldJump = Mathf.Max(0f, minUpwardSpeedForHeldJump);
         jumpHoldGroundedIgnoreTime = Mathf.Max(0f, jumpHoldGroundedIgnoreTime);
+
+        minShortJumpHoldTime = Mathf.Max(0f, minShortJumpHoldTime);
+        earlyReleaseCutDelay = Mathf.Max(0f, earlyReleaseCutDelay);
+        releasedShortJumpSustainMultiplier = Mathf.Clamp01(releasedShortJumpSustainMultiplier);
 
         jumpRepeatCooldown = Mathf.Max(0f, jumpRepeatCooldown);
         sprintJumpMultiplier = Mathf.Max(1f, sprintJumpMultiplier);
@@ -278,22 +298,56 @@ public class PlayerJumpModule : MonoBehaviour
         }
 
         controlledJumpElapsed += dt;
-        bool withinHoldWindow = controlledJumpElapsed <= controlledJumpMaxDuration;
 
         if (!isButtonStillHeld)
+        {
+            if (!controlledJumpReleaseRequested)
+            {
+                controlledJumpReleaseRequested = true;
+                controlledJumpReleaseRequestedAt = ctx.Now;
+            }
+
+            HandleReleasedControlledJump(ctx, rb, currentVy, dt);
+            return;
+        }
+
+        if (controlledJumpElapsed > controlledJumpMaxDuration)
+        {
+            StopControlledJump();
+            return;
+        }
+
+        SustainControlledJump(rb, currentVy, dt, 1f);
+    }
+
+    private void HandleReleasedControlledJump(JumpContext ctx, Rigidbody2D rb, float currentVy, float deltaTime)
+    {
+        if (!usePlayableShortJump)
         {
             TryCutControlledJump(rb, currentVy);
             StopControlledJump();
             return;
         }
 
-        if (!withinHoldWindow)
+        float minHold = Mathf.Min(
+            Mathf.Max(0f, minShortJumpHoldTime),
+            Mathf.Max(0f, controlledJumpMaxDuration));
+
+        float cutDelay = Mathf.Max(0f, earlyReleaseCutDelay);
+        float timeSinceRelease = ctx.Now - controlledJumpReleaseRequestedAt;
+
+        bool shouldWaitMinShortHold = controlledJumpElapsed < minHold;
+        bool shouldWaitCutDelay = timeSinceRelease < cutDelay;
+        bool stillInsideHoldWindow = controlledJumpElapsed <= controlledJumpMaxDuration;
+
+        if ((shouldWaitMinShortHold || shouldWaitCutDelay) && stillInsideHoldWindow)
         {
-            StopControlledJump();
+            SustainControlledJump(rb, currentVy, deltaTime, releasedShortJumpSustainMultiplier);
             return;
         }
 
-        SustainControlledJump(rb, currentVy, dt);
+        TryCutControlledJump(rb, rb.velocity.y);
+        StopControlledJump();
     }
 
     public void UpdateApexThrowState(JumpContext ctx, float aimX)
@@ -550,12 +604,15 @@ public class PlayerJumpModule : MonoBehaviour
         controlledJumpTargetUpSpeed = Mathf.Max(takeoffUpSpeed, takeoffUpSpeed * jumpHoldTargetVelocityMultiplier);
         controlledJumpAcceleration = Mathf.Max(0f, jumpHoldAcceleration);
         controlledJumpCutConsumed = false;
+
+        controlledJumpReleaseRequested = false;
+        controlledJumpReleaseRequestedAt = -999f;
     }
 
-    private void SustainControlledJump(Rigidbody2D rb, float currentVy, float deltaTime)
+    private void SustainControlledJump(Rigidbody2D rb, float currentVy, float deltaTime, float sustainMultiplier)
     {
         float targetVy = Mathf.Max(0f, controlledJumpTargetUpSpeed);
-        float accel = Mathf.Max(0f, controlledJumpAcceleration);
+        float accel = Mathf.Max(0f, controlledJumpAcceleration) * Mathf.Clamp01(sustainMultiplier);
 
         if (targetVy <= 0f || accel <= 0f || deltaTime <= 0f)
             return;
@@ -595,6 +652,9 @@ public class PlayerJumpModule : MonoBehaviour
         controlledJumpTargetUpSpeed = 0f;
         controlledJumpAcceleration = 0f;
         controlledJumpCutConsumed = false;
+
+        controlledJumpReleaseRequested = false;
+        controlledJumpReleaseRequestedAt = -999f;
     }
 
     private void ArmApexThrowState(float takeoffWorldVx, bool isFacingRight)

@@ -257,7 +257,7 @@ BoxCollider2D:
   m_IsTrigger: 0
   m_UsedByEffector: 0
   m_UsedByComposite: 0
-  m_Offset: {x: 0.0020961761, y: 0}
+  m_Offset: {x: 0.0020961761, y: -0.08092195}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
@@ -268,7 +268,7 @@ BoxCollider2D:
     adaptiveTiling: 0
   m_AutoTiling: 0
   serializedVersion: 2
-  m_Size: {x: 1.0012188, y: 1}
+  m_Size: {x: 1.0012188, y: 1.1618439}
   m_EdgeRadius: 0
 --- !u!114 &5675862676996111164
 MonoBehaviour:
@@ -532,8 +532,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   useBoxGroundCheck: 1
-  groundBoxSize: {x: 0.9, y: 0.06}
-  groundBoxOffset: {x: 0, y: -0.53}
+  groundBoxSize: {x: 0.93, y: 0.06}
+  groundBoxOffset: {x: 0.13, y: -0.7}
   groundCheck: {fileID: 3140944467604895463}
   groundCheckRadius: 0.12
   useEdgeAssist: 0
@@ -854,8 +854,8 @@ MonoBehaviour:
   fastSlideEmissionRate: 30
   burstOnWallSlideEnter: 5
   maxFallSpeed: 8
-  wallSideOffset: 0.01
-  downOffset: 0.01
+  wallSideOffset: 0.05
+  downOffset: 0.03
   emitAwayFromWall: 1
   debugLogs: 0
 --- !u!114 &9126721986158883616
@@ -5873,7 +5873,7 @@ GameObject:
   m_Layer: 7
   m_Name: GroundCheck
   m_TagString: Untagged
-  m_Icon: {fileID: 0}
+  m_Icon: {fileID: 5721338939258241955, guid: 0000000000000000d000000000000000, type: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
@@ -5886,7 +5886,7 @@ Transform:
   m_GameObject: {fileID: 2290529694618264314}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.563, z: 0}
+  m_LocalPosition: {x: 0, y: -0.684, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
