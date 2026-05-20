@@ -56,6 +56,19 @@ public class PlayerMovementModule : MonoBehaviour
     [SerializeField, Range(0f, 1f), Tooltip("Насколько сильно приглушать air control сразу после отрыва.\nНиже = больше инерции в начале прыжка.")]
     private float jumpAirInertiaControlMultiplier = 0.45f;
 
+    [Header("Спринт-прыжок: сохранение скорости в воздухе")]
+    [SerializeField, Tooltip("Если ВКЛ — после прыжка из спринта воздух временно сохраняет повышенный лимит скорости.\nНужно, чтобы Sprint Speed Multiplier 3+ не ломал прыжок после разгона.")]
+    private bool preserveSprintSpeedOnJump = true;
+
+    [SerializeField, Min(0f), Tooltip("Сколько секунд после прыжка сохранять спринтовый лимит скорости в воздухе.\nРекоменд: 0.25–0.35.")]
+    private float sprintJumpAirPreserveTime = 0.30f;
+
+    [SerializeField, Range(1f, 4f), Tooltip("Максимальный множитель воздушной скорости после прыжка из спринта.\nДля Sprint Speed Multiplier 3 рекоменд: 2.8–3.2.")]
+    private float sprintJumpAirSpeedMultiplier = 3.0f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("С какого уровня спринта разрешать сохранение скорости после прыжка.\nНиже = легче получить длинный спринт-прыжок. Рекоменд: 0.75–0.90.")]
+    private float sprintJumpAirRequiredBlend = 0.75f;
+
     [Header("Спринт")]
     [SerializeField, Min(0f), Tooltip("Задержка перед началом спринта.")]
     private float sprintStartDelay = 0.35f;
@@ -180,6 +193,9 @@ public class PlayerMovementModule : MonoBehaviour
 
     private float jumpAirInertiaUntil = -999f;
 
+    private float sprintJumpAirPreserveUntil = -999f;
+    private float sprintJumpAirPreservedMultiplier = 1f;
+
     private Collider2D bodyCollider;
     private readonly RaycastHit2D[] sprintWallHits = new RaycastHit2D[8];
     private ContactFilter2D sprintWallFilter;
@@ -195,6 +211,11 @@ public class PlayerMovementModule : MonoBehaviour
     public bool AllowFlipInAir => allowFlipInAir;
 
     public bool IsSprintReady => sprintBlend >= 0.999f && !isForwardBlockedForSprint;
+
+    // Для усиленного прыжка: не ждём идеальные 0.999, иначе при высокой скорости спринта
+    // прыжок может на 1 кадр считаться обычным.
+    public bool CanUseSprintJump => sprintBlend >= 0.85f && !isForwardBlockedForSprint;
+
     public bool IsSprintActive => sprintBlend > 0.0001f;
     public bool HasSprintMomentum => sprintMomentumBlend > 0.0001f;
 
@@ -246,6 +267,10 @@ public class PlayerMovementModule : MonoBehaviour
         jumpAirInertiaDuration = Mathf.Max(0f, jumpAirInertiaDuration);
         jumpAirInertiaControlMultiplier = Mathf.Clamp01(jumpAirInertiaControlMultiplier);
 
+        sprintJumpAirPreserveTime = Mathf.Max(0f, sprintJumpAirPreserveTime);
+        sprintJumpAirSpeedMultiplier = Mathf.Clamp(sprintJumpAirSpeedMultiplier, 1f, 4f);
+        sprintJumpAirRequiredBlend = Mathf.Clamp01(sprintJumpAirRequiredBlend);
+
         sprintStartDelay = Mathf.Max(0f, sprintStartDelay);
         sprintRampDuration = Mathf.Max(0f, sprintRampDuration);
         sprintSpeedMultiplier = Mathf.Max(1f, sprintSpeedMultiplier);
@@ -277,6 +302,28 @@ public class PlayerMovementModule : MonoBehaviour
     public void OnJumpPerformed(float takeoffVx)
     {
         jumpAirInertiaUntil = Time.time + Mathf.Max(0f, jumpAirInertiaDuration);
+
+        if (preserveSprintSpeedOnJump && GetEffectiveSprintBlend() >= sprintJumpAirRequiredBlend)
+        {
+            float absTakeoffVx = Mathf.Abs(takeoffVx);
+            float speedBasedMultiplier = moveSpeed > 0.0001f
+                ? absTakeoffVx / moveSpeed
+                : 1f;
+
+            sprintJumpAirPreservedMultiplier = Mathf.Clamp(
+                Mathf.Max(CurrentSprintMultiplier, speedBasedMultiplier),
+                1f,
+                Mathf.Max(1f, sprintJumpAirSpeedMultiplier)
+            );
+
+            sprintJumpAirPreserveUntil = Time.time + Mathf.Max(0f, sprintJumpAirPreserveTime);
+        }
+        else
+        {
+            sprintJumpAirPreservedMultiplier = 1f;
+            sprintJumpAirPreserveUntil = -999f;
+        }
+
         ClearStopSkid();
     }
 
@@ -292,6 +339,8 @@ public class PlayerMovementModule : MonoBehaviour
         ClearStopSkid();
         isForwardBlockedForSprint = false;
         jumpAirInertiaUntil = -999f;
+        sprintJumpAirPreserveUntil = -999f;
+        sprintJumpAirPreservedMultiplier = 1f;
     }
 
     public void TryFaceByInput(float inputX, bool allowFlip, bool isGrounded)
@@ -765,7 +814,13 @@ public class PlayerMovementModule : MonoBehaviour
 
     private float GetAirTargetSpeed()
     {
-        return Mathf.Lerp(moveSpeed * 0.65f, moveSpeed * 1.30f, airSpeedSlider);
+        float baseAirSpeed = Mathf.Lerp(moveSpeed * 0.65f, moveSpeed * 1.30f, airSpeedSlider);
+
+        if (!preserveSprintSpeedOnJump || Time.time >= sprintJumpAirPreserveUntil)
+            return baseAirSpeed;
+
+        float preservedAirSpeed = baseAirSpeed * Mathf.Max(1f, sprintJumpAirPreservedMultiplier);
+        return Mathf.Max(baseAirSpeed, preservedAirSpeed);
     }
 
     private float GetAirSameDirectionRate()

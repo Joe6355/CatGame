@@ -4,21 +4,43 @@
 public class PlayerJumpModule : MonoBehaviour
 {
     [Header("Основной прыжок")]
-    [SerializeField, Tooltip("Начальная вертикальная скорость прыжка.")]
+    [SerializeField, Tooltip("Максимальная вертикальная скорость прыжка при полном удержании.")]
     private float jumpForce = 12f;
 
+    [Header("Адаптивный прыжок")]
+    [SerializeField, Tooltip("Если ВКЛ — прыжок стартует с короткой скорости и при удержании плавно добирает высоту.")]
+    private bool useAdaptiveJumpTakeoff = true;
+
+    [SerializeField, Range(0.45f, 1f), Tooltip("С какой доли максимальной скорости начинается прыжок.\nНиже = ниже короткий тап.\nРекоменд: 0.68–0.76.")]
+    private float adaptiveJumpStartVelocityMultiplier = 0.72f;
+
+    [SerializeField, Min(0f), Tooltip("Минимальная стартовая скорость прыжка, чтобы тап не был микропрыжком.\nРекоменд: 6.8–7.6 при Jump Force 12.")]
+    private float adaptiveJumpMinStartVelocity = 7.2f;
+
+    [SerializeField, Tooltip("Если ВКЛ — скорость добора высоты считается автоматически от разницы между коротким и полным прыжком.")]
+    private bool autoCalculateAdaptiveJumpHoldAcceleration = true;
+
+    [SerializeField, Range(0.5f, 3f), Tooltip("Множитель автоматического добора высоты.\nБольше = быстрее выходит в высокий прыжок.\nРекоменд: 1.20–1.55.")]
+    private float adaptiveJumpHoldAccelerationMultiplier = 1.35f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Максимальная поддержка прыжка после раннего отпускания.\nНиже = тап меньше разгоняется вверх.\nРекоменд: 0.25–0.40.")]
+    private float adaptiveReleasedSustainCap = 0.35f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Множитель обрезки скорости при отпускании в адаптивном режиме.\nВыше = мягче.\nРекоменд: 0.78–0.88.")]
+    private float adaptiveReleaseCutMultiplier = 0.82f;
+
     [Header("Контролируемая высота прыжка")]
-    [SerializeField, Range(0f, 1f), Tooltip("Во сколько раз режется текущая скорость вверх, если кнопку отпустили рано.\nВыше = короткий прыжок мягче и выше.\nРекоменд: 0.60–0.75.")]
+    [SerializeField, Range(0f, 1f), Tooltip("Во сколько раз режется текущая скорость вверх, если кнопку отпустили рано.\nИспользуется, если Adaptive Jump Takeoff выключен.\nВыше = короткий прыжок мягче и выше.\nРекоменд: 0.60–0.75.")]
     private float jumpReleaseVerticalMultiplier = 0.68f;
 
     [SerializeField, Min(0f), Tooltip("Максимальное время, сколько удержание может продлевать подъём.\nРекоменд: 0.18–0.24.")]
-    private float maxJumpHoldTime = 0.20f;
+    private float maxJumpHoldTime = 0.22f;
 
-    [SerializeField, Min(0f), Tooltip("Насколько активно во время удержания поддерживается вертикальная скорость вверх.\nСлишком много = почти любое удержание даёт высокий прыжок.\nРекоменд: 60–85.")]
+    [SerializeField, Min(0f), Tooltip("Насколько активно во время удержания поддерживается вертикальная скорость вверх.\nИспользуется напрямую, если Auto Calculate Adaptive Jump Hold Acceleration выключен.\nРекоменд: 60–85.")]
     private float jumpHoldAcceleration = 75f;
 
-    [SerializeField, Min(0f), Tooltip("К какой доле стартовой скорости тянем прыжок во время удержания.\nРекоменд: 1.00–1.04.")]
-    private float jumpHoldTargetVelocityMultiplier = 1.03f;
+    [SerializeField, Min(0f), Tooltip("К какой доле максимальной скорости тянем прыжок во время удержания.\nРекоменд: 1.00–1.04.")]
+    private float jumpHoldTargetVelocityMultiplier = 1.02f;
 
     [SerializeField, Min(0f), Tooltip("Если скорость вверх стала меньше этого порога, фаза удержания завершается.")]
     private float minUpwardSpeedForHeldJump = 0.15f;
@@ -31,17 +53,17 @@ public class PlayerJumpModule : MonoBehaviour
     private bool usePlayableShortJump = true;
 
     [SerializeField, Min(0f), Tooltip("Минимальное время, будто кнопка прыжка удерживалась, даже если игрок отпустил её мгновенно.\nЭто делает слабый прыжок играбельным.\nРекоменд: 0.065–0.095.")]
-    private float minShortJumpHoldTime = 0.08f;
+    private float minShortJumpHoldTime = 0.075f;
 
-    [SerializeField, Min(0f), Tooltip("Небольшая задержка перед обрезанием прыжка после раннего отпускания.\nУбирает слишком резкую реакцию на микротап.\nРекоменд: 0.025–0.055.")]
-    private float earlyReleaseCutDelay = 0.035f;
+    [SerializeField, Min(0f), Tooltip("Небольшая задержка перед обрезанием прыжка после раннего отпускания.\nУбирает слишком резкую реакцию на микротап.\nРекоменд: 0.020–0.045.")]
+    private float earlyReleaseCutDelay = 0.025f;
 
-    [SerializeField, Range(0f, 1f), Tooltip("Насколько сильно поддерживать прыжок в гарантированное короткое окно, если кнопка уже отпущена.\n0 = не поддерживать, 1 = как обычное удержание.\nРекоменд: 0.45–0.75.")]
+    [SerializeField, Range(0f, 1f), Tooltip("Насколько сильно поддерживать прыжок в гарантированное короткое окно, если кнопка уже отпущена.\n0 = не поддерживать, 1 = как обычное удержание.\nВ адаптивном режиме дополнительно ограничивается Adaptive Released Sustain Cap.")]
     private float releasedShortJumpSustainMultiplier = 0.60f;
 
     [Header("Задержка между прыжками")]
     [SerializeField, Range(0f, 5f), Tooltip("Минимальная задержка между стартами двух прыжков.")]
-    private float jumpRepeatCooldown = 0.08f;
+    private float jumpRepeatCooldown = 0.07f;
 
     [Header("Спринт -> усиленный прыжок")]
     [SerializeField, Tooltip("Если ВКЛ — во время спринтового движения основной прыжок усиливается.")]
@@ -171,6 +193,12 @@ public class PlayerJumpModule : MonoBehaviour
     private void OnValidate()
     {
         jumpForce = Mathf.Max(0f, jumpForce);
+
+        adaptiveJumpStartVelocityMultiplier = Mathf.Clamp(adaptiveJumpStartVelocityMultiplier, 0.45f, 1f);
+        adaptiveJumpMinStartVelocity = Mathf.Max(0f, adaptiveJumpMinStartVelocity);
+        adaptiveJumpHoldAccelerationMultiplier = Mathf.Clamp(adaptiveJumpHoldAccelerationMultiplier, 0.5f, 3f);
+        adaptiveReleasedSustainCap = Mathf.Clamp01(adaptiveReleasedSustainCap);
+        adaptiveReleaseCutMultiplier = Mathf.Clamp01(adaptiveReleaseCutMultiplier);
 
         jumpReleaseVerticalMultiplier = Mathf.Clamp01(jumpReleaseVerticalMultiplier);
         maxJumpHoldTime = Mathf.Max(0f, maxJumpHoldTime);
@@ -342,7 +370,12 @@ public class PlayerJumpModule : MonoBehaviour
 
         if ((shouldWaitMinShortHold || shouldWaitCutDelay) && stillInsideHoldWindow)
         {
-            SustainControlledJump(rb, currentVy, deltaTime, releasedShortJumpSustainMultiplier);
+            float releaseSustain = releasedShortJumpSustainMultiplier;
+
+            if (useAdaptiveJumpTakeoff)
+                releaseSustain = Mathf.Min(releaseSustain, adaptiveReleasedSustainCap);
+
+            SustainControlledJump(rb, currentVy, deltaTime, releaseSustain);
             return;
         }
 
@@ -454,7 +487,12 @@ public class PlayerJumpModule : MonoBehaviour
         ClearApexThrowState();
     }
 
-    public void RegisterExternalJump(float now, float verticalForce, bool armApexThrow = false, float takeoffWorldVx = 0f, bool isFacingRight = true)
+    public void RegisterExternalJump(
+        float now,
+        float verticalForce,
+        bool armApexThrow = false,
+        float takeoffWorldVx = 0f,
+        bool isFacingRight = true)
     {
         lastJumpPressedTime = -999f;
         hasBufferedJump = false;
@@ -547,13 +585,25 @@ public class PlayerJumpModule : MonoBehaviour
             ? sprintJumpMultiplier
             : 1f;
 
-        float verticalForce = jumpForce * ctx.SnowJumpMul * sprintMul;
+        float maxVerticalSpeed = jumpForce * ctx.SnowJumpMul * sprintMul;
+        float startVerticalSpeed = maxVerticalSpeed;
+
+        if (useAdaptiveJumpTakeoff)
+        {
+            float byMultiplier = maxVerticalSpeed * adaptiveJumpStartVelocityMultiplier;
+
+            startVerticalSpeed = Mathf.Clamp(
+                Mathf.Max(adaptiveJumpMinStartVelocity, byMultiplier),
+                0f,
+                maxVerticalSpeed
+            );
+        }
 
         if (consumeOrbRefresh)
             ConsumeOneOrbRefresh();
 
-        PerformJump(ctx.Rigidbody, ctx.Now, currentWorldVx, verticalForce);
-        StartControlledJump(source, verticalForce);
+        PerformJump(ctx.Rigidbody, ctx.Now, currentWorldVx, startVerticalSpeed);
+        StartControlledJump(source, startVerticalSpeed, maxVerticalSpeed);
         ArmApexThrowState(currentWorldVx, ctx.IsFacingRight);
 
         return new JumpActionResult
@@ -570,6 +620,7 @@ public class PlayerJumpModule : MonoBehaviour
             return;
 
         orbJumpRefreshCharges = Mathf.Max(0, orbJumpRefreshCharges - 1);
+
         if (orbJumpRefreshCharges == 0)
             orbRefreshGrantedAt = -999f;
     }
@@ -592,7 +643,10 @@ public class PlayerJumpModule : MonoBehaviour
             ClearOrbRefresh();
     }
 
-    private void StartControlledJump(PlayerInputModule.HoldSource source, float takeoffUpSpeed)
+    private void StartControlledJump(
+        PlayerInputModule.HoldSource source,
+        float startUpSpeed,
+        float maxUpSpeed)
     {
         controlledJumpActive = true;
         activeJumpHoldSource = source == PlayerInputModule.HoldSource.None
@@ -601,15 +655,36 @@ public class PlayerJumpModule : MonoBehaviour
 
         controlledJumpElapsed = 0f;
         controlledJumpMaxDuration = Mathf.Max(0f, maxJumpHoldTime);
-        controlledJumpTargetUpSpeed = Mathf.Max(takeoffUpSpeed, takeoffUpSpeed * jumpHoldTargetVelocityMultiplier);
-        controlledJumpAcceleration = Mathf.Max(0f, jumpHoldAcceleration);
+
+        controlledJumpTargetUpSpeed = Mathf.Max(
+            startUpSpeed,
+            maxUpSpeed * jumpHoldTargetVelocityMultiplier
+        );
+
+        if (useAdaptiveJumpTakeoff && autoCalculateAdaptiveJumpHoldAcceleration)
+        {
+            float duration = Mathf.Max(0.0001f, controlledJumpMaxDuration);
+            float speedDelta = Mathf.Max(0f, controlledJumpTargetUpSpeed - startUpSpeed);
+
+            controlledJumpAcceleration =
+                (speedDelta / duration) * adaptiveJumpHoldAccelerationMultiplier;
+        }
+        else
+        {
+            controlledJumpAcceleration = Mathf.Max(0f, jumpHoldAcceleration);
+        }
+
         controlledJumpCutConsumed = false;
 
         controlledJumpReleaseRequested = false;
         controlledJumpReleaseRequestedAt = -999f;
     }
 
-    private void SustainControlledJump(Rigidbody2D rb, float currentVy, float deltaTime, float sustainMultiplier)
+    private void SustainControlledJump(
+        Rigidbody2D rb,
+        float currentVy,
+        float deltaTime,
+        float sustainMultiplier)
     {
         float targetVy = Mathf.Max(0f, controlledJumpTargetUpSpeed);
         float accel = Mathf.Max(0f, controlledJumpAcceleration) * Mathf.Clamp01(sustainMultiplier);
@@ -636,7 +711,10 @@ public class PlayerJumpModule : MonoBehaviour
         if (currentVy <= 0f)
             return;
 
-        float cutMul = Mathf.Clamp01(jumpReleaseVerticalMultiplier);
+        float cutMul = useAdaptiveJumpTakeoff
+            ? Mathf.Clamp01(adaptiveReleaseCutMultiplier)
+            : Mathf.Clamp01(jumpReleaseVerticalMultiplier);
+
         float newVy = currentVy * cutMul;
 
         rb.velocity = new Vector2(rb.velocity.x, newVy);

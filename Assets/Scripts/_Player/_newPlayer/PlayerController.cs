@@ -267,7 +267,12 @@ public class PlayerController : MonoBehaviour
             SnowMoveMul = SnowMoveMul,
             SnowJumpMul = SnowJumpMul,
             ExternalWindVX = ExternalWindVX,
-            IsSprintMovementActive = movementModule.IsSprintMovementActive,
+
+            // Усиленный прыжок разрешаем, когда спринт уже нормально набран,
+            // но не требуем идеальные 100%.
+            // Это убирает слабый прыжок при Sprint Speed Multiplier = 3.
+            IsSprintMovementActive = movementModule.CanUseSprintJump,
+
             Rigidbody = rb
         };
     }
