@@ -4132,6 +4132,7 @@ GameObject:
   - component: {fileID: 889168193}
   - component: {fileID: 889168192}
   - component: {fileID: 889168195}
+  - component: {fileID: 889168196}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -4257,6 +4258,24 @@ MonoBehaviour:
     m_MipBias: 0
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
+--- !u!114 &889168196
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 889168191}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 14a25860d7144b744b99f425eaf447e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  shader: {fileID: 4800000, guid: f478715f752b22e469e3c374d47c5de4, type: 3}
+  lineY: 0.16477641
+  lineWidth: 0.05
+  intensity: 0.5
+  speed: 0.2
+  mat: {fileID: 0}
 --- !u!1 &919781191
 GameObject:
   m_ObjectHideFlags: 0
@@ -9778,7 +9797,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1915840496}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 172515602e62fb746b5d573b38a5fe58, type: 3}
   m_Name: 
@@ -9822,7 +9841,7 @@ MonoBehaviour:
   defaultEnabled: 1
   applyOnAwake: 1
   applyOnEnable: 1
-  debugLog: 0
+  debugLog: 1
 --- !u!1 &1940699136
 GameObject:
   m_ObjectHideFlags: 0
@@ -10153,7 +10172,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -6.7874756, y: 4.7512207}
+  m_AnchoredPosition: {x: -6.7875977, y: 4.7512207}
   m_SizeDelta: {x: -55.575024, y: -9.50246}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1967790642
