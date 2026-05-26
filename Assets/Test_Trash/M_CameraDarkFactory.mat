@@ -1,0 +1,71 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: M_CameraDarkFactory
+  m_Shader: {fileID: 4800000, guid: 3308eed50aefdd049870f53c12fa8eec, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _AlphaTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MaskTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NormalMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Contrast: 1.61
+    - _Darkness: 0.554
+    - _DistortionStrength: 0.012
+    - _DistortionX: 0.0047
+    - _EnableExternalAlpha: 0
+    - _Intensity: 0.694
+    - _InvertAmount: 1
+    - _JitterScale: 90
+    - _JitterStrength: 0.001
+    - _LineOpacity: 0.8
+    - _LineSoftness: 0.001
+    - _LineSpeed: 0.89
+    - _LineThickness: 0.005
+    - _LineTintStrength: 0.002
+    - _NoiseStrength: 0.2
+    - _ScanBarBrightness: 0.15
+    - _ScanBarOpacity: 0.75
+    - _ScanBarSoftness: 0.057
+    - _ScanBarSpeed: 0.57
+    - _ScanBarStrength: 0.133
+    - _ScanBarWidth: 0.072
+    - _WaveFrequency: 28
+    - _WaveSpeed: 6
+    m_Colors:
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Flip: {r: 1, g: 1, b: 1, a: 1}
+    - _RendererColor: {r: 1, g: 1, b: 1, a: 1}
+  m_BuildTextureStacks: []
