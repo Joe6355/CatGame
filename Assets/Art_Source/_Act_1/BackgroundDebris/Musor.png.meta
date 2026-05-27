@@ -751,10 +751,10 @@ TextureImporter:
       name: fainal_32
       rect:
         serializedVersion: 2
-        x: 912
-        y: 445
-        width: 93
-        height: 30
+        x: 904
+        y: 451
+        width: 95
+        height: 28
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -1995,7 +1995,7 @@ TextureImporter:
         width: 32
         height: 32
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -2016,7 +2016,7 @@ TextureImporter:
         width: 62
         height: 32
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -2024,6 +2024,27 @@ TextureImporter:
       bones: []
       spriteID: eb4c3efe9c02e9747a55a94dc2a8531d
       internalID: 1565528472
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Musor_53
+      rect:
+        serializedVersion: 2
+        x: 902
+        y: 411
+        width: 93
+        height: 30
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 673d14ec50b7b0b49b0a35b326ce4970
+      internalID: -382395732
       vertices: []
       indices: 
       edges: []
@@ -2088,6 +2109,7 @@ TextureImporter:
       Musor_50: 675561986
       Musor_51: -567334515
       Musor_52: 1565528472
+      Musor_53: -382395732
       Musor_6: 661902872
       Musor_7: 1806827193
       Musor_8: -2076007989

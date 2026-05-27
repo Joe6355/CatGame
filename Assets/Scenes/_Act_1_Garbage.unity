@@ -2875,7 +2875,7 @@ Camera:
   far clip plane: 1006.9
   field of view: 62.765102
   orthographic: 1
-  orthographic size: 5.625
+  orthographic size: 5.96875
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -9881,7 +9881,7 @@ Transform:
   m_GameObject: {fileID: 593305921}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 22.137337, y: -2.347, z: -0.031925585}
+  m_LocalPosition: {x: 21.996, y: -2.703, z: -0.031925585}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -9944,7 +9944,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 5.8125, y: 1.875}
+    oldSize: {x: 5.9375, y: 1.75}
     newSize: {x: 5.8125, y: 1.875}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -10059,7 +10059,7 @@ PolygonCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 5.8125, y: 1.875}
+    oldSize: {x: 5.9375, y: 1.75}
     newSize: {x: 5.8125, y: 1.875}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -10067,16 +10067,18 @@ PolygonCollider2D:
   m_AutoTiling: 0
   m_Points:
     m_Paths:
-    - - {x: 0.96875, y: 0.9375}
-      - {x: -1.337656, y: 0.9375}
-      - {x: -1.4069805, y: 0.863376}
-      - {x: -2.2107563, y: -0.07949877}
-      - {x: -2.8691883, y: -0.08249092}
-      - {x: -2.90625, y: -0.9375}
+    - - {x: 0.525362, y: 0.8120129}
+      - {x: -1.3088417, y: 0.81263494}
+      - {x: -1.315733, y: 0.72410357}
+      - {x: -1.3261089, y: 0.0765481}
+      - {x: -2.722126, y: 0.0691669}
+      - {x: -2.8556957, y: -0.9237132}
       - {x: 1.90625, y: -0.9375}
       - {x: 2.90625, y: -0.6875}
-      - {x: 2.90625, y: 0.1875}
-      - {x: 2.46875, y: 0.5}
+      - {x: 2.964758, y: -0.31035852}
+      - {x: 2.7764397, y: 0.061497927}
+      - {x: 2.5339718, y: 0.25442648}
+      - {x: 0.53206635, y: 0.26157475}
   m_UseDelaunayMesh: 0
 --- !u!1001 &593426065
 PrefabInstance:
@@ -10186,7 +10188,7 @@ Transform:
   m_GameObject: {fileID: 600867716}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 28.366999, y: -0.931, z: -0.031925585}
+  m_LocalPosition: {x: 28.44, y: -0.512, z: -0.031925585}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -15841,7 +15843,7 @@ Transform:
   m_GameObject: {fileID: 1011144432}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 55.75645, y: 8.061079, z: -10}
+  m_LocalPosition: {x: -5.843547, y: -0.63892055, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -21626,7 +21628,7 @@ Transform:
   m_GameObject: {fileID: 1384799365}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 55.75645, y: 8.061079, z: -10}
+  m_LocalPosition: {x: -5.843547, y: -0.63892055, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -58056,3 +58058,4 @@ SceneRoots:
   - {fileID: 530883909}
   - {fileID: 228101041}
   - {fileID: 583718766}
+  - {fileID: 8289756769159987349}
