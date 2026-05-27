@@ -29,8 +29,6 @@ public class UIButtonTextColor : MonoBehaviour,
 
     public static void SetSuppressPointerHoverVisuals(bool value)
     {
-        // Оставлено для совместимости с MainMenuPanelsUI.
-        // Мышь больше не блокируется этим флагом.
         RefreshAll();
     }
 
@@ -80,8 +78,8 @@ public class UIButtonTextColor : MonoBehaviour,
     }
 
     [Header("Target")]
-    [Tooltip("TMP текст, который нужно перекрашивать.")]
-    public TMP_Text targetText;
+    [Tooltip("UI-элемент, который нужно перекрашивать. Можно указать TMP_Text, Image или любой Graphic.")]
+    public Graphic targetText;
 
     [Header("Colors")]
     public Color normalColor = Color.white;
@@ -99,13 +97,13 @@ public class UIButtonTextColor : MonoBehaviour,
     [Tooltip("Если ВКЛ — наведение мышью сразу делает кнопку selected в EventSystem.")]
     public bool selectButtonOnMouseHover = true;
 
-    [Tooltip("Если ВКЛ — скрипт сам проверяет мышь внутри RectTransform кнопки. Нужно для твоей текущей структуры UI.")]
+    [Tooltip("Если ВКЛ — скрипт сам проверяет мышь внутри RectTransform кнопки. Нужно для текущей структуры UI.")]
     public bool useMouseRectFallback = true;
 
     [Tooltip("Если ВКЛ — при MouseUp скрипт сам вызовет onClick, если штатный Button.onClick не сработал.")]
     public bool manualClickFallback = true;
 
-    [Tooltip("Если ВКЛ — клик по дочернему TMP/Text будет прокинут в родительский Button.")]
+    [Tooltip("Если ВКЛ — клик по дочернему TMP/Text/Image будет прокинут в родительский Button.")]
     public bool forwardChildClickToOwnerButton = true;
 
     [Tooltip("Минимальное движение мыши, после которого мышь считается активной.")]
@@ -149,7 +147,8 @@ public class UIButtonTextColor : MonoBehaviour,
 
     private void Reset()
     {
-        targetText = GetComponentInChildren<TMP_Text>(true);
+        targetText = FindDefaultTargetGraphic();
+
         ownerButton = GetComponentInParent<Button>();
         ownerRect = ownerButton != null ? ownerButton.GetComponent<RectTransform>() : GetComponent<RectTransform>();
         targetRect = GetComponent<RectTransform>();
@@ -163,12 +162,27 @@ public class UIButtonTextColor : MonoBehaviour,
         ownerCanvas = GetComponentInParent<Canvas>();
 
         if (targetText == null)
-            targetText = GetComponentInChildren<TMP_Text>(true);
+            targetText = FindDefaultTargetGraphic();
 
         targetRect = GetComponent<RectTransform>();
 
         if (bounceTarget == null)
             bounceTarget = targetRect;
+    }
+
+    private Graphic FindDefaultTargetGraphic()
+    {
+        TMP_Text tmp = GetComponentInChildren<TMP_Text>(true);
+
+        if (tmp != null)
+            return tmp;
+
+        Image image = GetComponentInChildren<Image>(true);
+
+        if (image != null)
+            return image;
+
+        return GetComponentInChildren<Graphic>(true);
     }
 
     private void OnEnable()
@@ -304,7 +318,6 @@ public class UIButtonTextColor : MonoBehaviour,
         if (!IsMouseInsideOwnerRect())
             yield break;
 
-        // Если штатный Button.onClick уже сработал в этот кадр — вручную не дублируем.
         if (lastOwnerButtonClickFrame == capturedFrame)
             yield break;
 
