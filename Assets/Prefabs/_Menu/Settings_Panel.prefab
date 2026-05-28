@@ -3394,6 +3394,7 @@ GameObject:
   - component: {fileID: 3370781156675894910}
   - component: {fileID: 2348057663822820311}
   - component: {fileID: 2397275643292337127}
+  - component: {fileID: 4944604361107977992}
   m_Layer: 5
   m_Name: Panel_Keyboard
   m_TagString: Untagged
@@ -3485,6 +3486,67 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!114 &4944604361107977992
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1008002210764590457}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 037cce13a1fb4da41ba6971686591abe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  customItems: []
+  autoCollectDirectChildren: 1
+  includeInactiveChildren: 0
+  spawnCenter: {fileID: 0}
+  centerScatter: 0
+  playOnEnable: 1
+  duration: 0.24
+  itemStagger: 0.035
+  startScale: 0.72
+  useFade: 1
+  useScale: 1
+  usePositionOvershoot: 1
+  blockInputDuringAnimation: 1
+  useUnscaledTime: 1
+  enableJitter: 1
+  jitterPower: 2.4
+  horizontalJitterMultiplier: 1.8
+  jitterStart: 0.08
+  jitterEnd: 0.82
+  enableHorizontalTear: 1
+  horizontalTearChance: 0.08
+  horizontalTearOffset: 9
+  enableGlobalFlicker: 1
+  globalFlickerStrength: 0.08
+  enableItemAlphaNoise: 1
+  itemAlphaNoiseStrength: 0.1
+  enableScanSweep: 1
+  scanSweepColor: {r: 1, g: 0.12, b: 0, a: 0.28}
+  scanSweepHeight: 8
+  scanSweepDuration: 0.32
+  scanSweepTopToBottom: 1
+  enableTrail: 1
+  maxTrailCopiesPerItem: 4
+  trailSpawnEvery: 0.03
+  trailLife: 0.12
+  trailAlpha: 0.22
+  stripGhostScripts: 1
+  stretchTrail: 1
+  trailStretchX: 1.22
+  trailStretchY: 0.94
+  overrideTrailColor: 1
+  trailColor: {r: 0.98823535, g: 0.69411767, b: 0.227451, a: 1}
+  colorAllChildGraphics: 1
+  preserveOriginalGraphicAlpha: 1
+  enableChromaticGhosts: 1
+  chromaticRedColor: {r: 1, g: 0.02, b: 0, a: 1}
+  chromaticCyanColor: {r: 0, g: 0.75, b: 1, a: 1}
+  chromaticOffset: 3.5
+  chromaticAlphaMultiplier: 0.65
 --- !u!1 &1094647369450037809
 GameObject:
   m_ObjectHideFlags: 0
@@ -4763,13 +4825,14 @@ GameObject:
   - component: {fileID: 1112141480702879219}
   - component: {fileID: 8054744638771940595}
   - component: {fileID: 8800061615686978617}
+  - component: {fileID: 1164911666114568863}
   m_Layer: 5
   m_Name: TabPanel_Controls
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &4633303437313480704
 RectTransform:
   m_ObjectHideFlags: 0
@@ -4855,6 +4918,67 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!114 &1164911666114568863
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1694119463086478976}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 037cce13a1fb4da41ba6971686591abe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  customItems: []
+  autoCollectDirectChildren: 1
+  includeInactiveChildren: 0
+  spawnCenter: {fileID: 0}
+  centerScatter: 0
+  playOnEnable: 1
+  duration: 0.24
+  itemStagger: 0.035
+  startScale: 0.72
+  useFade: 1
+  useScale: 1
+  usePositionOvershoot: 1
+  blockInputDuringAnimation: 1
+  useUnscaledTime: 1
+  enableJitter: 1
+  jitterPower: 2.4
+  horizontalJitterMultiplier: 1.8
+  jitterStart: 0.08
+  jitterEnd: 0.82
+  enableHorizontalTear: 1
+  horizontalTearChance: 0.08
+  horizontalTearOffset: 9
+  enableGlobalFlicker: 1
+  globalFlickerStrength: 0.08
+  enableItemAlphaNoise: 1
+  itemAlphaNoiseStrength: 0.1
+  enableScanSweep: 1
+  scanSweepColor: {r: 1, g: 0.12, b: 0, a: 0.28}
+  scanSweepHeight: 8
+  scanSweepDuration: 0.32
+  scanSweepTopToBottom: 1
+  enableTrail: 1
+  maxTrailCopiesPerItem: 4
+  trailSpawnEvery: 0.03
+  trailLife: 0.12
+  trailAlpha: 0.22
+  stripGhostScripts: 1
+  stretchTrail: 1
+  trailStretchX: 1.22
+  trailStretchY: 0.94
+  overrideTrailColor: 1
+  trailColor: {r: 0.98823535, g: 0.69411767, b: 0.227451, a: 1}
+  colorAllChildGraphics: 1
+  preserveOriginalGraphicAlpha: 1
+  enableChromaticGhosts: 1
+  chromaticRedColor: {r: 1, g: 0.02, b: 0, a: 1}
+  chromaticCyanColor: {r: 0, g: 0.75, b: 1, a: 1}
+  chromaticOffset: 3.5
+  chromaticAlphaMultiplier: 0.65
 --- !u!1 &1696431270971150660
 GameObject:
   m_ObjectHideFlags: 0
@@ -8863,6 +8987,7 @@ GameObject:
   - component: {fileID: 5864362811894991643}
   - component: {fileID: 6886231455478885391}
   - component: {fileID: 7090877893021618011}
+  - component: {fileID: 2508535101692851556}
   m_Layer: 5
   m_Name: TabPanel_Video
   m_TagString: Untagged
@@ -8956,6 +9081,67 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!114 &2508535101692851556
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2928424538272035333}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 037cce13a1fb4da41ba6971686591abe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  customItems: []
+  autoCollectDirectChildren: 1
+  includeInactiveChildren: 0
+  spawnCenter: {fileID: 0}
+  centerScatter: 0
+  playOnEnable: 1
+  duration: 0.24
+  itemStagger: 0.035
+  startScale: 0.72
+  useFade: 1
+  useScale: 1
+  usePositionOvershoot: 1
+  blockInputDuringAnimation: 1
+  useUnscaledTime: 1
+  enableJitter: 1
+  jitterPower: 2.4
+  horizontalJitterMultiplier: 1.8
+  jitterStart: 0.08
+  jitterEnd: 0.82
+  enableHorizontalTear: 1
+  horizontalTearChance: 0.08
+  horizontalTearOffset: 9
+  enableGlobalFlicker: 1
+  globalFlickerStrength: 0.08
+  enableItemAlphaNoise: 1
+  itemAlphaNoiseStrength: 0.1
+  enableScanSweep: 1
+  scanSweepColor: {r: 1, g: 0.12, b: 0, a: 0.28}
+  scanSweepHeight: 8
+  scanSweepDuration: 0.32
+  scanSweepTopToBottom: 1
+  enableTrail: 1
+  maxTrailCopiesPerItem: 4
+  trailSpawnEvery: 0.03
+  trailLife: 0.12
+  trailAlpha: 0.22
+  stripGhostScripts: 1
+  stretchTrail: 1
+  trailStretchX: 1.22
+  trailStretchY: 0.94
+  overrideTrailColor: 1
+  trailColor: {r: 0.98823535, g: 0.69411767, b: 0.227451, a: 1}
+  colorAllChildGraphics: 1
+  preserveOriginalGraphicAlpha: 1
+  enableChromaticGhosts: 1
+  chromaticRedColor: {r: 1, g: 0.02, b: 0, a: 1}
+  chromaticCyanColor: {r: 0, g: 0.75, b: 1, a: 1}
+  chromaticOffset: 3.5
+  chromaticAlphaMultiplier: 0.65
 --- !u!1 &3036199028434240291
 GameObject:
   m_ObjectHideFlags: 0
@@ -9394,6 +9580,7 @@ GameObject:
   - component: {fileID: 4446534691277913746}
   - component: {fileID: 3432115639470277904}
   - component: {fileID: 8759311933142402246}
+  - component: {fileID: 2091374538264991117}
   m_Layer: 5
   m_Name: TabPanel_Audio
   m_TagString: Untagged
@@ -9487,6 +9674,67 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!114 &2091374538264991117
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3160511992854453065}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 037cce13a1fb4da41ba6971686591abe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  customItems: []
+  autoCollectDirectChildren: 1
+  includeInactiveChildren: 0
+  spawnCenter: {fileID: 0}
+  centerScatter: 0
+  playOnEnable: 1
+  duration: 0.24
+  itemStagger: 0.035
+  startScale: 0.72
+  useFade: 1
+  useScale: 1
+  usePositionOvershoot: 1
+  blockInputDuringAnimation: 1
+  useUnscaledTime: 1
+  enableJitter: 1
+  jitterPower: 2.4
+  horizontalJitterMultiplier: 1.8
+  jitterStart: 0.08
+  jitterEnd: 0.82
+  enableHorizontalTear: 1
+  horizontalTearChance: 0.08
+  horizontalTearOffset: 9
+  enableGlobalFlicker: 1
+  globalFlickerStrength: 0.08
+  enableItemAlphaNoise: 1
+  itemAlphaNoiseStrength: 0.1
+  enableScanSweep: 1
+  scanSweepColor: {r: 1, g: 0.12, b: 0, a: 0.28}
+  scanSweepHeight: 8
+  scanSweepDuration: 0.32
+  scanSweepTopToBottom: 1
+  enableTrail: 1
+  maxTrailCopiesPerItem: 4
+  trailSpawnEvery: 0.03
+  trailLife: 0.12
+  trailAlpha: 0.22
+  stripGhostScripts: 1
+  stretchTrail: 1
+  trailStretchX: 1.22
+  trailStretchY: 0.94
+  overrideTrailColor: 1
+  trailColor: {r: 0.98823535, g: 0.69411767, b: 0.227451, a: 1}
+  colorAllChildGraphics: 1
+  preserveOriginalGraphicAlpha: 1
+  enableChromaticGhosts: 1
+  chromaticRedColor: {r: 1, g: 0.02, b: 0, a: 1}
+  chromaticCyanColor: {r: 0, g: 0.75, b: 1, a: 1}
+  chromaticOffset: 3.5
+  chromaticAlphaMultiplier: 0.65
 --- !u!1 &3261965486631143700
 GameObject:
   m_ObjectHideFlags: 0
@@ -21426,6 +21674,7 @@ GameObject:
   - component: {fileID: 5944577567525472637}
   - component: {fileID: 7595965302124622006}
   - component: {fileID: 6813038694429354837}
+  - component: {fileID: 2195189575552173590}
   m_Layer: 5
   m_Name: Panel_Gamepad
   m_TagString: Untagged
@@ -21517,6 +21766,67 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!114 &2195189575552173590
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7992613695354478432}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 037cce13a1fb4da41ba6971686591abe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  customItems: []
+  autoCollectDirectChildren: 1
+  includeInactiveChildren: 0
+  spawnCenter: {fileID: 0}
+  centerScatter: 0
+  playOnEnable: 1
+  duration: 0.24
+  itemStagger: 0.035
+  startScale: 0.72
+  useFade: 1
+  useScale: 1
+  usePositionOvershoot: 1
+  blockInputDuringAnimation: 1
+  useUnscaledTime: 1
+  enableJitter: 1
+  jitterPower: 2.4
+  horizontalJitterMultiplier: 1.8
+  jitterStart: 0.08
+  jitterEnd: 0.82
+  enableHorizontalTear: 1
+  horizontalTearChance: 0.08
+  horizontalTearOffset: 9
+  enableGlobalFlicker: 1
+  globalFlickerStrength: 0.08
+  enableItemAlphaNoise: 1
+  itemAlphaNoiseStrength: 0.1
+  enableScanSweep: 1
+  scanSweepColor: {r: 1, g: 0.12, b: 0, a: 0.28}
+  scanSweepHeight: 8
+  scanSweepDuration: 0.32
+  scanSweepTopToBottom: 1
+  enableTrail: 1
+  maxTrailCopiesPerItem: 4
+  trailSpawnEvery: 0.03
+  trailLife: 0.12
+  trailAlpha: 0.22
+  stripGhostScripts: 1
+  stretchTrail: 1
+  trailStretchX: 1.22
+  trailStretchY: 0.94
+  overrideTrailColor: 1
+  trailColor: {r: 0.98823535, g: 0.69411767, b: 0.227451, a: 1}
+  colorAllChildGraphics: 1
+  preserveOriginalGraphicAlpha: 1
+  enableChromaticGhosts: 1
+  chromaticRedColor: {r: 1, g: 0.02, b: 0, a: 1}
+  chromaticCyanColor: {r: 0, g: 0.75, b: 1, a: 1}
+  chromaticOffset: 3.5
+  chromaticAlphaMultiplier: 0.65
 --- !u!1 &8000325690248588109
 GameObject:
   m_ObjectHideFlags: 0
@@ -24150,6 +24460,7 @@ GameObject:
   - component: {fileID: 4280008167575385735}
   - component: {fileID: 8755865887483303059}
   - component: {fileID: 4806178061404897892}
+  - component: {fileID: 6722228320364729655}
   m_Layer: 5
   m_Name: TabPanel_Gameplay
   m_TagString: Untagged
@@ -24243,6 +24554,67 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!114 &6722228320364729655
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8633341122931214889}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 037cce13a1fb4da41ba6971686591abe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  customItems: []
+  autoCollectDirectChildren: 1
+  includeInactiveChildren: 0
+  spawnCenter: {fileID: 0}
+  centerScatter: 0
+  playOnEnable: 1
+  duration: 0.24
+  itemStagger: 0.035
+  startScale: 0.72
+  useFade: 1
+  useScale: 1
+  usePositionOvershoot: 1
+  blockInputDuringAnimation: 1
+  useUnscaledTime: 1
+  enableJitter: 1
+  jitterPower: 2.4
+  horizontalJitterMultiplier: 1.8
+  jitterStart: 0.08
+  jitterEnd: 0.82
+  enableHorizontalTear: 1
+  horizontalTearChance: 0.08
+  horizontalTearOffset: 9
+  enableGlobalFlicker: 1
+  globalFlickerStrength: 0.08
+  enableItemAlphaNoise: 1
+  itemAlphaNoiseStrength: 0.1
+  enableScanSweep: 1
+  scanSweepColor: {r: 1, g: 0.12, b: 0, a: 0.28}
+  scanSweepHeight: 8
+  scanSweepDuration: 0.32
+  scanSweepTopToBottom: 1
+  enableTrail: 1
+  maxTrailCopiesPerItem: 4
+  trailSpawnEvery: 0.03
+  trailLife: 0.12
+  trailAlpha: 0.22
+  stripGhostScripts: 1
+  stretchTrail: 1
+  trailStretchX: 1.22
+  trailStretchY: 0.94
+  overrideTrailColor: 1
+  trailColor: {r: 0.98823535, g: 0.69411767, b: 0.227451, a: 1}
+  colorAllChildGraphics: 1
+  preserveOriginalGraphicAlpha: 1
+  enableChromaticGhosts: 1
+  chromaticRedColor: {r: 1, g: 0.02, b: 0, a: 1}
+  chromaticCyanColor: {r: 0, g: 0.75, b: 1, a: 1}
+  chromaticOffset: 3.5
+  chromaticAlphaMultiplier: 0.65
 --- !u!1 &8660790594453801435
 GameObject:
   m_ObjectHideFlags: 0
