@@ -21,162 +21,80 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
     [Tooltip("Точка, откуда вылетают элементы. Если пусто, используется центр этой панели.")]
     [SerializeField] private RectTransform spawnCenter;
 
-    [Tooltip("Небольшой разброс от центра, чтобы элементы не появлялись строго из одной точки.")]
-    [SerializeField] private float centerScatter = 4f;
+    [Tooltip("Небольшой разброс от центра.")]
+    [SerializeField] private float centerScatter = 0f;
 
-    [Header("Основная анимация")]
+    [Header("Анимация")]
     [Tooltip("Запускать эффект каждый раз при SetActive(true).")]
     [SerializeField] private bool playOnEnable = true;
 
     [Tooltip("Длительность вылета одного элемента.")]
-    [SerializeField] private float duration = 0.22f;
+    [SerializeField] private float duration = 0.24f;
 
     [Tooltip("Задержка между появлением соседних элементов.")]
-    [SerializeField] private float itemStagger = 0.03f;
+    [SerializeField] private float itemStagger = 0.035f;
 
     [Tooltip("Начальный масштаб элемента в центре.")]
     [SerializeField] private float startScale = 0.72f;
 
-    [Tooltip("Прозрачность при появлении.")]
+    [Tooltip("Плавное появление через прозрачность.")]
     [SerializeField] private bool useFade = true;
 
-    [Tooltip("Анимация масштаба при появлении.")]
+    [Tooltip("Анимация масштаба.")]
     [SerializeField] private bool useScale = true;
 
-    [Tooltip("Лёгкий перелёт за финальную позицию с возвратом назад.")]
+    [Tooltip("Лёгкий перелёт за финальную позицию.")]
     [SerializeField] private bool usePositionOvershoot = true;
 
-    [Tooltip("Блокировать клики по элементам, пока идёт анимация.")]
+    [Tooltip("Блокировать клики, пока идёт анимация.")]
     [SerializeField] private bool blockInputDuringAnimation = true;
 
     [Tooltip("Использовать unscaled time. Нужно для меню и паузы.")]
     [SerializeField] private bool useUnscaledTime = true;
 
-    [Header("VHS / ЭЛТ: дрожание")]
-    [Tooltip("Добавить дрожание во время вылета.")]
-    [SerializeField] private bool enableJitter = true;
+    [Header("Layout Fix")]
+    [Tooltip("Ждать один кадр после включения панели, чтобы Layout Group успел выставить позиции.")]
+    [SerializeField] private bool waitOneFrameBeforeCapture = true;
 
-    [Tooltip("Сила дрожания в UI-пикселях.")]
-    [SerializeField] private float jitterPower = 2.4f;
-
-    [Tooltip("Во сколько раз горизонтальное дрожание сильнее вертикального.")]
-    [SerializeField] private float horizontalJitterMultiplier = 1.8f;
-
-    [Tooltip("С какого момента анимации начинается дрожание.")]
-    [Range(0f, 1f)]
-    [SerializeField] private float jitterStart = 0.08f;
-
-    [Tooltip("На каком моменте анимации дрожание заканчивается.")]
-    [Range(0f, 1f)]
-    [SerializeField] private float jitterEnd = 0.82f;
-
-    [Header("VHS / ЭЛТ: горизонтальный срыв")]
-    [Tooltip("Иногда резко смещать элемент по горизонтали на 1 кадр.")]
-    [SerializeField] private bool enableHorizontalTear = true;
-
-    [Tooltip("Шанс горизонтального срыва на кадр. Не ставь слишком много.")]
-    [Range(0f, 1f)]
-    [SerializeField] private float horizontalTearChance = 0.08f;
-
-    [Tooltip("Сила горизонтального срыва в UI-пикселях.")]
-    [SerializeField] private float horizontalTearOffset = 9f;
-
-    [Header("VHS / ЭЛТ: мерцание")]
-    [Tooltip("Мерцать всей панелью во время перехода.")]
-    [SerializeField] private bool enableGlobalFlicker = true;
-
-    [Tooltip("Сила мерцания всей панели.")]
-    [Range(0f, 0.5f)]
-    [SerializeField] private float globalFlickerStrength = 0.08f;
-
-    [Tooltip("Мерцать отдельными элементами.")]
-    [SerializeField] private bool enableItemAlphaNoise = true;
-
-    [Tooltip("Сила мерцания отдельных элементов.")]
-    [Range(0f, 0.5f)]
-    [SerializeField] private float itemAlphaNoiseStrength = 0.10f;
-
-    [Header("VHS / ЭЛТ: сканирующая полоса")]
-    [Tooltip("Создавать тонкую светящуюся полосу, которая проходит по панели.")]
-    [SerializeField] private bool enableScanSweep = true;
-
-    [Tooltip("Цвет сканирующей полосы.")]
-    [SerializeField] private Color scanSweepColor = new Color(1f, 0.12f, 0f, 0.28f);
-
-    [Tooltip("Высота сканирующей полосы.")]
-    [SerializeField] private float scanSweepHeight = 8f;
-
-    [Tooltip("Длительность прохода сканирующей полосы.")]
-    [SerializeField] private float scanSweepDuration = 0.32f;
-
-    [Tooltip("Полоса идёт сверху вниз. Если выключить — снизу вверх.")]
-    [SerializeField] private bool scanSweepTopToBottom = true;
+    [Tooltip("Принудительно обновлять Layout перед захватом позиций.")]
+    [SerializeField] private bool forceRebuildLayoutBeforeCapture = true;
 
     [Header("Шлейф")]
     [Tooltip("Включить копии-шлейфы за элементами.")]
     [SerializeField] private bool enableTrail = true;
 
+    [Tooltip("Куда складывать шлейфные копии. Лучше отдельный объект вне Layout Group.")]
+    [SerializeField] private RectTransform trailParent;
+
     [Tooltip("Сколько копий шлейфа максимум создать для одного элемента.")]
-    [SerializeField] private int maxTrailCopiesPerItem = 3;
+    [SerializeField] private int maxTrailCopiesPerItem = 4;
 
     [Tooltip("Как часто создавать копию шлейфа.")]
-    [SerializeField] private float trailSpawnEvery = 0.025f;
+    [SerializeField] private float trailSpawnEvery = 0.03f;
 
     [Tooltip("Сколько живёт одна копия шлейфа.")]
-    [SerializeField] private float trailLife = 0.10f;
+    [SerializeField] private float trailLife = 0.12f;
 
     [Tooltip("Общая прозрачность шлейфа.")]
     [Range(0f, 1f)]
-    [SerializeField] private float trailAlpha = 0.18f;
+    [SerializeField] private float trailAlpha = 0.22f;
 
-    [Tooltip("Удалять у копий лишние скрипты, чтобы они были только визуальными.")]
+    [Tooltip("Удалять у копий лишние скрипты.")]
     [SerializeField] private bool stripGhostScripts = true;
 
-    [Header("Форма шлейфа")]
-    [Tooltip("Растягивать шлейф по X, как размаз старого монитора.")]
-    [SerializeField] private bool stretchTrail = true;
-
-    [Tooltip("Множитель растяжения шлейфа по X.")]
-    [SerializeField] private float trailStretchX = 1.22f;
-
-    [Tooltip("Множитель сжатия шлейфа по Y.")]
-    [SerializeField] private float trailStretchY = 0.94f;
-
-    [Header("Цвет основного шлейфа")]
-    [Tooltip("Перекрашивать основной шлейф в отдельный цвет.")]
+    [Header("Цвет шлейфа")]
     [SerializeField] private bool overrideTrailColor = true;
 
-    [Tooltip("Цвет основных шлейфных копий.")]
-    [SerializeField] private Color trailColor = new Color(1f, 0.18f, 0f, 1f);
+    [SerializeField] private Color trailColor = new Color(1f, 0.55f, 0f, 1f);
 
-    [Tooltip("Красить все Graphic-компоненты внутри копии: Image, Text, TMP_Text, Slider Fill и т.д.")]
+    [Tooltip("Красить все Image/Text внутри копии.")]
     [SerializeField] private bool colorAllChildGraphics = true;
 
-    [Tooltip("Сохранять исходную альфу отдельных Image/Text. Общая прозрачность всё равно задаётся Trail Alpha.")]
+    [Tooltip("Сохранять исходную альфу отдельных Image/Text.")]
     [SerializeField] private bool preserveOriginalGraphicAlpha = true;
 
-    [Header("Хроматический VHS-след")]
-    [Tooltip("Добавить красно-голубые копии шлейфа со смещением.")]
-    [SerializeField] private bool enableChromaticGhosts = true;
-
-    [Tooltip("Красный VHS-след.")]
-    [SerializeField] private Color chromaticRedColor = new Color(1f, 0.02f, 0f, 1f);
-
-    [Tooltip("Голубой VHS-след.")]
-    [SerializeField] private Color chromaticCyanColor = new Color(0f, 0.75f, 1f, 1f);
-
-    [Tooltip("Смещение хроматических копий в UI-пикселях.")]
-    [SerializeField] private float chromaticOffset = 3.5f;
-
-    [Tooltip("Прозрачность хроматических копий относительно Trail Alpha.")]
-    [Range(0f, 1f)]
-    [SerializeField] private float chromaticAlphaMultiplier = 0.65f;
-
     private RectTransform root;
-    private CanvasGroup rootCanvasGroup;
     private Coroutine routine;
-    private Coroutine scanSweepRoutine;
-    private GameObject scanSweepObject;
 
     private readonly List<ItemState> lastStates = new List<ItemState>();
     private readonly List<GameObject> spawnedGhosts = new List<GameObject>();
@@ -202,7 +120,6 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
     private void Awake()
     {
         root = GetComponent<RectTransform>();
-        rootCanvasGroup = GetOrAddCanvasGroup(gameObject);
     }
 
     private void OnEnable()
@@ -224,15 +141,8 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
             routine = null;
         }
 
-        if (scanSweepRoutine != null)
-        {
-            StopCoroutine(scanSweepRoutine);
-            scanSweepRoutine = null;
-        }
-
         RestoreLastStates();
         ClearGhosts();
-        ClearScanSweep();
     }
 
     public void Play()
@@ -249,21 +159,16 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
     private IEnumerator PlayRoutine()
     {
         ClearGhosts();
-        ClearScanSweep();
+
+        if (waitOneFrameBeforeCapture)
+            yield return null;
 
         Canvas.ForceUpdateCanvases();
 
-        if (rootCanvasGroup == null)
-            rootCanvasGroup = GetOrAddCanvasGroup(gameObject);
-
-        float rootOriginalAlpha = rootCanvasGroup.alpha;
-        bool rootOriginalInteractable = rootCanvasGroup.interactable;
-        bool rootOriginalBlocksRaycasts = rootCanvasGroup.blocksRaycasts;
-
-        if (blockInputDuringAnimation)
+        if (forceRebuildLayoutBeforeCapture)
         {
-            rootCanvasGroup.interactable = false;
-            rootCanvasGroup.blocksRaycasts = false;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(root);
+            Canvas.ForceUpdateCanvases();
         }
 
         List<ItemState> states = BuildStates();
@@ -273,13 +178,9 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
 
         if (states.Count == 0)
         {
-            RestoreRootCanvasGroup(rootOriginalAlpha, rootOriginalInteractable, rootOriginalBlocksRaycasts);
             routine = null;
             yield break;
         }
-
-        if (enableScanSweep)
-            scanSweepRoutine = StartCoroutine(ScanSweepRoutine());
 
         Vector3 spawnWorld = GetSpawnWorldPoint();
 
@@ -296,6 +197,7 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
             }
 
             state.startWorldPosition = spawnWorld + scatterOffset;
+
             state.rect.position = state.startWorldPosition;
 
             state.rect.localScale = useScale
@@ -319,12 +221,6 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
             float dt = DeltaTime();
             time += dt;
 
-            if (enableGlobalFlicker)
-            {
-                float flicker = Random.Range(1f - globalFlickerStrength, 1f);
-                rootCanvasGroup.alpha = rootOriginalAlpha * flicker;
-            }
-
             for (int i = 0; i < states.Count; i++)
             {
                 ItemState state = states[i];
@@ -340,30 +236,11 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
                 float alphaT = EaseOutCubic(t);
                 float scaleT = EaseOutBack(t);
 
-                Vector3 pos = Vector3.LerpUnclamped(
+                state.rect.position = Vector3.LerpUnclamped(
                     state.startWorldPosition,
                     state.targetWorldPosition,
                     positionT
                 );
-
-                if (enableJitter && t >= jitterStart && t <= jitterEnd)
-                {
-                    float normalized = Mathf.InverseLerp(jitterStart, jitterEnd, t);
-                    float fade = Mathf.Sin(normalized * Mathf.PI);
-
-                    float jitterX = Random.Range(-jitterPower, jitterPower) * horizontalJitterMultiplier * fade;
-                    float jitterY = Random.Range(-jitterPower, jitterPower) * fade;
-
-                    pos += root.TransformVector(new Vector3(jitterX, jitterY, 0f));
-                }
-
-                if (enableHorizontalTear && Random.value < horizontalTearChance)
-                {
-                    float tear = Random.Range(-horizontalTearOffset, horizontalTearOffset);
-                    pos += root.TransformVector(new Vector3(tear, 0f, 0f));
-                }
-
-                state.rect.position = pos;
 
                 if (useScale)
                 {
@@ -373,17 +250,7 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
                 }
 
                 if (useFade)
-                {
-                    float finalAlpha = Mathf.Lerp(0f, state.targetAlpha, alphaT);
-
-                    if (enableItemAlphaNoise)
-                    {
-                        float noise = Random.Range(1f - itemAlphaNoiseStrength, 1f);
-                        finalAlpha *= noise;
-                    }
-
-                    state.group.alpha = Mathf.Clamp01(finalAlpha);
-                }
+                    state.group.alpha = Mathf.Lerp(0f, state.targetAlpha, alphaT);
 
                 if (enableTrail && t > 0.05f && t < 0.92f)
                 {
@@ -393,7 +260,7 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
                     {
                         state.trailTimer = 0f;
                         state.trailCopies++;
-                        SpawnTrailSet(state);
+                        SpawnTrailGhost(state);
                     }
                 }
             }
@@ -403,8 +270,6 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
 
         for (int i = 0; i < states.Count; i++)
             RestoreState(states[i]);
-
-        RestoreRootCanvasGroup(rootOriginalAlpha, rootOriginalInteractable, rootOriginalBlocksRaycasts);
 
         routine = null;
     }
@@ -442,7 +307,7 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
         if (item == spawnCenter)
             return;
 
-        if (scanSweepObject != null && item.gameObject == scanSweepObject)
+        if (item == trailParent)
             return;
 
         if (used.Contains(item))
@@ -451,7 +316,9 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
         if (!includeInactiveChildren && !item.gameObject.activeSelf)
             return;
 
-        CanvasGroup group = GetOrAddCanvasGroup(item.gameObject);
+        CanvasGroup group = item.GetComponent<CanvasGroup>();
+        if (group == null)
+            group = item.gameObject.AddComponent<CanvasGroup>();
 
         ItemState state = new ItemState
         {
@@ -481,70 +348,43 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
         return root.TransformPoint(root.rect.center);
     }
 
-    private void SpawnTrailSet(ItemState state)
-    {
-        SpawnTrailGhost(
-            state,
-            Vector3.zero,
-            overrideTrailColor ? trailColor : Color.white,
-            trailAlpha,
-            "_Trail"
-        );
-
-        if (!enableChromaticGhosts)
-            return;
-
-        Vector3 redOffset = root.TransformVector(new Vector3(-chromaticOffset, 0f, 0f));
-        Vector3 cyanOffset = root.TransformVector(new Vector3(chromaticOffset, 0f, 0f));
-
-        SpawnTrailGhost(
-            state,
-            redOffset,
-            chromaticRedColor,
-            trailAlpha * chromaticAlphaMultiplier,
-            "_RedGhost"
-        );
-
-        SpawnTrailGhost(
-            state,
-            cyanOffset,
-            chromaticCyanColor,
-            trailAlpha * chromaticAlphaMultiplier,
-            "_CyanGhost"
-        );
-    }
-
-    private void SpawnTrailGhost(ItemState state, Vector3 worldOffset, Color color, float alpha, string suffix)
+    private void SpawnTrailGhost(ItemState state)
     {
         if (state == null || state.rect == null)
             return;
 
-        GameObject ghost = Instantiate(state.rect.gameObject, state.rect.parent);
-        ghost.name = state.rect.name + suffix;
+        Transform parentForGhost = trailParent != null
+            ? trailParent
+            : FindCanvasTransform();
+
+        if (parentForGhost == null)
+            parentForGhost = state.rect.parent;
+
+        GameObject ghost = Instantiate(state.rect.gameObject, parentForGhost, true);
+        ghost.name = state.rect.name + "_TrailGhost";
 
         RectTransform ghostRect = ghost.GetComponent<RectTransform>();
-        ghostRect.position = state.rect.position + worldOffset;
+        ghostRect.position = state.rect.position;
         ghostRect.rotation = state.rect.rotation;
-        ghostRect.localScale = state.rect.localScale;
+        ghostRect.localScale = state.rect.lossyScale;
 
-        if (stretchTrail)
-        {
-            Vector3 s = ghostRect.localScale;
-            s.x *= trailStretchX;
-            s.y *= trailStretchY;
-            ghostRect.localScale = s;
-        }
+        LayoutElement layoutElement = ghost.GetComponent<LayoutElement>();
+        if (layoutElement == null)
+            layoutElement = ghost.AddComponent<LayoutElement>();
 
-        ghostRect.SetSiblingIndex(state.rect.GetSiblingIndex());
+        layoutElement.ignoreLayout = true;
 
         if (stripGhostScripts)
             StripGhostScripts(ghost);
 
-        if (overrideTrailColor || enableChromaticGhosts)
-            ApplyTrailColor(ghost, color);
+        if (overrideTrailColor)
+            ApplyTrailColor(ghost);
 
-        CanvasGroup ghostGroup = GetOrAddCanvasGroup(ghost);
-        ghostGroup.alpha = alpha;
+        CanvasGroup ghostGroup = ghost.GetComponent<CanvasGroup>();
+        if (ghostGroup == null)
+            ghostGroup = ghost.AddComponent<CanvasGroup>();
+
+        ghostGroup.alpha = trailAlpha;
         ghostGroup.interactable = false;
         ghostGroup.blocksRaycasts = false;
 
@@ -555,23 +395,19 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
             allGroups[i].blocksRaycasts = false;
         }
 
-        Graphic[] allGraphics = ghost.GetComponentsInChildren<Graphic>(true);
-        for (int i = 0; i < allGraphics.Length; i++)
-        {
-            if (allGraphics[i] != null)
-                allGraphics[i].raycastTarget = false;
-        }
-
         spawnedGhosts.Add(ghost);
 
-        StartCoroutine(FadeAndDestroyGhost(ghost, ghostGroup, trailLife));
+        StartCoroutine(FadeAndDestroyGhost(ghost, ghostGroup));
     }
 
-    private void ApplyTrailColor(GameObject ghost, Color color)
+    private Transform FindCanvasTransform()
     {
-        if (ghost == null)
-            return;
+        Canvas canvas = GetComponentInParent<Canvas>();
+        return canvas != null ? canvas.transform : null;
+    }
 
+    private void ApplyTrailColor(GameObject ghost)
+    {
         Graphic[] graphics = colorAllChildGraphics
             ? ghost.GetComponentsInChildren<Graphic>(true)
             : ghost.GetComponents<Graphic>();
@@ -583,12 +419,12 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
             if (graphic == null)
                 continue;
 
-            Color finalColor = color;
+            Color finalColor = trailColor;
 
             if (preserveOriginalGraphicAlpha)
                 finalColor.a = graphic.color.a;
             else
-                finalColor.a = color.a;
+                finalColor.a = trailColor.a;
 
             graphic.color = finalColor;
         }
@@ -608,42 +444,33 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
             if (mb is Graphic)
                 continue;
 
+            if (mb is CanvasGroup)
+                continue;
+
             if (mb is BaseMeshEffect)
                 continue;
 
-            if (mb is LayoutGroup)
-                continue;
-
             if (mb is LayoutElement)
-                continue;
-
-            if (mb is ContentSizeFitter)
-                continue;
-
-            if (mb is Mask)
-                continue;
-
-            if (mb is RectMask2D)
                 continue;
 
             Destroy(mb);
         }
     }
 
-    private IEnumerator FadeAndDestroyGhost(GameObject ghost, CanvasGroup ghostGroup, float life)
+    private IEnumerator FadeAndDestroyGhost(GameObject ghost, CanvasGroup ghostGroup)
     {
         float time = 0f;
         float startAlpha = ghostGroup != null ? ghostGroup.alpha : trailAlpha;
 
-        while (time < life)
+        while (time < trailLife)
         {
             if (ghost == null || ghostGroup == null)
                 yield break;
 
             time += DeltaTime();
 
-            float t = Mathf.Clamp01(time / life);
-            ghostGroup.alpha = Mathf.Lerp(startAlpha, 0f, EaseOutCubic(t));
+            float t = Mathf.Clamp01(time / trailLife);
+            ghostGroup.alpha = Mathf.Lerp(startAlpha, 0f, t);
 
             yield return null;
         }
@@ -653,58 +480,6 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
             spawnedGhosts.Remove(ghost);
             Destroy(ghost);
         }
-    }
-
-    private IEnumerator ScanSweepRoutine()
-    {
-        ClearScanSweep();
-
-        scanSweepObject = new GameObject("VHS_CRT_ScanSweep", typeof(RectTransform), typeof(CanvasGroup), typeof(Image));
-        scanSweepObject.transform.SetParent(root, false);
-        scanSweepObject.transform.SetAsLastSibling();
-
-        RectTransform scanRect = scanSweepObject.GetComponent<RectTransform>();
-        CanvasGroup scanGroup = scanSweepObject.GetComponent<CanvasGroup>();
-        Image scanImage = scanSweepObject.GetComponent<Image>();
-
-        scanImage.color = scanSweepColor;
-        scanImage.raycastTarget = false;
-
-        scanGroup.alpha = 0f;
-        scanGroup.interactable = false;
-        scanGroup.blocksRaycasts = false;
-
-        scanRect.anchorMin = new Vector2(0f, 0.5f);
-        scanRect.anchorMax = new Vector2(1f, 0.5f);
-        scanRect.pivot = new Vector2(0.5f, 0.5f);
-        scanRect.sizeDelta = new Vector2(0f, scanSweepHeight);
-
-        float height = Mathf.Max(1f, root.rect.height);
-        float startY = scanSweepTopToBottom ? height * 0.5f : -height * 0.5f;
-        float endY = scanSweepTopToBottom ? -height * 0.5f : height * 0.5f;
-
-        float time = 0f;
-        float life = Mathf.Max(0.01f, scanSweepDuration);
-
-        while (time < life)
-        {
-            if (scanSweepObject == null)
-                yield break;
-
-            time += DeltaTime();
-
-            float t = Mathf.Clamp01(time / life);
-            float eased = EaseOutCubic(t);
-
-            scanRect.anchoredPosition = new Vector2(0f, Mathf.Lerp(startY, endY, eased));
-
-            float alphaMul = Mathf.Sin(t * Mathf.PI);
-            scanGroup.alpha = scanSweepColor.a * alphaMul;
-
-            yield return null;
-        }
-
-        ClearScanSweep();
     }
 
     private void RestoreLastStates()
@@ -726,16 +501,6 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
         state.group.blocksRaycasts = state.targetBlocksRaycasts;
     }
 
-    private void RestoreRootCanvasGroup(float alpha, bool interactable, bool blocksRaycasts)
-    {
-        if (rootCanvasGroup == null)
-            return;
-
-        rootCanvasGroup.alpha = alpha;
-        rootCanvasGroup.interactable = interactable;
-        rootCanvasGroup.blocksRaycasts = blocksRaycasts;
-    }
-
     private void ClearGhosts()
     {
         for (int i = spawnedGhosts.Count - 1; i >= 0; i--)
@@ -745,25 +510,6 @@ public class UIActivePanelFlyFromCenterFX : MonoBehaviour
         }
 
         spawnedGhosts.Clear();
-    }
-
-    private void ClearScanSweep()
-    {
-        if (scanSweepObject != null)
-        {
-            Destroy(scanSweepObject);
-            scanSweepObject = null;
-        }
-    }
-
-    private CanvasGroup GetOrAddCanvasGroup(GameObject target)
-    {
-        CanvasGroup group = target.GetComponent<CanvasGroup>();
-
-        if (group == null)
-            group = target.AddComponent<CanvasGroup>();
-
-        return group;
     }
 
     private float DeltaTime()

@@ -1,10 +1,19 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 public class SettingsTabsSwitcher : MonoBehaviour
 {
+    private enum SettingsTabId
+    {
+        Audio,
+        Controls,
+        Gameplay,
+        Video
+    }
+
     [Header("Кнопки вкладок")]
     [SerializeField] private Button audioBtn;
     [SerializeField] private Button controlsBtn;
@@ -146,6 +155,16 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [Header("Стартовое поведение")]
     [SerializeField] private bool closeAllTabsOnEnable = true;
 
+    [Header("Запоминание последней вкладки")]
+    [SerializeField, Tooltip("Если ВКЛ — при открытии настроек будет открываться последняя вкладка, на которой игрок вышел.")]
+    private bool reopenLastTabOnEnable = true;
+
+    [SerializeField, Tooltip("Какая вкладка откроется в первый раз, если игрок ещё никуда не заходил.")]
+    private SettingsTabId defaultTabOnFirstOpen = SettingsTabId.Audio;
+
+    [SerializeField, Tooltip("Если ВКЛ — после восстановления вкладки выделяется её верхняя кнопка.")]
+    private bool selectRestoredTabButton = true;
+
     [Header("UI selection defaults")]
     [SerializeField] private Button settingsRootFirstSelected;
     [SerializeField] private Button audioFirstSelected;
@@ -154,6 +173,9 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField] private Button videoFirstSelected;
     [SerializeField] private Button keyboardFirstSelected;
     [SerializeField] private Button gamepadFirstSelected;
+
+    private static bool s_hasRememberedTab;
+    private static SettingsTabId s_rememberedTab = SettingsTabId.Audio;
 
     private GameObject _currentTab;
     private GameObject _currentControlsSubPanel;
@@ -213,10 +235,17 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     private void OnEnable()
     {
-        if (closeAllTabsOnEnable)
-            CloseAllTabs();
+        if (reopenLastTabOnEnable)
+        {
+            RestoreRememberedTab();
+        }
         else
-            CloseControlsSubPanels();
+        {
+            if (closeAllTabsOnEnable)
+                CloseAllTabs();
+            else
+                CloseControlsSubPanels();
+        }
 
         HideSharedTooltip();
 
@@ -227,11 +256,13 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     public void OpenAudioTab()
     {
+        RememberTab(SettingsTabId.Audio);
         ShowTab(tabAudio);
     }
 
     private void OnControlsTabClicked()
     {
+        RememberTab(SettingsTabId.Controls);
         ShowTab(tabControls);
 
         if (closeControlsSubPanelsOnControlsTabOpen)
@@ -240,12 +271,74 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     public void OpenGameplayTab()
     {
+        RememberTab(SettingsTabId.Gameplay);
         ShowTab(tabGameplay);
     }
 
     public void OpenVideoTab()
     {
+        RememberTab(SettingsTabId.Video);
         ShowTab(tabVideo);
+    }
+
+    private void RememberTab(SettingsTabId tabId)
+    {
+        s_rememberedTab = tabId;
+        s_hasRememberedTab = true;
+    }
+
+    private void RestoreRememberedTab()
+    {
+        SettingsTabId tabToOpen = s_hasRememberedTab
+            ? s_rememberedTab
+            : defaultTabOnFirstOpen;
+
+        switch (tabToOpen)
+        {
+            case SettingsTabId.Audio:
+                ShowTab(tabAudio);
+                SelectButton(audioBtn);
+                break;
+
+            case SettingsTabId.Controls:
+                ShowTab(tabControls);
+
+                if (closeControlsSubPanelsOnControlsTabOpen)
+                    CloseControlsSubPanels();
+
+                SelectButton(controlsBtn);
+                break;
+
+            case SettingsTabId.Gameplay:
+                ShowTab(tabGameplay);
+                SelectButton(gameplayBtn);
+                break;
+
+            case SettingsTabId.Video:
+                ShowTab(tabVideo);
+                SelectButton(videoBtn);
+                break;
+        }
+    }
+
+    private void SelectButton(Button button)
+    {
+        if (!selectRestoredTabButton)
+            return;
+
+        if (button == null)
+            return;
+
+        if (!button.gameObject.activeInHierarchy)
+            return;
+
+        if (!button.interactable)
+            return;
+
+        if (EventSystem.current == null)
+            return;
+
+        EventSystem.current.SetSelectedGameObject(button.gameObject);
     }
 
     private void ShowTab(GameObject active)
@@ -272,6 +365,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     public void OpenKeyboardPanel()
     {
+        RememberTab(SettingsTabId.Controls);
+
         if (tabControls != null && !tabControls.activeSelf)
             ShowTab(tabControls);
 
@@ -280,6 +375,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     public void OpenGamepadPanel()
     {
+        RememberTab(SettingsTabId.Controls);
+
         if (tabControls != null && !tabControls.activeSelf)
             ShowTab(tabControls);
 
@@ -345,12 +442,14 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     public void OpenControlsKeyboard()
     {
+        RememberTab(SettingsTabId.Controls);
         ShowTab(tabControls);
         OpenKeyboardPanel();
     }
 
     public void OpenControlsGamepad()
     {
+        RememberTab(SettingsTabId.Controls);
         ShowTab(tabControls);
         OpenGamepadPanel();
     }
