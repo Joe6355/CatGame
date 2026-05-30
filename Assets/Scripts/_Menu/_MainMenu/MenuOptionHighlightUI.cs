@@ -3,13 +3,18 @@ using UnityEngine.UI;
 using TMPro;
 using UnityEngine.EventSystems;
 
-public class MenuOptionHighlightUI : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+[DisallowMultipleComponent]
+public class MenuOptionHighlightUI : MonoBehaviour,
+    IPointerEnterHandler,
+    IPointerExitHandler,
+    IPointerMoveHandler,
+    IPointerDownHandler
 {
     [Header("Main UI")]
     [Tooltip("Главный UI-элемент настройки: Slider, TMP_Dropdown, Dropdown, Button, Toggle и т.д.")]
     public Selectable selectable;
 
-    [Tooltip("Если это Slider, можешь сюда перетащить его. Нужно только для отображения процентов.")]
+    [Tooltip("Если это Slider, перетащи его сюда. Нужно только для отображения процентов.")]
     public Slider slider;
 
     [Tooltip("Название настройки.")]
@@ -18,12 +23,34 @@ public class MenuOptionHighlightUI : MonoBehaviour, IPointerEnterHandler, IPoint
     [Tooltip("Текст значения справа. Для Slider показывает проценты. Можно оставить пустым.")]
     public TMP_Text valueText;
 
+    [Header("Hover Hit Area")]
+    [Tooltip("Прозрачный Image/Graphic, который ловит мышку по всей строке настройки. Обычно это Image на корневом объекте строки.")]
+    public Graphic hoverRaycastArea;
+
+    [Tooltip("Автоматически использовать Graphic/Image на этом же объекте как зону наведения.")]
+    public bool autoUseOwnGraphicAsHoverArea = true;
+
+    [Tooltip("Принудительно включать Raycast Target у Hover Raycast Area.")]
+    public bool forceHoverAreaRaycastTarget = true;
+
+    [Tooltip("Делать Hover Raycast Area полностью прозрачной.")]
+    public bool forceHoverAreaTransparent = true;
+
     [Header("Selected Highlight Image")]
-    [Tooltip("Image-объект, который подсвечивает выбранную настройку.")]
+    [Tooltip("Image-объект, который визуально подсвечивает выбранную настройку.")]
     public Image selectionImage;
+
+    [Tooltip("Отключать Raycast Target у картинки подсветки, чтобы она не перекрывала Slider/Button/Dropdown.")]
+    public bool disableSelectionImageRaycast = true;
 
     [Tooltip("Включать подсветку при наведении мышкой.")]
     public bool highlightOnHover = true;
+
+    [Tooltip("При наведении мышью делать настоящий Selectable выбранным в EventSystem.")]
+    public bool selectSelectableOnHover = false;
+
+    [Tooltip("При клике по области строки делать настоящий Selectable выбранным в EventSystem.")]
+    public bool selectSelectableOnPointerDown = true;
 
     [Tooltip("Альфа подсветки. Значение из 255. Например 100 = 100/255.")]
     [Range(0, 255)]
@@ -40,15 +67,18 @@ public class MenuOptionHighlightUI : MonoBehaviour, IPointerEnterHandler, IPoint
             slider = GetComponent<Slider>();
 
         if (selectable == null)
-            selectable = GetComponentInChildren<Selectable>();
+            selectable = GetComponentInChildren<Selectable>(true);
 
         if (slider == null)
-            slider = GetComponentInChildren<Slider>();
+            slider = GetComponentInChildren<Slider>(true);
+
+        hoverRaycastArea = GetComponent<Graphic>();
     }
 
     private void Awake()
     {
         AutoFindReferences();
+        SetupRaycastAreas();
     }
 
     private void Start()
@@ -62,6 +92,7 @@ public class MenuOptionHighlightUI : MonoBehaviour, IPointerEnterHandler, IPoint
     private void OnEnable()
     {
         hover = false;
+        SetupRaycastAreas();
         SetSelectionImageAlpha255(0);
     }
 
@@ -87,13 +118,35 @@ public class MenuOptionHighlightUI : MonoBehaviour, IPointerEnterHandler, IPoint
             selectable = GetComponent<Selectable>();
 
         if (selectable == null)
-            selectable = GetComponentInChildren<Selectable>();
+            selectable = GetComponentInChildren<Selectable>(true);
 
         if (slider == null)
             slider = GetComponent<Slider>();
 
         if (slider == null)
-            slider = GetComponentInChildren<Slider>();
+            slider = GetComponentInChildren<Slider>(true);
+
+        if (hoverRaycastArea == null && autoUseOwnGraphicAsHoverArea)
+            hoverRaycastArea = GetComponent<Graphic>();
+    }
+
+    private void SetupRaycastAreas()
+    {
+        if (hoverRaycastArea != null)
+        {
+            if (forceHoverAreaRaycastTarget)
+                hoverRaycastArea.raycastTarget = true;
+
+            if (forceHoverAreaTransparent)
+            {
+                Color col = hoverRaycastArea.color;
+                col.a = 0f;
+                hoverRaycastArea.color = col;
+            }
+        }
+
+        if (selectionImage != null && disableSelectionImageRaycast)
+            selectionImage.raycastTarget = false;
     }
 
     private void UpdateValueText()
@@ -102,9 +155,7 @@ public class MenuOptionHighlightUI : MonoBehaviour, IPointerEnterHandler, IPoint
             return;
 
         if (slider != null)
-        {
             valueText.text = (slider.value * 100f).ToString("0") + "%";
-        }
     }
 
     private void UpdateTextColor()
@@ -158,6 +209,23 @@ public class MenuOptionHighlightUI : MonoBehaviour, IPointerEnterHandler, IPoint
         return false;
     }
 
+    private void SelectSelectable()
+    {
+        if (EventSystem.current == null)
+            return;
+
+        if (selectable == null)
+            return;
+
+        if (!selectable.isActiveAndEnabled)
+            return;
+
+        if (!selectable.interactable)
+            return;
+
+        EventSystem.current.SetSelectedGameObject(selectable.gameObject);
+    }
+
     private void SetSelectionImageAlpha255(float alpha255)
     {
         if (selectionImage == null)
@@ -171,10 +239,29 @@ public class MenuOptionHighlightUI : MonoBehaviour, IPointerEnterHandler, IPoint
     public void OnPointerEnter(PointerEventData e)
     {
         hover = true;
+
+        if (selectSelectableOnHover)
+            SelectSelectable();
+    }
+
+    public void OnPointerMove(PointerEventData e)
+    {
+        hover = true;
+
+        if (selectSelectableOnHover)
+            SelectSelectable();
     }
 
     public void OnPointerExit(PointerEventData e)
     {
         hover = false;
+    }
+
+    public void OnPointerDown(PointerEventData e)
+    {
+        hover = true;
+
+        if (selectSelectableOnPointerDown)
+            SelectSelectable();
     }
 }
