@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using CatGame.SaveSystem;
 
 [DefaultExecutionOrder(10000)]
 public class PauseMenuUI : MonoBehaviour
@@ -171,6 +172,9 @@ public class PauseMenuUI : MonoBehaviour
 
     private void Update()
     {
+        if (SavePanelRebindCloseHotkeys.ShouldBlockGlobalPauseInput())
+            return;
+
         UpdateConfirmSelectionState();
 
         if (IsRebindBlockingUi())

@@ -113,6 +113,9 @@ GameObject:
   - component: {fileID: 7397209572761559271}
   - component: {fileID: 6368793016591724516}
   - component: {fileID: 9126721986158883616}
+  - component: {fileID: 8465436946279162573}
+  - component: {fileID: 2562519948364852867}
+  - component: {fileID: 6577460134199573771}
   m_Layer: 7
   m_Name: Player
   m_TagString: Player
@@ -904,6 +907,62 @@ MonoBehaviour:
   pebbleSideSpeedMultiplier: 1.45
   triggerCooldown: 0.08
   debugLogs: 0
+--- !u!114 &8465436946279162573
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 241042984498690761}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f64e8da4da7a9384c97370120fc8925f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visualRoot: {fileID: 0}
+  useSpriteRendererFlipX: 0
+  spriteRenderer: {fileID: 0}
+  positiveScaleMeansFacingRight: 1
+  resetVelocityOnRestore: 1
+  restorePositionOffset: {x: 0, y: 0}
+--- !u!114 &2562519948364852867
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 241042984498690761}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 30a428d913dfb824db052cc47aade340, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  legacyPlayerPrefsKey: LEGACY_INPUT_BINDINGS_V4_GAMEPAD_AXES
+  reloadBindingsInterval: 0.5
+  keyboardFallback: 102
+  gamepadFallback: 332
+  logBindingReadErrors: 0
+--- !u!114 &6577460134199573771
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 241042984498690761}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8723343949bfae348a5a48f91667c1d6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  input: {fileID: 0}
+  interactRadius: 1.2
+  interactableMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  searchOrigin: {fileID: 0}
+  promptRoot: {fileID: 0}
+  promptText: {fileID: 0}
+  promptFormat: '[{0}] {1}'
 --- !u!1 &1277629707551673289
 GameObject:
   m_ObjectHideFlags: 0
