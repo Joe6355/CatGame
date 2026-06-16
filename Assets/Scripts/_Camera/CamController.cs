@@ -772,8 +772,10 @@ public class CamController : MonoBehaviour
         if (shakeCo != null)
             StopCoroutine(shakeCo);
 
-        shakeCo = StartCoroutine(ShakeRoutine(strength, time, fadeTime));
+        float userMultiplier = VideoSettingsPrefs.GetScreenShakeMultiplier(1f);
+        shakeCo = StartCoroutine(ShakeRoutine(strength * userMultiplier, time, fadeTime));
     }
+
 
     private void ChangeCameraSize(float newSize)
     {
