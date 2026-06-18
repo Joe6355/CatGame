@@ -30,50 +30,53 @@ namespace CatGame.SaveSystem
         [SerializeField, Tooltip("Скрывать панель после успешной загрузки. Рекомендация: включено.")]
         private bool closeAfterLoad = true;
 
-        [SerializeField, Tooltip("Скрывать панель после успешного ручного сохранения. Рекомендация: выключено, чтобы игрок видел обновлённую дату слота.")]
+        [SerializeField, Tooltip("Скрывать панель после успешного ручного сохранения. Рекомендация: выключено.")]
         private bool closeAfterManualSave = false;
 
-        [SerializeField, Tooltip("Разрешать загрузку и удаление ручных слотов прямо у лежанки. Рекомендация: включено, если меню лежанки должно быть полноценным меню сохранений.")]
+        [SerializeField, Tooltip("Разрешать загрузку и удаление ручных слотов прямо у лежанки.")]
         private bool allowLoadAndDeleteInManualSaveMode = true;
 
+        [SerializeField, Tooltip("Разрешить удаление автосейва кнопкой 'Удалить'. Рекомендация: выключено для финальной игры, включать только если хочешь дать игроку полный контроль.")]
+        private bool allowAutosaveDelete = false;
+
         [Header("Gameplay Input Block")]
-        [SerializeField, Tooltip("Выключать игровой ввод через PlayerController.SetInputEnabled(false), пока открыто меню сохранений. Рекомендация: включено.")]
+        [SerializeField, Tooltip("Выключать игровой ввод через PlayerController.SetInputEnabled(false), пока открыто меню сохранений.")]
         private bool blockGameplayInputWhileOpen = true;
 
-        [SerializeField, Tooltip("Ссылка на PlayerController кота. Рекомендация: можно оставить пустым, если включен Auto Find Player Controller.")]
+        [SerializeField, Tooltip("Ссылка на PlayerController кота. Можно оставить пустым, если включен Auto Find Player Controller.")]
         private PlayerController playerController;
 
-        [SerializeField, Tooltip("Если PlayerController не назначен вручную — найти его автоматически в сцене. Рекомендация: включено.")]
+        [SerializeField, Tooltip("Если PlayerController не назначен вручную — найти его автоматически в сцене.")]
         private bool autoFindPlayerController = true;
 
-        [SerializeField, Tooltip("При закрытии меню не включать управление сразу, а подождать 1 кадр. Рекомендация: включено, чтобы Space/Submit не улетал в прыжок после закрытия UI.")]
+        [SerializeField, Tooltip("При закрытии меню не включать управление сразу, а подождать 1 кадр.")]
         private bool reenableGameplayInputNextFrame = true;
 
-        [SerializeField, Tooltip("После закрытия ждать отпускания Space/геймпадной кнопки прыжка перед возвратом управления. Рекомендация: включено, если после выхода из меню срабатывает прыжок.")]
+        [SerializeField, Tooltip("После закрытия ждать отпускания Space/геймпадной кнопки прыжка.")]
         private bool waitForJumpInputReleaseOnClose = true;
 
-        [SerializeField, Tooltip("Клавиша прыжка для защиты от буфера после UI. Рекомендация: Space.")]
+        [SerializeField, Tooltip("Клавиша прыжка для защиты от буфера после UI.")]
         private KeyCode keyboardJumpFallback = KeyCode.Space;
 
-        [SerializeField, Tooltip("Геймпадная кнопка прыжка для защиты от буфера после UI. Рекомендация: JoystickButton0 = A/Cross.")]
+        [SerializeField, Tooltip("Геймпадная кнопка прыжка для защиты от буфера после UI.")]
         private KeyCode gamepadJumpFallback = KeyCode.JoystickButton0;
 
         [Header("Time Scale")]
-        [SerializeField, Tooltip("Ставить Time.timeScale = 0, пока открыта панель сохранений. Рекомендация: включено.")]
+        [SerializeField, Tooltip("Ставить Time.timeScale = 0, пока открыта панель сохранений.")]
         private bool pauseGameWhileOpen = true;
 
         [Header("Keyboard / Gamepad Selection")]
-        [SerializeField, Tooltip("Автоматически выбирать первую доступную кнопку при открытии панели. Рекомендация: включено.")]
+        [SerializeField, Tooltip("Автоматически выбирать первую доступную кнопку при открытии панели.")]
         private bool selectFirstButtonOnOpen = true;
 
-        [SerializeField, Tooltip("Если выбранная кнопка потерялась — вернуть выделение на первую доступную кнопку внутри меню. Рекомендация: включено.")]
+        [SerializeField, Tooltip("Если выбранная кнопка потерялась — вернуть выделение на первую доступную кнопку внутри меню.")]
         private bool keepSelectionInsideMenu = true;
 
-        [SerializeField, Tooltip("Через сколько кадров после открытия выставлять выбранную кнопку. Рекомендация: 1.")]
+        [SerializeField, Tooltip("Через сколько кадров после открытия выставлять выбранную кнопку.")]
         private int selectAfterFrames = 1;
 
         [Header("Debug")]
-        [SerializeField, Tooltip("Писать технические сообщения в Console. Рекомендация: выключено.")]
+        [SerializeField, Tooltip("Писать технические сообщения в Console.")]
         private bool verboseLogs = false;
 
         private SaveSlotsMenuMode mode;
@@ -205,10 +208,10 @@ namespace CatGame.SaveSystem
                     "Автосейв",
                     autosaveMeta,
                     true,
-                    false,
+                    allowAutosaveDelete,
                     false,
                     OnLoadClicked,
-                    null,
+                    OnDeleteClicked,
                     null);
             }
 
@@ -276,12 +279,6 @@ namespace CatGame.SaveSystem
                 return;
             }
 
-            /*
-             * ВАЖНО:
-             * Перед загрузкой сцены надо вручную вернуть timeScale/input,
-             * потому что Continue_Panel будет уничтожен вместе со старой сценой.
-             * После await LoadSlotAsync этот MonoBehaviour уже может быть destroyed.
-             */
             RestoreModalStateImmediate();
 
             if (EventSystem.current != null)
@@ -308,9 +305,17 @@ namespace CatGame.SaveSystem
                 return;
             }
 
+            string title = SaveConstants.IsAutoSaveSlot(slotId)
+                ? "Удалить автосейв?"
+                : "Удалить сохранение?";
+
+            string message = SaveConstants.IsAutoSaveSlot(slotId)
+                ? "После удаления автосейва кнопка быстрого продолжения может стать недоступной."
+                : "Это действие нельзя отменить.";
+
             confirmationDialog.Show(
-                "Удалить сохранение?",
-                "Это действие нельзя отменить.",
+                title,
+                message,
                 delegate { DeleteSlotAsync(slotId); });
         }
 
@@ -323,7 +328,9 @@ namespace CatGame.SaveSystem
 
             try
             {
-                await SaveManager.Instance.DeleteSlotAsync(slotId);
+                if (SaveManager.Instance != null)
+                    await SaveManager.Instance.DeleteSlotAsync(slotId);
+
                 RefreshRowsAsync();
             }
             finally
@@ -358,7 +365,8 @@ namespace CatGame.SaveSystem
 
             try
             {
-                await SaveManager.Instance.SaveToSlotAsync(slotId, true);
+                if (SaveManager.Instance != null)
+                    await SaveManager.Instance.SaveToSlotAsync(slotId, true);
 
                 SaveIconUI.ShowSmallSaved();
                 RefreshRowsAsync();
