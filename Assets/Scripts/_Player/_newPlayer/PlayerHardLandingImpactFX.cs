@@ -62,6 +62,13 @@ public class PlayerHardLandingImpactFX : MonoBehaviour
     [SerializeField, Min(0f), Tooltip("«ащита от повторного срабатывани€ несколько раз подр€д.")]
     private float triggerCooldown = 0.08f;
 
+    [Header("Respawn Suppress")]
+    [SerializeField, Min(0f), Tooltip("—колько секунд после респавна запрещать hard landing FX. –екомендаци€: 0.2-0.35.")]
+    private float defaultRespawnSuppressSeconds = 0.25f;
+
+    [SerializeField, Tooltip("ќчищать текущие частицы при респавне.")]
+    private bool clearParticlesOnSuppress = true;
+
     [Header("Debug")]
     [SerializeField] private bool debugLogs = false;
 
@@ -69,6 +76,7 @@ public class PlayerHardLandingImpactFX : MonoBehaviour
     private bool hasAirborneData = false;
     private float minAirborneVelocityY = 0f;
     private float lastTriggerTime = -999f;
+    private float suppressUntilTime = -999f;
 
     private void Reset()
     {
@@ -106,6 +114,7 @@ public class PlayerHardLandingImpactFX : MonoBehaviour
         pebbleSideSpeedMultiplier = Mathf.Max(1f, pebbleSideSpeedMultiplier);
 
         triggerCooldown = Mathf.Max(0f, triggerCooldown);
+        defaultRespawnSuppressSeconds = Mathf.Max(0f, defaultRespawnSuppressSeconds);
     }
 
     private void Update()
@@ -115,14 +124,17 @@ public class PlayerHardLandingImpactFX : MonoBehaviour
 
         bool grounded = groundModule.IsGrounded;
 
-        if (!grounded)
+        if (IsSuppressed())
         {
-            TrackAirborneFall();
+            ResetAirborneTracking();
+            wasGrounded = grounded;
+            return;
         }
 
-        bool landedThisFrame =
-            groundModule.JustLanded ||
-            (!wasGrounded && grounded);
+        if (!grounded)
+            TrackAirborneFall();
+
+        bool landedThisFrame = groundModule.JustLanded || (!wasGrounded && grounded);
 
         if (landedThisFrame)
         {
@@ -131,11 +143,40 @@ public class PlayerHardLandingImpactFX : MonoBehaviour
         }
 
         if (grounded && wasGrounded)
-        {
             ResetAirborneTracking();
-        }
 
         wasGrounded = grounded;
+    }
+
+    public void SuppressAfterRespawn()
+    {
+        SuppressAfterRespawn(defaultRespawnSuppressSeconds);
+    }
+
+    public void SuppressAfterRespawn(float seconds)
+    {
+        float duration = Mathf.Max(0f, seconds);
+        suppressUntilTime = Mathf.Max(suppressUntilTime, Time.time + duration);
+
+        ResetAirborneTracking();
+
+        if (groundModule != null)
+            wasGrounded = groundModule.IsGrounded;
+        else
+            wasGrounded = false;
+
+        lastTriggerTime = Time.time;
+
+        if (clearParticlesOnSuppress && impactParticles != null)
+            impactParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        if (debugLogs)
+            Debug.Log("[PlayerHardLandingImpactFX] Suppressed after respawn for " + duration + " sec.", this);
+    }
+
+    private bool IsSuppressed()
+    {
+        return Time.time < suppressUntilTime;
     }
 
     private void TrackAirborneFall()
@@ -155,6 +196,9 @@ public class PlayerHardLandingImpactFX : MonoBehaviour
 
     private void TryPlayImpact()
     {
+        if (IsSuppressed())
+            return;
+
         if (!hasAirborneData)
             return;
 
@@ -173,15 +217,12 @@ public class PlayerHardLandingImpactFX : MonoBehaviour
         lastTriggerTime = Time.time;
 
         if (debugLogs)
-            Debug.Log($"[PlayerHardLandingImpactFX] Hard landing impact. fallSpeed={fallSpeed:0.00}, strength={strength:0.00}");
+            Debug.Log($"[PlayerHardLandingImpactFX] Hard landing impact. fallSpeed={fallSpeed:0.00}, strength={strength:0.00}", this);
     }
 
     private void EmitImpact(float strength)
     {
-        Vector3 basePos =
-            impactPoint != null
-                ? impactPoint.position
-                : transform.position;
+        Vector3 basePos = impactPoint != null ? impactPoint.position : transform.position;
 
         impactParticles.transform.position = basePos;
 

@@ -90,6 +90,7 @@ public class PlayerController : MonoBehaviour
 
     private float trackedMinAirborneY = 0f;
     private bool hasAirborneFallData = false;
+    private float landingFeedbackSuppressedUntil = -999f;
 
 #if ENABLE_INPUT_SYSTEM
     private float rumbleStopAtUnscaled = -1f;
@@ -599,6 +600,13 @@ public class PlayerController : MonoBehaviour
 
     private void TryPlayLandingFeedback()
     {
+        if (Time.time < landingFeedbackSuppressedUntil)
+        {
+            ResetLandingTracking();
+            StopLandingGamepadRumble();
+            return;
+        }
+
         if (!hasAirborneFallData)
         {
             ResetLandingTracking();
@@ -675,6 +683,16 @@ public class PlayerController : MonoBehaviour
     {
         trackedMinAirborneY = 0f;
         hasAirborneFallData = false;
+    }
+
+    public void SuppressLandingFeedbackAfterRespawn(float seconds)
+    {
+        landingFeedbackSuppressedUntil = Mathf.Max(
+            landingFeedbackSuppressedUntil,
+            Time.time + Mathf.Max(0f, seconds));
+
+        ResetLandingTracking();
+        StopLandingGamepadRumble();
     }
 
     public void SetLandingGamepadRumbleEnabled(bool enabled)
