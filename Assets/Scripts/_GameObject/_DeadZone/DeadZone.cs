@@ -43,10 +43,10 @@ public class DeadZone : MonoBehaviour
     [SerializeField, Tooltip("Сколько секунд держать управление выключенным после респавна.")]
     private float inputLockAfterRespawnSeconds = 0.08f;
 
-    [SerializeField, Tooltip("Принудительно вернуть управление после респавна. Чинит баг, когда управление возвращается только после ESC.")]
+    [SerializeField, Tooltip("Принудительно вернуть управление после респавна. Нужна страховка, если меню/сейв/смерть оставили ввод выключенным.")]
     private bool forceEnableInputAfterRespawn = true;
 
-    [SerializeField, Tooltip("Сколько кадров подряд принудительно включать управление после респавна.")]
+    [SerializeField, Min(1), Tooltip("Сколько кадров подряд после респавна пробовать вернуть управление.")]
     private int forceEnableInputAfterFrames = 3;
 
     [SerializeField, Tooltip("Сбрасывать скорость Rigidbody2D после респавна.")]
@@ -85,6 +85,7 @@ public class DeadZone : MonoBehaviour
 
     private PlayerController lockedInputController;
     private bool inputLockedByThisZone;
+    private Coroutine forceEnableInputCoroutine;
 
     private void Awake()
     {
@@ -92,6 +93,23 @@ public class DeadZone : MonoBehaviour
 
         if (ownCollider != null && useTriggerEnter)
             ownCollider.isTrigger = true;
+    }
+
+    private void Reset()
+    {
+        Collider2D col = GetComponent<Collider2D>();
+
+        if (col != null)
+            col.isTrigger = true;
+    }
+
+    private void OnValidate()
+    {
+        respawnDelaySeconds = Mathf.Max(0f, respawnDelaySeconds);
+        cooldownSeconds = Mathf.Max(0f, cooldownSeconds);
+        inputLockAfterRespawnSeconds = Mathf.Max(0f, inputLockAfterRespawnSeconds);
+        landingEffectsSuppressSeconds = Mathf.Max(0f, landingEffectsSuppressSeconds);
+        forceEnableInputAfterFrames = Mathf.Max(1, forceEnableInputAfterFrames);
     }
 
     private void OnDisable()
@@ -102,14 +120,6 @@ public class DeadZone : MonoBehaviour
     private void OnDestroy()
     {
         ForceReleaseInput();
-    }
-
-    private void Reset()
-    {
-        Collider2D col = GetComponent<Collider2D>();
-
-        if (col != null)
-            col.isTrigger = true;
     }
 
     private void OnTriggerEnter2D(Collider2D other)
@@ -150,10 +160,10 @@ public class DeadZone : MonoBehaviour
         if (requirePlayerSaveAdapter && playerSaveAdapter == null)
             return;
 
-        StartCoroutine(RespawnRoutine(playerSaveAdapter));
+        StartCoroutine(RespawnRoutine(playerSaveAdapter, other));
     }
 
-    private IEnumerator RespawnRoutine(PlayerSaveAdapter playerSaveAdapter)
+    private IEnumerator RespawnRoutine(PlayerSaveAdapter playerSaveAdapter, Collider2D playerCollider)
     {
         isRestarting = true;
         lastRespawnUnscaledTime = Time.unscaledTime;
@@ -167,11 +177,15 @@ public class DeadZone : MonoBehaviour
             playerSaveAdapter = FindObjectOfType<PlayerSaveAdapter>();
 
         Transform playerTransform = playerSaveAdapter != null ? playerSaveAdapter.transform : null;
+
+        if (playerTransform == null && playerCollider != null)
+            playerTransform = playerCollider.transform.root != null ? playerCollider.transform.root : playerCollider.transform;
+
         Vector3 positionBeforeRespawn = playerTransform != null ? playerTransform.position : Vector3.zero;
 
-        PlayerController playerController = FindPlayerController(playerTransform);
+        PlayerController playerController = FindPlayerController(playerTransform, playerCollider);
 
-        if (lockInputAfterRespawn)
+        if (lockInputAfterRespawn && playerController != null)
             LockPlayerInput(playerController);
 
         if (respawnDelaySeconds > 0f)
@@ -188,8 +202,6 @@ public class DeadZone : MonoBehaviour
             if (verboseLogs)
                 Debug.LogWarning("DeadZone: SaveManager не найден.", this);
 
-            ForceReleaseInput();
-
             if (restartSceneIfSaveManagerMissing)
             {
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
@@ -202,7 +214,11 @@ public class DeadZone : MonoBehaviour
         if (playerSaveAdapter == null)
             playerSaveAdapter = FindObjectOfType<PlayerSaveAdapter>();
 
-        playerTransform = playerSaveAdapter != null ? playerSaveAdapter.transform : playerTransform;
+        if (playerSaveAdapter != null)
+            playerTransform = playerSaveAdapter.transform;
+
+        if (playerController == null)
+            playerController = FindPlayerController(playerTransform, playerCollider);
 
         Vector3 positionAfterRespawn = playerTransform != null ? playerTransform.position : positionBeforeRespawn;
         Vector3 respawnDelta = positionAfterRespawn - positionBeforeRespawn;
@@ -215,7 +231,16 @@ public class DeadZone : MonoBehaviour
         if (inputLockAfterRespawnSeconds > 0f)
             yield return new WaitForSecondsRealtime(inputLockAfterRespawnSeconds);
 
-        yield return ForceEnableInputAfterRespawnRoutine(playerTransform);
+        if (lockInputAfterRespawn)
+            ForceReleaseInput();
+
+        if (forceEnableInputAfterRespawn && playerController != null)
+        {
+            if (forceEnableInputCoroutine != null)
+                StopCoroutine(forceEnableInputCoroutine);
+
+            forceEnableInputCoroutine = StartCoroutine(ForceEnableInputAfterRespawnRoutine(playerController));
+        }
 
         if (disableColliderDuringRespawn && ownCollider != null)
             ownCollider.enabled = true;
@@ -223,67 +248,70 @@ public class DeadZone : MonoBehaviour
         isRestarting = false;
 
         if (verboseLogs)
-            Debug.Log("DeadZone: игрок отправлен на последний чекпоинт, управление возвращено.", this);
+            Debug.Log("DeadZone: игрок отправлен на последний чекпоинт.", this);
     }
 
-    private void LockPlayerInput(PlayerController controller)
+    private void LockPlayerInput(PlayerController playerController)
     {
-        if (controller == null)
+        if (playerController == null)
             return;
 
-        lockedInputController = controller;
+        lockedInputController = playerController;
         inputLockedByThisZone = true;
-        controller.SetInputEnabled(false);
+        lockedInputController.SetInputEnabled(false);
     }
 
-    private IEnumerator ForceEnableInputAfterRespawnRoutine(Transform playerTransform)
+    private IEnumerator ForceEnableInputAfterRespawnRoutine(PlayerController playerController)
     {
+        if (playerController == null)
+            yield break;
+
         int frames = Mathf.Max(1, forceEnableInputAfterFrames);
 
         for (int i = 0; i < frames; i++)
         {
-            if (forceEnableInputAfterRespawn || inputLockedByThisZone)
-                ForceReleaseInput(playerTransform);
-
+            playerController.SetInputEnabled(true);
             yield return null;
         }
+
+        forceEnableInputCoroutine = null;
     }
 
     private void ForceReleaseInput()
     {
-        ForceReleaseInput(null);
-    }
+        if (forceEnableInputCoroutine != null)
+        {
+            StopCoroutine(forceEnableInputCoroutine);
+            forceEnableInputCoroutine = null;
+        }
 
-    private void ForceReleaseInput(Transform playerTransform)
-    {
-        PlayerController controller = FindPlayerController(playerTransform);
+        if (!inputLockedByThisZone)
+            return;
 
-        if (controller == null)
-            controller = lockedInputController;
-
-        if (controller != null)
-            controller.SetInputEnabled(true);
+        if (lockedInputController != null)
+            lockedInputController.SetInputEnabled(true);
 
         lockedInputController = null;
         inputLockedByThisZone = false;
     }
 
-    private PlayerController FindPlayerController(Transform playerTransform)
+    private PlayerController FindPlayerController(Transform playerTransform, Collider2D playerCollider)
     {
+        PlayerController controller = null;
+
         if (playerTransform != null)
-        {
-            PlayerController controller = playerTransform.GetComponentInParent<PlayerController>();
+            controller = playerTransform.GetComponentInParent<PlayerController>();
 
-            if (controller != null)
-                return controller;
+        if (controller == null && playerTransform != null)
+            controller = playerTransform.GetComponentInChildren<PlayerController>(true);
 
-            controller = playerTransform.GetComponentInChildren<PlayerController>();
+        if (controller == null && playerCollider != null)
+            controller = playerCollider.GetComponentInParent<PlayerController>();
 
-            if (controller != null)
-                return controller;
-        }
+        if (controller == null)
+            controller = FindObjectOfType<PlayerController>();
 
-        return FindObjectOfType<PlayerController>();
+        return controller;
     }
 
     private void ResetPlayerPhysics(Transform playerTransform)
@@ -356,7 +384,21 @@ public class DeadZone : MonoBehaviour
         PlayerController controller = playerTransform.GetComponentInParent<PlayerController>();
 
         if (controller != null)
-            controller.SuppressLandingFeedbackAfterRespawn(seconds);
+        {
+            controller.gameObject.SendMessage(
+                "SuppressLandingFeedbackAfterRespawn",
+                seconds,
+                SendMessageOptions.DontRequireReceiver
+            );
+        }
+        else
+        {
+            playerTransform.gameObject.SendMessage(
+                "SuppressLandingFeedbackAfterRespawn",
+                seconds,
+                SendMessageOptions.DontRequireReceiver
+            );
+        }
     }
 
     private void SnapCameraAfterRespawn(Transform playerTransform, Vector3 respawnDelta)
@@ -494,6 +536,9 @@ public class DeadZone : MonoBehaviour
 
     private bool IsPlayer(Collider2D other)
     {
+        if (other == null)
+            return false;
+
         if (requirePlayerTag)
         {
             bool tagMatched = false;

@@ -227,6 +227,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 21722419be368ea47a8eb0530f37d285, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  saveableId: {fileID: 0}
+  saveKeyState: 1
+  restoreFollowingToPlayer: 1
+  markDirtyOnStateChange: 1
   keyId: 1
   playerTag: Player
   autoDisableColliderOnPickup: 1
@@ -259,6 +263,8 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  disableObjectWhenConsumed: 1
+  verboseLogs: 0
 --- !u!95 &7313161003260921268
 Animator:
   serializedVersion: 5

@@ -1,11 +1,13 @@
+using System;
 using System.Collections.Generic;
+using CatGame.SaveSystem;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(Animator))]
 [DisallowMultipleComponent]
-public class RatController : MonoBehaviour
+public class RatController : MonoBehaviour, ISaveable
 {
     private enum RatState
     {
@@ -57,6 +59,26 @@ public class RatController : MonoBehaviour
         public RigidbodyType2D bodyType;
         public Vector2 velocity;
         public float angularVelocity;
+    }
+
+    private enum HeldItemSaveState
+    {
+        None,
+        HeldByRat,
+        DroppedIdle,
+        FollowingPlayer,
+        FlyingToDoor,
+        Consumed
+    }
+
+    [Serializable]
+    private struct RatControllerSaveState
+    {
+        public bool heldItemDropped;
+        public HeldItemSaveState heldItemState;
+        public SaveVector3 heldItemPosition;
+        public float heldItemRotationZ;
+        public bool heldItemActive;
     }
 
     [Header("Точки маршрута")]
@@ -250,6 +272,28 @@ public class RatController : MonoBehaviour
     [SerializeField, Tooltip("Показывать в Scene View примерный прямоугольник, по которому сейчас проверяется наличие игрока рядом с норкой.")]
     private bool drawDetectionGizmos = true;
 
+    [Header("Save / состояние крысы и дропа")]
+    [SerializeField, Tooltip("SaveableId крысы. Повесь SaveableId на root крысы и назначь сюда.")]
+    private SaveableId saveableId;
+
+    [SerializeField, Tooltip("Сохранять состояние крысы как saveable-объекта.")]
+    private bool saveRatState = true;
+
+    [SerializeField, Tooltip("Сохранять состояние предмета, который крыса держит/роняет.")]
+    private bool saveHeldItemState = true;
+
+    [SerializeField, Tooltip("Помечать сейв грязным и запускать autosave, когда крыса уронила предмет.")]
+    private bool markDirtyWhenHeldItemDropped = true;
+
+    [SerializeField, Tooltip("Если предмет был в полёте к двери во время сохранения, после загрузки восстановить его как лежащий предмет, а не продолжать полёт.")]
+    private bool restoreFlyingItemAsDropped = true;
+
+    [SerializeField, Tooltip("Если ключ был подобран и летал вокруг игрока, после загрузки снова добавить его в PlayerKeyRing.")]
+    private bool restoreFollowingItemToPlayer = true;
+
+    [SerializeField, Tooltip("Если состояние предмета уже Consumed, держать runtime-объект предмета выключенным.")]
+    private bool deactivateConsumedHeldItemOnRestore = true;
+
     [Header("Одноразовый дроп предмета при касании крысы")]
     [SerializeField, Tooltip("Главная галочка функции. Если включено — крыса будет держать предмет в PointDrop и уронит его один раз, когда игрок коснется основного НЕ trigger коллайдера крысы.")]
     private bool enableOneTimeItemDrop = false;
@@ -306,6 +350,17 @@ public class RatController : MonoBehaviour
     private Transform VisualTarget => visualRoot != null ? visualRoot : transform;
     private bool HasUndroppedHeldItem => enableOneTimeItemDrop && !heldItemDropped && heldItemInstance != null;
 
+    public string SaveId
+    {
+        get
+        {
+            if (!saveRatState)
+                return string.Empty;
+
+            return saveableId != null ? saveableId.Id : string.Empty;
+        }
+    }
+
     private void Reset()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -313,6 +368,7 @@ public class RatController : MonoBehaviour
         spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         ratLight = GetComponentInChildren<Light2D>(true);
         visualRoot = transform;
+        saveableId = GetComponent<SaveableId>();
 
         Collider2D rootCol = GetComponent<Collider2D>();
         if (rootCol != null && !rootCol.isTrigger)
@@ -321,6 +377,7 @@ public class RatController : MonoBehaviour
 
     private void Awake()
     {
+        if (saveableId == null) saveableId = GetComponent<SaveableId>();
         if (rb == null) rb = GetComponent<Rigidbody2D>();
         if (ratAnimator == null) ratAnimator = GetComponent<Animator>();
         if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
@@ -1537,6 +1594,242 @@ public class RatController : MonoBehaviour
             heldItemInstance.transform.SetParent(null, true);
 
         SetHeldItemRenderersVisible(true);
+
+        if (markDirtyWhenHeldItemDropped)
+            NotifyRatSaveDirty();
+    }
+
+    public string CaptureStateJson()
+    {
+        RatControllerSaveState state = new RatControllerSaveState
+        {
+            heldItemDropped = heldItemDropped,
+            heldItemState = GetCurrentHeldItemSaveState(),
+            heldItemPosition = SaveVector3.FromUnity(GetHeldItemPositionForSave()),
+            heldItemRotationZ = GetHeldItemRotationZForSave(),
+            heldItemActive = heldItemInstance != null && heldItemInstance.activeSelf
+        };
+
+        return JsonUtility.ToJson(state);
+    }
+
+    public void RestoreStateJson(string json)
+    {
+        if (!saveHeldItemState || !enableOneTimeItemDrop)
+            return;
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            RestoreHeldItemAsHeldByRat();
+            return;
+        }
+
+        RatControllerSaveState state = JsonUtility.FromJson<RatControllerSaveState>(json);
+        heldItemDropped = state.heldItemDropped;
+
+        switch (state.heldItemState)
+        {
+            case HeldItemSaveState.HeldByRat:
+                RestoreHeldItemAsHeldByRat();
+                break;
+
+            case HeldItemSaveState.FollowingPlayer:
+                RestoreHeldItemAsFollowingPlayer(state.heldItemPosition.ToUnity(), state.heldItemRotationZ);
+                break;
+
+            case HeldItemSaveState.FlyingToDoor:
+                if (restoreFlyingItemAsDropped)
+                    RestoreHeldItemAsDropped(state.heldItemPosition.ToUnity(), state.heldItemRotationZ);
+                else
+                    RestoreHeldItemAsFollowingPlayer(state.heldItemPosition.ToUnity(), state.heldItemRotationZ);
+                break;
+
+            case HeldItemSaveState.DroppedIdle:
+                RestoreHeldItemAsDropped(state.heldItemPosition.ToUnity(), state.heldItemRotationZ);
+                break;
+
+            case HeldItemSaveState.Consumed:
+                RestoreHeldItemAsConsumed();
+                break;
+
+            case HeldItemSaveState.None:
+            default:
+                RestoreHeldItemAsHeldByRat();
+                break;
+        }
+    }
+
+    private HeldItemSaveState GetCurrentHeldItemSaveState()
+    {
+        if (!enableOneTimeItemDrop)
+            return HeldItemSaveState.None;
+
+        if (heldItemInstance == null)
+            return heldItemDropped ? HeldItemSaveState.Consumed : HeldItemSaveState.HeldByRat;
+
+        KeyPickup key = heldItemInstance.GetComponentInChildren<KeyPickup>(true);
+
+        if (key != null)
+        {
+            switch (key.CurrentState)
+            {
+                case KeyPickup.State.Consumed:
+                    return HeldItemSaveState.Consumed;
+
+                case KeyPickup.State.FlyingToDoor:
+                    return HeldItemSaveState.FlyingToDoor;
+
+                case KeyPickup.State.Following:
+                    return HeldItemSaveState.FollowingPlayer;
+
+                case KeyPickup.State.Idle:
+                default:
+                    return heldItemDropped ? HeldItemSaveState.DroppedIdle : HeldItemSaveState.HeldByRat;
+            }
+        }
+
+        if (!heldItemInstance.activeSelf)
+            return HeldItemSaveState.Consumed;
+
+        return heldItemDropped ? HeldItemSaveState.DroppedIdle : HeldItemSaveState.HeldByRat;
+    }
+
+    private Vector3 GetHeldItemPositionForSave()
+    {
+        if (heldItemInstance != null)
+            return heldItemInstance.transform.position;
+
+        if (pointDrop != null)
+            return pointDrop.position;
+
+        return transform.position;
+    }
+
+    private float GetHeldItemRotationZForSave()
+    {
+        if (heldItemInstance != null)
+            return heldItemInstance.transform.eulerAngles.z;
+
+        if (pointDrop != null)
+            return pointDrop.eulerAngles.z;
+
+        return 0f;
+    }
+
+    private void RestoreHeldItemAsHeldByRat()
+    {
+        if (!EnsureHeldItemInstance())
+            return;
+
+        heldItemDropped = false;
+        heldItemInstance.SetActive(true);
+
+        KeyPickup key = heldItemInstance.GetComponentInChildren<KeyPickup>(true);
+        if (key != null)
+            key.ForceRestoreHeldByRat(pointDrop);
+
+        CacheHeldItemComponents();
+
+        if (disableHeldItemLogicUntilDrop)
+            SetHeldItemAsHeld(true);
+        else if (pointDrop != null)
+        {
+            heldItemInstance.transform.SetParent(pointDrop, true);
+            heldItemInstance.transform.position = pointDrop.position;
+            heldItemInstance.transform.rotation = pointDrop.rotation;
+        }
+
+        SetHeldItemRenderersVisible(true);
+    }
+
+    private void RestoreHeldItemAsDropped(Vector3 position, float rotationZ)
+    {
+        if (!EnsureHeldItemInstance())
+            return;
+
+        heldItemDropped = true;
+        heldItemInstance.SetActive(true);
+        heldItemInstance.transform.SetParent(null, true);
+        heldItemInstance.transform.position = position;
+        heldItemInstance.transform.rotation = Quaternion.Euler(0f, 0f, rotationZ);
+
+        CacheHeldItemComponents();
+        SetHeldItemAsHeld(false);
+        SetHeldItemRenderersVisible(true);
+
+        KeyPickup key = heldItemInstance.GetComponentInChildren<KeyPickup>(true);
+        if (key != null)
+            key.ForceRestoreIdle(position, Quaternion.Euler(0f, 0f, rotationZ));
+    }
+
+    private void RestoreHeldItemAsFollowingPlayer(Vector3 fallbackPosition, float rotationZ)
+    {
+        if (!EnsureHeldItemInstance())
+            return;
+
+        heldItemDropped = true;
+        heldItemInstance.SetActive(true);
+        heldItemInstance.transform.SetParent(null, true);
+        heldItemInstance.transform.position = fallbackPosition;
+        heldItemInstance.transform.rotation = Quaternion.Euler(0f, 0f, rotationZ);
+
+        CacheHeldItemComponents();
+        SetHeldItemAsHeld(false);
+        SetHeldItemRenderersVisible(true);
+
+        KeyPickup key = heldItemInstance.GetComponentInChildren<KeyPickup>(true);
+        PlayerKeyRing ring = FindObjectOfType<PlayerKeyRing>();
+
+        if (key != null && ring != null && restoreFollowingItemToPlayer)
+        {
+            key.ForceRestoreFollowing(ring);
+            return;
+        }
+
+        if (key != null)
+            key.ForceRestoreIdle(fallbackPosition, Quaternion.Euler(0f, 0f, rotationZ));
+    }
+
+    private void RestoreHeldItemAsConsumed()
+    {
+        heldItemDropped = true;
+
+        if (!EnsureHeldItemInstance())
+            return;
+
+        KeyPickup key = heldItemInstance.GetComponentInChildren<KeyPickup>(true);
+        if (key != null)
+            key.ForceRestoreConsumed(deactivateConsumedHeldItemOnRestore);
+
+        SetHeldItemRenderersVisible(false);
+
+        if (deactivateConsumedHeldItemOnRestore && heldItemInstance != null)
+            heldItemInstance.SetActive(false);
+    }
+
+    private bool EnsureHeldItemInstance()
+    {
+        if (!enableOneTimeItemDrop)
+            return false;
+
+        if (heldItemInstance != null)
+        {
+            CacheHeldItemComponents();
+            return true;
+        }
+
+        if (dropItemPrefab == null || pointDrop == null)
+            return false;
+
+        heldItemInstance = Instantiate(dropItemPrefab, pointDrop.position, pointDrop.rotation, pointDrop);
+        CacheHeldItemComponents();
+        return heldItemInstance != null;
+    }
+
+    private void NotifyRatSaveDirty()
+    {
+        if (SaveManager.Instance != null)
+            SaveManager.Instance.MarkDirtyAndAutosave();
     }
 
     private void OnDrawGizmosSelected()

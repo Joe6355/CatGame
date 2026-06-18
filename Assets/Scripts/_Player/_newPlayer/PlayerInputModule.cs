@@ -255,6 +255,9 @@ public class PlayerInputModule : MonoBehaviour
 
     public void SetInputEnabled(bool enabled)
     {
+        if (gameplayInputEnabled == enabled)
+            return;
+
         gameplayInputEnabled = enabled;
 
         if (!enabled)

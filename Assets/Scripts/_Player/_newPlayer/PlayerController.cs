@@ -87,10 +87,10 @@ public class PlayerController : MonoBehaviour
     private float inputX = 0f;
     private bool resetSprintAfterLanding = false;
     private bool wallSlideFastDownHeld = false;
+    private bool controllerGameplayInputEnabled = true;
 
     private float trackedMinAirborneY = 0f;
     private bool hasAirborneFallData = false;
-    private float landingFeedbackSuppressedUntil = -999f;
 
 #if ENABLE_INPUT_SYSTEM
     private float rumbleStopAtUnscaled = -1f;
@@ -600,13 +600,6 @@ public class PlayerController : MonoBehaviour
 
     private void TryPlayLandingFeedback()
     {
-        if (Time.time < landingFeedbackSuppressedUntil)
-        {
-            ResetLandingTracking();
-            StopLandingGamepadRumble();
-            return;
-        }
-
         if (!hasAirborneFallData)
         {
             ResetLandingTracking();
@@ -685,16 +678,6 @@ public class PlayerController : MonoBehaviour
         hasAirborneFallData = false;
     }
 
-    public void SuppressLandingFeedbackAfterRespawn(float seconds)
-    {
-        landingFeedbackSuppressedUntil = Mathf.Max(
-            landingFeedbackSuppressedUntil,
-            Time.time + Mathf.Max(0f, seconds));
-
-        ResetLandingTracking();
-        StopLandingGamepadRumble();
-    }
-
     public void SetLandingGamepadRumbleEnabled(bool enabled)
     {
         enableLandingGamepadRumble = enabled;
@@ -761,8 +744,16 @@ public class PlayerController : MonoBehaviour
 
     public void SetInputEnabled(bool enabled)
     {
-        inputModule.SetInputEnabled(enabled);
-        ResetGameplayInputState(true);
+        if (controllerGameplayInputEnabled == enabled)
+            return;
+
+        controllerGameplayInputEnabled = enabled;
+
+        if (inputModule != null)
+            inputModule.SetInputEnabled(enabled);
+
+        if (!enabled)
+            ResetGameplayInputState(true);
     }
 
     private void ResetGameplayInputState(bool clearMobileHold)
@@ -770,10 +761,19 @@ public class PlayerController : MonoBehaviour
         inputX = 0f;
         resetSprintAfterLanding = false;
         wallSlideFastDownHeld = false;
-        inputModule.ResetModuleInputState(clearMobileHold);
-        jumpModule.ResetJumpInputState();
-        movementModule.ResetSprint();
-        movementModule.RefreshImmediateSprintBlocker(false, 0f);
+
+        if (inputModule != null)
+            inputModule.ResetModuleInputState(clearMobileHold);
+
+        if (jumpModule != null)
+            jumpModule.ResetJumpInputState();
+
+        if (movementModule != null)
+        {
+            movementModule.ResetSprint();
+            movementModule.RefreshImmediateSprintBlocker(false, 0f);
+        }
+
         fenceClimbModule?.ClearMoveInput();
         bounceModule?.ResetWallState();
         StopLandingGamepadRumble();
