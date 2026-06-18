@@ -1,0 +1,54 @@
+{
+    "saveVersion": 1,
+    "slotId": "autosave",
+    "buildVersion": "0.3",
+    "platform": "WindowsEditor",
+    "savedUnixTime": 1781808994,
+    "savedLocalTimeText": "18.06.2026 21:56",
+    "playTimeSeconds": 38.582794189453128,
+    "currentSceneName": "_Act_1_Garbage",
+    "currentLocationId": "",
+    "currentRoomId": "",
+    "lastCheckpointId": "checkpoint_start",
+    "lastGlobalSavePointId": "",
+    "player": {
+        "position": {
+            "x": 51.00830841064453,
+            "y": 10.67684268951416,
+            "z": -0.007366896606981754
+        },
+        "facingRight": false,
+        "canWallJump": false,
+        "canLedgeClimb": false,
+        "canFenceClimb": false,
+        "canDoubleJump": false,
+        "canDash": false
+    },
+    "deathsCount": 5,
+    "passedCheckpointIds": [
+        "checkpoint_start"
+    ],
+    "collectedItemIds": [],
+    "collectedCollectibleIds": [],
+    "openedDoorIds": [],
+    "activatedMechanismIds": [],
+    "watchedCutsceneIds": [],
+    "disabledOneShotTriggerIds": [],
+    "openedShortcutIds": [],
+    "unlockedAbilityIds": [],
+    "quests": [],
+    "sceneObjects": [
+        {
+            "saveId": "rat_act1_garbage_01",
+            "type": "RatController",
+            "json": "{\"heldItemDropped\":true,\"heldItemState\":5,\"heldItemPosition\":{\"x\":53.780879974365237,\"y\":10.993335723876954,\"z\":0.0},\"heldItemRotationZ\":0.0,\"heldItemActive\":false}"
+        },
+        {
+            "saveId": "door_act1_garbage_01",
+            "type": "DoorLock",
+            "json": "{\"opened\":true}"
+        }
+    ],
+    "npcStates": [],
+    "dialogueStates": []
+}
