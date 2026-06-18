@@ -14,36 +14,43 @@ namespace CatGame.SaveSystem
         private Vector2 restorePositionOffset = Vector2.zero;
 
         [Header("Facing")]
-        [SerializeField, Tooltip("Восстанавливать направление кота при загрузке. Рекомендация: ВЫКЛЮЧЕНО, пока не подключим это напрямую к PlayerMovementModule. Иначе кот может идти спиной.")]
-        private bool restoreFacingOnLoad = false;
+        [SerializeField, Tooltip("Сохранять направление взгляда кота.")]
+        private bool saveFacing = true;
 
-        [SerializeField, Tooltip("Визуальный корень кота, который зеркалится по X. Рекомендация: назначать только если точно знаешь, какой объект отвечает за поворот спрайта.")]
-        private Transform visualRoot;
+        [SerializeField, Tooltip("Восстанавливать направление кота при загрузке/респавне. Теперь делается через PlayerMovementModule, а не через прямой scale.")]
+        private bool restoreFacingOnLoad = true;
 
-        [SerializeField, Tooltip("Использовать SpriteRenderer.flipX вместо localScale.x. Рекомендация: выключено, если твой кот поворачивается через scale.")]
-        private bool useSpriteRendererFlipX = false;
+        [SerializeField, Tooltip("PlayerMovementModule кота. Если пусто — найдётся автоматически.")]
+        private PlayerMovementModule movementModule;
 
-        [SerializeField, Tooltip("SpriteRenderer кота, если используется flipX. Рекомендация: назначать только если useSpriteRendererFlipX включён.")]
-        private SpriteRenderer spriteRenderer;
+        [SerializeField, Tooltip("Если PlayerMovementModule не найден, использовать запасной флип через localScale. Рекомендация: выключено, если всё настроено нормально.")]
+        private bool fallbackScaleFlipIfMovementMissing = false;
 
-        [SerializeField, Tooltip("Какой знак localScale.x считается взглядом вправо. Рекомендация: не трогать, пока restoreFacingOnLoad выключен.")]
+        [SerializeField, Tooltip("Визуальный/корневой объект для fallback scale flip. Обычно сам Player.")]
+        private Transform fallbackScaleRoot;
+
+        [SerializeField, Tooltip("Какой знак localScale.x считается взглядом вправо для fallback scale flip.")]
         private bool positiveScaleMeansFacingRight = true;
 
         [Header("Physics")]
-        [SerializeField, Tooltip("Сбрасывать скорость Rigidbody2D при загрузке/респавне. Рекомендация: включено, чтобы кот не улетал после загрузки.")]
+        [SerializeField, Tooltip("Сбрасывать скорость Rigidbody2D при загрузке/респавне. Рекомендация: включено.")]
         private bool resetVelocityOnRestore = true;
 
         private Rigidbody2D rb;
 
+        private void Reset()
+        {
+            CacheRefs();
+        }
+
         private void Awake()
         {
-            rb = GetComponent<Rigidbody2D>();
+            CacheRefs();
+        }
 
-            if (visualRoot == null)
-                visualRoot = transform;
-
-            if (spriteRenderer == null)
-                spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        private void OnValidate()
+        {
+            CacheRefs();
         }
 
         public void CaptureTo(PlayerSaveData data)
@@ -52,7 +59,9 @@ namespace CatGame.SaveSystem
                 return;
 
             data.position = SaveVector3.FromUnity(transform.position);
-            data.facingRight = IsFacingRight();
+
+            if (saveFacing)
+                data.facingRight = IsFacingRight();
         }
 
         public void RestoreFromData(PlayerSaveData data)
@@ -80,28 +89,51 @@ namespace CatGame.SaveSystem
 
         public bool IsFacingRight()
         {
-            if (useSpriteRendererFlipX && spriteRenderer != null)
-                return !spriteRenderer.flipX;
+            CacheRefs();
 
-            Transform target = visualRoot != null ? visualRoot : transform;
+            if (movementModule != null)
+                return movementModule.IsFacingRight;
+
+            Transform target = fallbackScaleRoot != null ? fallbackScaleRoot : transform;
             bool positive = target.localScale.x >= 0f;
+
             return positiveScaleMeansFacingRight ? positive : !positive;
         }
 
         private void ApplyFacing(bool facingRight)
         {
-            if (useSpriteRendererFlipX && spriteRenderer != null)
+            CacheRefs();
+
+            if (movementModule != null)
             {
-                spriteRenderer.flipX = !facingRight;
+                movementModule.ForceFacing(facingRight);
                 return;
             }
 
-            Transform target = visualRoot != null ? visualRoot : transform;
+            if (!fallbackScaleFlipIfMovementMissing)
+                return;
+
+            Transform target = fallbackScaleRoot != null ? fallbackScaleRoot : transform;
+
             Vector3 scale = target.localScale;
             float absX = Mathf.Abs(scale.x);
+
             bool shouldBePositive = positiveScaleMeansFacingRight ? facingRight : !facingRight;
+
             scale.x = shouldBePositive ? absX : -absX;
             target.localScale = scale;
+        }
+
+        private void CacheRefs()
+        {
+            if (rb == null)
+                rb = GetComponent<Rigidbody2D>();
+
+            if (movementModule == null)
+                movementModule = GetComponent<PlayerMovementModule>();
+
+            if (fallbackScaleRoot == null)
+                fallbackScaleRoot = transform;
         }
     }
 }

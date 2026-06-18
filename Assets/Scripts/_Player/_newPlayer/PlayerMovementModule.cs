@@ -359,6 +359,14 @@ public class PlayerMovementModule : MonoBehaviour
             Flip();
     }
 
+    public void ForceFacing(bool faceRight)
+    {
+        if (isFacingRight == faceRight)
+            return;
+
+        Flip();
+    }
+
     public void RefreshImmediateSprintBlocker(bool isGrounded, float inputX)
     {
         if (!blockSprintIntoWall || !isGrounded || Mathf.Abs(inputX) <= sprintInputDeadZone)
