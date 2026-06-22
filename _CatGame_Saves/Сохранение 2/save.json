@@ -1,0 +1,43 @@
+{
+    "saveVersion": 1,
+    "slotId": "slot_2",
+    "buildVersion": "0.3",
+    "platform": "WindowsEditor",
+    "savedUnixTime": 1781631770,
+    "savedLocalTimeText": "16.06.2026 22:42",
+    "playTimeSeconds": 34.79045104980469,
+    "currentSceneName": "_Act_1_Garbage",
+    "currentLocationId": "",
+    "currentRoomId": "",
+    "lastCheckpointId": "checkpoint_start",
+    "lastGlobalSavePointId": "bed_home_01",
+    "player": {
+        "position": {
+            "x": 12.929996490478516,
+            "y": -3.3231351375579836,
+            "z": -0.007366896606981754
+        },
+        "facingRight": true,
+        "canWallJump": false,
+        "canLedgeClimb": false,
+        "canFenceClimb": false,
+        "canDoubleJump": false,
+        "canDash": false
+    },
+    "deathsCount": 0,
+    "passedCheckpointIds": [
+        "checkpoint_start"
+    ],
+    "collectedItemIds": [],
+    "collectedCollectibleIds": [],
+    "openedDoorIds": [],
+    "activatedMechanismIds": [],
+    "watchedCutsceneIds": [],
+    "disabledOneShotTriggerIds": [],
+    "openedShortcutIds": [],
+    "unlockedAbilityIds": [],
+    "quests": [],
+    "sceneObjects": [],
+    "npcStates": [],
+    "dialogueStates": []
+}

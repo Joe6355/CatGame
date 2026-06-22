@@ -2258,7 +2258,7 @@ MonoBehaviour:
   hideDevelopersPanelOnAwake: 1
   panelsThatCloseDevelopersPanel: []
   telegramUrl: t.me/KopchonaiCobaca
-  twitterUrl: t.me/KopchonaiCobaca
+  twitterUrl: https://x.com/naofumich
   bugReportUrl: https://docs.google.com/forms/d/1huaNkILO0SxFdGCEYnqlzRrMnFHfCZukWLKkvXS2QuY/preview
   clownButtonTogglesPanel: 1
   closeDevelopersPanelWhenOpeningExternalUrl: 1
