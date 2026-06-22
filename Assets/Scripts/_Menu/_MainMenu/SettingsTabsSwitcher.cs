@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -12,6 +13,17 @@ public class SettingsTabsSwitcher : MonoBehaviour
         Controls,
         Gameplay,
         Video
+    }
+
+    private enum SettingsNavButtonId
+    {
+        None,
+        Audio,
+        Controls,
+        Gameplay,
+        Video,
+        Keyboard,
+        Gamepad
     }
 
     [Header("Кнопки вкладок")]
@@ -33,6 +45,16 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField] private GameObject gamepadPanel;
     [SerializeField] private bool closeControlsSubPanelsOnControlsTabOpen = false;
     [SerializeField] private bool closeControlsSubPanelsWhenLeaveControlsTab = true;
+
+    [Header("Подсветка текущей вкладки")]
+    [SerializeField, Tooltip("Если ВКЛ — активная вкладка держит визуал Selected/Highlighted даже когда фокус ушёл на Toggle/Slider/Dropdown.")]
+    private bool keepActiveSettingsButtonHighlighted = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — активная кнопка берёт Selected Color из Button. Если ВЫКЛ — Highlighted Color.")]
+    private bool useSelectedColorForActiveSettingsButton = true;
+
+    [SerializeField, Tooltip("Если ВКЛ — у активной кнопки Normal/Highlighted/Selected временно становятся одним активным цветом, чтобы подсветка не сбрасывалась.")]
+    private bool forceActiveColorForAllButtonStates = true;
 
     [Header("Gameplay Tooltip Universal")]
     [SerializeField, Tooltip("Одна общая панель подсказки. Твой Panel_AssistTooltip.")]
@@ -186,8 +208,13 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     private Button _currentTooltipButton;
 
+    private readonly Dictionary<Button, ColorBlock> _originalSettingsButtonColors = new Dictionary<Button, ColorBlock>();
+    private SettingsNavButtonId _currentHighlightedButtonId = SettingsNavButtonId.None;
+
     private void Awake()
     {
+        CacheOriginalSettingsButtonColors();
+
         if (audioBtn != null)
         {
             audioBtn.onClick.RemoveAllListeners();
@@ -235,6 +262,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     private void OnEnable()
     {
+        CacheOriginalSettingsButtonColors();
+
         if (reopenLastTabOnEnable)
         {
             RestoreRememberedTab();
@@ -252,6 +281,14 @@ public class SettingsTabsSwitcher : MonoBehaviour
         SyncJumpTrajectoryToggleWithSavedValue();
         SyncPostFxToggleWithSavedValue();
         SyncGamepadRumbleToggleWithSavedValue();
+
+        RefreshActiveSettingsButtonHighlight();
+    }
+
+    private void OnDisable()
+    {
+        RestoreAllSettingsButtonColors();
+        _currentHighlightedButtonId = SettingsNavButtonId.None;
     }
 
     public void OpenAudioTab()
@@ -361,6 +398,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         if (hideTooltipOnTabChange)
             HideSharedTooltip();
+
+        RefreshActiveSettingsButtonHighlight();
     }
 
     public void OpenKeyboardPanel()
@@ -392,6 +431,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         if (gamepadPanel != null)
             gamepadPanel.SetActive(activeSubPanel == gamepadPanel);
+
+        RefreshActiveSettingsButtonHighlight();
     }
 
     public void CloseControlsSubPanels()
@@ -400,6 +441,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         if (keyboardPanel != null) keyboardPanel.SetActive(false);
         if (gamepadPanel != null) gamepadPanel.SetActive(false);
+
+        RefreshActiveSettingsButtonHighlight();
     }
 
     public bool HasAnyOpenView()
@@ -438,6 +481,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         CloseControlsSubPanels();
         HideSharedTooltip();
+        RefreshActiveSettingsButtonHighlight();
     }
 
     public void OpenControlsKeyboard()
@@ -559,6 +603,164 @@ public class SettingsTabsSwitcher : MonoBehaviour
     private static bool IsSelectable(Button button)
     {
         return button != null && button.isActiveAndEnabled && button.interactable;
+    }
+
+    // =========================================================
+    // Active Settings Button Highlight
+    // =========================================================
+
+    private void CacheOriginalSettingsButtonColors()
+    {
+        CacheOriginalButtonColors(audioBtn);
+        CacheOriginalButtonColors(controlsBtn);
+        CacheOriginalButtonColors(gameplayBtn);
+        CacheOriginalButtonColors(videoBtn);
+        CacheOriginalButtonColors(keyboardBtn);
+        CacheOriginalButtonColors(gamepadBtn);
+    }
+
+    private void CacheOriginalButtonColors(Button button)
+    {
+        if (button == null)
+            return;
+
+        if (_originalSettingsButtonColors.ContainsKey(button))
+            return;
+
+        _originalSettingsButtonColors.Add(button, button.colors);
+    }
+
+    private void RefreshActiveSettingsButtonHighlight()
+    {
+        CacheOriginalSettingsButtonColors();
+
+        if (!keepActiveSettingsButtonHighlighted)
+        {
+            RestoreAllSettingsButtonColors();
+            _currentHighlightedButtonId = SettingsNavButtonId.None;
+            return;
+        }
+
+        SettingsNavButtonId targetId = GetCurrentSettingsNavButtonId();
+
+        RestoreAllSettingsButtonColors();
+
+        Button targetButton = GetSettingsNavButton(targetId);
+
+        if (targetButton != null)
+            ApplyActiveSettingsButtonColor(targetButton);
+
+        _currentHighlightedButtonId = targetId;
+    }
+
+    private SettingsNavButtonId GetCurrentSettingsNavButtonId()
+    {
+        bool audioOpen = tabAudio != null && tabAudio.activeSelf;
+        bool controlsOpen = tabControls != null && tabControls.activeSelf;
+        bool gameplayOpen = tabGameplay != null && tabGameplay.activeSelf;
+        bool videoOpen = tabVideo != null && tabVideo.activeSelf;
+
+        if (controlsOpen)
+        {
+            if (keyboardPanel != null && keyboardPanel.activeSelf)
+                return SettingsNavButtonId.Keyboard;
+
+            if (gamepadPanel != null && gamepadPanel.activeSelf)
+                return SettingsNavButtonId.Gamepad;
+
+            return SettingsNavButtonId.Controls;
+        }
+
+        if (audioOpen)
+            return SettingsNavButtonId.Audio;
+
+        if (gameplayOpen)
+            return SettingsNavButtonId.Gameplay;
+
+        if (videoOpen)
+            return SettingsNavButtonId.Video;
+
+        return SettingsNavButtonId.None;
+    }
+
+    private Button GetSettingsNavButton(SettingsNavButtonId buttonId)
+    {
+        switch (buttonId)
+        {
+            case SettingsNavButtonId.Audio:
+                return audioBtn;
+
+            case SettingsNavButtonId.Controls:
+                return controlsBtn;
+
+            case SettingsNavButtonId.Gameplay:
+                return gameplayBtn;
+
+            case SettingsNavButtonId.Video:
+                return videoBtn;
+
+            case SettingsNavButtonId.Keyboard:
+                return keyboardBtn;
+
+            case SettingsNavButtonId.Gamepad:
+                return gamepadBtn;
+
+            default:
+                return null;
+        }
+    }
+
+    private void ApplyActiveSettingsButtonColor(Button button)
+    {
+        if (button == null)
+            return;
+
+        ColorBlock originalColors;
+
+        if (!_originalSettingsButtonColors.TryGetValue(button, out originalColors))
+        {
+            originalColors = button.colors;
+            _originalSettingsButtonColors[button] = originalColors;
+        }
+
+        Color activeColor = useSelectedColorForActiveSettingsButton
+            ? originalColors.selectedColor
+            : originalColors.highlightedColor;
+
+        if (activeColor.a <= 0.001f)
+            activeColor = originalColors.highlightedColor;
+
+        ColorBlock activeColors = originalColors;
+        activeColors.normalColor = activeColor;
+
+        if (forceActiveColorForAllButtonStates)
+        {
+            activeColors.highlightedColor = activeColor;
+            activeColors.selectedColor = activeColor;
+        }
+
+        button.colors = activeColors;
+    }
+
+    private void RestoreAllSettingsButtonColors()
+    {
+        RestoreButtonColors(audioBtn);
+        RestoreButtonColors(controlsBtn);
+        RestoreButtonColors(gameplayBtn);
+        RestoreButtonColors(videoBtn);
+        RestoreButtonColors(keyboardBtn);
+        RestoreButtonColors(gamepadBtn);
+    }
+
+    private void RestoreButtonColors(Button button)
+    {
+        if (button == null)
+            return;
+
+        ColorBlock originalColors;
+
+        if (_originalSettingsButtonColors.TryGetValue(button, out originalColors))
+            button.colors = originalColors;
     }
 
     // =========================================================
