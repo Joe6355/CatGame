@@ -29815,6 +29815,9 @@ MonoBehaviour:
   gamepadPanel: {fileID: 7992613695354478432}
   closeControlsSubPanelsOnControlsTabOpen: 0
   closeControlsSubPanelsWhenLeaveControlsTab: 1
+  keepActiveSettingsButtonHighlighted: 1
+  useSelectedColorForActiveSettingsButton: 1
+  forceActiveColorForAllButtonStates: 1
   assistTooltipPanel: {fileID: 7024106183719212123}
   assistTooltipText: {fileID: 7120892045188589255}
   toggleTooltipOnSameButtonClick: 1
