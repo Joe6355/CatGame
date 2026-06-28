@@ -3,9 +3,9 @@
     "slotId": "autosave",
     "buildVersion": "0.3",
     "platform": "WindowsEditor",
-    "savedUnixTime": 1782318344,
-    "savedLocalTimeText": "24.06.2026 21:25",
-    "playTimeSeconds": 64.98137664794922,
+    "savedUnixTime": 1782652369,
+    "savedLocalTimeText": "28.06.2026 18:12",
+    "playTimeSeconds": 93.15341186523438,
     "currentSceneName": "_Act_1_Garbage",
     "currentLocationId": "",
     "currentRoomId": "",
@@ -24,7 +24,7 @@
         "canDoubleJump": false,
         "canDash": false
     },
-    "deathsCount": 6,
+    "deathsCount": 8,
     "passedCheckpointIds": [
         "checkpoint_start"
     ],
@@ -41,7 +41,7 @@
         {
             "saveId": "rat_act1_garbage_01",
             "type": "RatController",
-            "json": "{\"heldItemDropped\":true,\"heldItemState\":5,\"heldItemPosition\":{\"x\":37.66757583618164,\"y\":2.1215224266052248,\"z\":0.0},\"heldItemRotationZ\":0.0,\"heldItemActive\":false}"
+            "json": "{\"heldItemDropped\":true,\"heldItemState\":5,\"heldItemPosition\":{\"x\":37.50554656982422,\"y\":2.84930682182312,\"z\":0.0},\"heldItemRotationZ\":0.0,\"heldItemActive\":false}"
         },
         {
             "saveId": "door_act1_garbage_01",

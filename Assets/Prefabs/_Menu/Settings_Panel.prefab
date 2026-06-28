@@ -4370,7 +4370,7 @@ MonoBehaviour:
   customItems: []
   autoCollectDirectChildren: 1
   includeInactiveChildren: 0
-  spawnCenter: {fileID: 0}
+  spawnCenter: {fileID: 8415120495536829684}
   centerScatter: 0
   playOnEnable: 1
   duration: 0.24
@@ -5933,7 +5933,7 @@ MonoBehaviour:
   customItems: []
   autoCollectDirectChildren: 1
   includeInactiveChildren: 0
-  spawnCenter: {fileID: 0}
+  spawnCenter: {fileID: 8415120495536829684}
   centerScatter: 0
   playOnEnable: 1
   duration: 0.24
@@ -8129,6 +8129,7 @@ RectTransform:
   - {fileID: 167905495173164349}
   - {fileID: 2938787829160145731}
   - {fileID: 7280676963694280621}
+  - {fileID: 8415120495536829684}
   m_Father: {fileID: 6913798190373104541}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -11454,7 +11455,7 @@ MonoBehaviour:
   customItems: []
   autoCollectDirectChildren: 1
   includeInactiveChildren: 0
-  spawnCenter: {fileID: 0}
+  spawnCenter: {fileID: 8415120495536829684}
   centerScatter: 0
   playOnEnable: 1
   duration: 0.24
@@ -12168,7 +12169,7 @@ MonoBehaviour:
   customItems: []
   autoCollectDirectChildren: 1
   includeInactiveChildren: 0
-  spawnCenter: {fileID: 0}
+  spawnCenter: {fileID: 8415120495536829684}
   centerScatter: 0
   playOnEnable: 1
   duration: 0.24
@@ -21176,6 +21177,41 @@ MonoBehaviour:
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
   m_LayoutPriority: 1
+--- !u!1 &5459756471741825256
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8415120495536829684}
+  m_Layer: 5
+  m_Name: SpawnCenter
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &8415120495536829684
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5459756471741825256}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 320956873834011480}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -372}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &5463291033489778454
 GameObject:
   m_ObjectHideFlags: 0
@@ -27851,7 +27887,7 @@ MonoBehaviour:
   customItems: []
   autoCollectDirectChildren: 1
   includeInactiveChildren: 0
-  spawnCenter: {fileID: 0}
+  spawnCenter: {fileID: 8415120495536829684}
   centerScatter: 0
   playOnEnable: 1
   duration: 0.24
@@ -31566,7 +31602,7 @@ MonoBehaviour:
   customItems: []
   autoCollectDirectChildren: 1
   includeInactiveChildren: 0
-  spawnCenter: {fileID: 0}
+  spawnCenter: {fileID: 8415120495536829684}
   centerScatter: 0
   playOnEnable: 1
   duration: 0.24
