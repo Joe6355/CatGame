@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -56,42 +58,67 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField, Tooltip("Если ВКЛ — у активной кнопки Normal/Highlighted/Selected временно становятся одним активным цветом, чтобы подсветка не сбрасывалась.")]
     private bool forceActiveColorForAllButtonStates = true;
 
-    [Header("Gameplay Tooltip Universal")]
-    [SerializeField, Tooltip("Одна общая панель подсказки. Твой Panel_AssistTooltip.")]
-    private GameObject assistTooltipPanel;
+    [Header("Settings Hint Universal")]
+    [SerializeField, Tooltip("Один общий TMP_Text снизу меню настроек. В него выводятся все подсказки.")]
+    private TMP_Text settingsHintText;
 
-    [SerializeField, Tooltip("TMP-текст внутри Panel_AssistTooltip. Можно оставить пустым — скрипт найдёт сам.")]
-    private TMP_Text assistTooltipText;
+    [SerializeField, TextArea(1, 4), Tooltip("Текст по умолчанию, когда ничего не выбрано и мышь ни на что не наведена.")]
+    private string settingsHintDefaultText = "\\:";
 
-    [SerializeField, Tooltip("Если ВКЛ — повторное нажатие на ту же кнопку ? закрывает подсказку.")]
-    private bool toggleTooltipOnSameButtonClick = true;
+    [SerializeField, Tooltip("Если ВКЛ — Settings Hint Default Text считается постоянным префиксом консоли. Например: \\: + подсказка.")]
+    private bool useDefaultTextAsPersistentPrefix = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — подсказка скрывается при смене вкладки.")]
-    private bool hideTooltipOnTabChange = true;
+    [SerializeField, Tooltip("Если ВКЛ — текст подсказки выводится постепенно, будто печатается на клавиатуре.")]
+    private bool useHintTypewriterEffect = true;
 
-    [Header("Tooltip Element 0")]
-    [SerializeField, Tooltip("Кнопка ? для первой подсказки.")]
-    private Button tooltipButton0;
+    [SerializeField, Min(1f), Tooltip("Скорость печати подсказки в символах в секунду.")]
+    private float settingsHintTypingCharsPerSecond = 45f;
 
-    [SerializeField, TextArea(2, 8), Tooltip("Текст первой подсказки.")]
-    private string tooltipMessage0 =
-        "Показывает предполагаемую траекторию прыжка персонажа. Помогает заранее увидеть направление и дальность прыжка.";
+    [SerializeField, Tooltip("Если ВКЛ — печать подсказки работает даже при Time.timeScale = 0, что полезно для меню/паузы.")]
+    private bool useUnscaledTimeForHintTyping = true;
 
-    [Header("Tooltip Element 1")]
-    [SerializeField, Tooltip("Кнопка ? для второй подсказки.")]
-    private Button tooltipButton1;
+    [SerializeField, Tooltip("Если ВКЛ — подсказка сбрасывается при смене вкладки настроек.")]
+    private bool clearSettingsHintOnTabChange = true;
 
-    [SerializeField, TextArea(2, 8), Tooltip("Текст второй подсказки.")]
-    private string tooltipMessage1 =
-        "Включает визуальный эффект старого экрана: зерно, хроматические искажения, виньетку, свечение и лёгкое искривление изображения.";
+    [SerializeField, Tooltip("Если ВКЛ — подсказка сбрасывается при закрытии/отключении меню настроек.")]
+    private bool clearSettingsHintOnDisable = true;
 
-    [Header("Tooltip Element 2")]
-    [SerializeField, Tooltip("Кнопка ? для третьей подсказки.")]
-    private Button tooltipButton2;
+    [SerializeField, Tooltip("Список строк/элементов настроек, для которых нужно показывать подсказки.")]
+    private List<SettingsHintBinding> settingsHintBindings = new List<SettingsHintBinding>();
 
-    [SerializeField, TextArea(2, 8), Tooltip("Текст третьей подсказки.")]
-    private string tooltipMessage2 =
-        "Включает или выключает вибрацию геймпада при жёстком приземлении. Чем сильнее падение, тем заметнее отклик геймпада.";
+    [SerializeField, Tooltip("Если ВКЛ — пишет предупреждение, если не назначен общий TMP_Text.")]
+    private bool debugSettingsHintWarnings = true;
+
+    private UnityEngine.Object _currentSettingsHintSource;
+    private Coroutine _settingsHintTypingCoroutine;
+    private string _currentSettingsHintMessage = string.Empty;
+    private string _currentSettingsHintPrefix = string.Empty;
+    private bool _settingsHintMissingTextWarningShown;
+
+    [Serializable]
+    private sealed class SettingsHintBinding
+    {
+        [Tooltip("Имя для удобства в Inspector. На логику не влияет.")]
+        public string name;
+
+        [Tooltip("Объект всей строки настройки: Row_ScreenResolution, Row_Brightness и т.д. Нужен для наведения мышкой по всей строке.")]
+        public GameObject pointerTarget;
+
+        [Tooltip("Интерактивный UI-элемент внутри строки: Button, Slider, Toggle, TMP_Dropdown. Нужен для клавиатуры/геймпада через EventSystem.")]
+        public Selectable selectableTarget;
+
+        [TextArea(2, 6), Tooltip("Текст подсказки, который будет выведен в общий TMP_Text.")]
+        public string hintMessage;
+
+        [Tooltip("Показывать подсказку при наведении мышкой.")]
+        public bool showOnPointerEnter = true;
+
+        [Tooltip("Показывать подсказку при выборе через клавиатуру/геймпад.")]
+        public bool showOnSelect = true;
+
+        [Tooltip("Автоматически включить Raycast Target у Image/Graphic на pointerTarget, чтобы вся строка ловила наведение.")]
+        public bool forcePointerRaycastTarget = true;
+    }
 
     [Header("Gameplay: траектория прыжка")]
     [SerializeField, Tooltip("Toggle из Gameplay-вкладки.")]
@@ -206,8 +233,6 @@ public class SettingsTabsSwitcher : MonoBehaviour
     private bool _ignorePostFxToggleCallback;
     private bool _ignoreGamepadRumbleToggleCallback;
 
-    private Button _currentTooltipButton;
-
     private readonly Dictionary<Button, ColorBlock> _originalSettingsButtonColors = new Dictionary<Button, ColorBlock>();
     private SettingsNavButtonId _currentHighlightedButtonId = SettingsNavButtonId.None;
 
@@ -251,12 +276,12 @@ public class SettingsTabsSwitcher : MonoBehaviour
             gamepadBtn.onClick.AddListener(OpenGamepadPanel);
         }
 
-        SetupTooltipButtons();
+        SetupSettingsHints();
         SetupJumpTrajectoryToggle();
         SetupPostFxToggle();
         SetupGamepadRumbleToggle();
 
-        HideSharedTooltip();
+        ResetSettingsHint();
         CloseAllTabs();
     }
 
@@ -276,7 +301,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
                 CloseControlsSubPanels();
         }
 
-        HideSharedTooltip();
+        ResetSettingsHint();
 
         SyncJumpTrajectoryToggleWithSavedValue();
         SyncPostFxToggleWithSavedValue();
@@ -289,6 +314,9 @@ public class SettingsTabsSwitcher : MonoBehaviour
     {
         RestoreAllSettingsButtonColors();
         _currentHighlightedButtonId = SettingsNavButtonId.None;
+
+        if (clearSettingsHintOnDisable)
+            ResetSettingsHint();
     }
 
     public void OpenAudioTab()
@@ -396,8 +424,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             _currentControlsSubPanel = null;
         }
 
-        if (hideTooltipOnTabChange)
-            HideSharedTooltip();
+        if (clearSettingsHintOnTabChange)
+            ResetSettingsHint();
 
         RefreshActiveSettingsButtonHighlight();
     }
@@ -480,7 +508,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         if (tabVideo != null) tabVideo.SetActive(false);
 
         CloseControlsSubPanels();
-        HideSharedTooltip();
+        ResetSettingsHint();
         RefreshActiveSettingsButtonHighlight();
     }
 
@@ -764,100 +792,204 @@ public class SettingsTabsSwitcher : MonoBehaviour
     }
 
     // =========================================================
-    // Universal Tooltip
+    // Settings Hint Universal
     // =========================================================
 
-    private void SetupTooltipButtons()
+    private void SetupSettingsHints()
     {
-        SetupTooltipButton(tooltipButton0, tooltipMessage0);
-        SetupTooltipButton(tooltipButton1, tooltipMessage1);
-        SetupTooltipButton(tooltipButton2, tooltipMessage2);
+        if (settingsHintText == null)
+            LogMissingSettingsHintTextWarning();
 
-        ResolveTooltipText();
-    }
-
-    private void SetupTooltipButton(Button button, string message)
-    {
-        if (button == null)
-            return;
-
-        button.onClick.RemoveAllListeners();
-
-        Button capturedButton = button;
-        string capturedMessage = message;
-
-        button.onClick.AddListener(() =>
+        for (int i = 0; i < settingsHintBindings.Count; i++)
         {
-            ToggleSharedTooltip(capturedButton, capturedMessage);
-        });
+            SettingsHintBinding binding = settingsHintBindings[i];
+
+            if (binding == null)
+                continue;
+
+            SetupSettingsHintTarget(binding.pointerTarget, binding, true);
+
+            if (binding.selectableTarget != null)
+                SetupSettingsHintTarget(binding.selectableTarget.gameObject, binding, false);
+
+            SetupPointerRaycastTarget(binding);
+        }
+
+        ResetSettingsHint();
     }
 
-    private void ResolveTooltipText()
+    private void SetupSettingsHintTarget(GameObject target, SettingsHintBinding binding, bool isPointerTarget)
     {
-        if (assistTooltipText != null)
+        if (target == null)
             return;
 
-        if (assistTooltipPanel == null)
-            return;
+        SettingsHintRelay relay = target.GetComponent<SettingsHintRelay>();
 
-        assistTooltipText = assistTooltipPanel.GetComponentInChildren<TMP_Text>(true);
+        if (relay == null)
+            relay = target.AddComponent<SettingsHintRelay>();
+
+        relay.Configure(
+            this,
+            binding.hintMessage,
+            isPointerTarget && binding.showOnPointerEnter,
+            !isPointerTarget && binding.showOnSelect
+        );
     }
 
-    private void ToggleSharedTooltip(Button sourceButton, string message)
+    private void SetupPointerRaycastTarget(SettingsHintBinding binding)
     {
-        if (assistTooltipPanel == null)
+        if (binding == null)
             return;
 
-        if (tabGameplay != null && !tabGameplay.activeSelf)
+        if (!binding.forcePointerRaycastTarget)
             return;
 
-        ResolveTooltipText();
+        if (binding.pointerTarget == null)
+            return;
 
-        bool sameButton = _currentTooltipButton == sourceButton;
-        bool panelIsOpen = assistTooltipPanel.activeSelf;
+        Graphic graphic = binding.pointerTarget.GetComponent<Graphic>();
 
-        if (toggleTooltipOnSameButtonClick && sameButton && panelIsOpen)
+        if (graphic == null)
+            return;
+
+        graphic.raycastTarget = true;
+    }
+
+    internal void ShowSettingsHintFromRelay(UnityEngine.Object source, string message)
+    {
+        if (settingsHintText == null)
         {
-            HideSharedTooltip();
+            LogMissingSettingsHintTextWarning();
             return;
         }
 
-        _currentTooltipButton = sourceButton;
+        string prefix = GetSettingsHintPrefix();
+        string hint = string.IsNullOrWhiteSpace(message) ? string.Empty : message;
 
-        if (assistTooltipText != null)
-            assistTooltipText.text = message;
+        _currentSettingsHintSource = source;
 
-        assistTooltipPanel.SetActive(true);
-    }
-
-    public void HideSharedTooltip()
-    {
-        _currentTooltipButton = null;
-
-        if (assistTooltipPanel != null)
-            assistTooltipPanel.SetActive(false);
-    }
-
-    public void ToggleAssistTooltip()
-    {
-        if (assistTooltipPanel == null)
-            return;
-
-        if (tabGameplay != null && !tabGameplay.activeSelf)
-            return;
-
-        if (assistTooltipPanel.activeSelf)
+        if (string.IsNullOrEmpty(hint))
         {
-            HideSharedTooltip();
+            ResetSettingsHint();
             return;
         }
 
-        ResolveTooltipText();
+        if (_currentSettingsHintMessage == hint && _currentSettingsHintPrefix == prefix)
+            return;
 
-        if (assistTooltipText != null && string.IsNullOrWhiteSpace(assistTooltipText.text))
-            assistTooltipText.text = "Подсказка для выбранной настройки.";
+        _currentSettingsHintMessage = hint;
+        _currentSettingsHintPrefix = prefix;
 
-        assistTooltipPanel.SetActive(true);
+        StartSettingsHintTyping(prefix, hint);
+    }
+
+    internal void ClearSettingsHintFromRelay(UnityEngine.Object source)
+    {
+        if (_currentSettingsHintSource != null && source != null && _currentSettingsHintSource != source)
+            return;
+
+        ResetSettingsHint();
+    }
+
+    private void ResetSettingsHint()
+    {
+        _currentSettingsHintSource = null;
+        _currentSettingsHintMessage = string.Empty;
+        _currentSettingsHintPrefix = GetSettingsHintPrefix();
+
+        StopSettingsHintTyping();
+
+        if (settingsHintText == null)
+        {
+            LogMissingSettingsHintTextWarning();
+            return;
+        }
+
+        settingsHintText.text = _currentSettingsHintPrefix;
+    }
+
+    private string GetSettingsHintPrefix()
+    {
+        if (!useDefaultTextAsPersistentPrefix)
+            return string.Empty;
+
+        return settingsHintDefaultText ?? string.Empty;
+    }
+
+    private void StartSettingsHintTyping(string prefix, string hint)
+    {
+        StopSettingsHintTyping();
+
+        if (settingsHintText == null)
+        {
+            LogMissingSettingsHintTextWarning();
+            return;
+        }
+
+        if (!useHintTypewriterEffect || settingsHintTypingCharsPerSecond <= 0f || !isActiveAndEnabled)
+        {
+            settingsHintText.text = prefix + hint;
+            return;
+        }
+
+        settingsHintText.text = prefix;
+        _settingsHintTypingCoroutine = StartCoroutine(TypeSettingsHintRoutine(prefix, hint));
+    }
+
+    private IEnumerator TypeSettingsHintRoutine(string prefix, string hint)
+    {
+        if (settingsHintText == null)
+            yield break;
+
+        float charsPerSecond = Mathf.Max(1f, settingsHintTypingCharsPerSecond);
+        float accumulatedChars = 0f;
+        int visibleChars = 0;
+
+        settingsHintText.text = prefix;
+
+        while (visibleChars < hint.Length)
+        {
+            float deltaTime = useUnscaledTimeForHintTyping
+                ? Time.unscaledDeltaTime
+                : Time.deltaTime;
+
+            accumulatedChars += deltaTime * charsPerSecond;
+
+            int charsToShow = Mathf.FloorToInt(accumulatedChars);
+
+            if (charsToShow > 0)
+            {
+                accumulatedChars -= charsToShow;
+                visibleChars = Mathf.Min(hint.Length, visibleChars + charsToShow);
+                settingsHintText.text = prefix + hint.Substring(0, visibleChars);
+            }
+
+            yield return null;
+        }
+
+        settingsHintText.text = prefix + hint;
+        _settingsHintTypingCoroutine = null;
+    }
+
+    private void StopSettingsHintTyping()
+    {
+        if (_settingsHintTypingCoroutine == null)
+            return;
+
+        StopCoroutine(_settingsHintTypingCoroutine);
+        _settingsHintTypingCoroutine = null;
+    }
+
+    private void LogMissingSettingsHintTextWarning()
+    {
+        if (!debugSettingsHintWarnings)
+            return;
+
+        if (_settingsHintMissingTextWarningShown)
+            return;
+
+        _settingsHintMissingTextWarningShown = true;
+        Debug.LogWarning("[SettingsTabsSwitcher] Settings Hint Text не назначен. Перетащи общий Text (TMP) в поле Settings Hint Text.", this);
     }
 
     // =========================================================
@@ -1240,5 +1372,81 @@ public class SettingsTabsSwitcher : MonoBehaviour
             playerController = candidate;
             return;
         }
+    }
+}
+
+[DisallowMultipleComponent]
+public sealed class SettingsHintRelay : MonoBehaviour,
+    IPointerEnterHandler,
+    IPointerExitHandler,
+    ISelectHandler,
+    IDeselectHandler
+{
+    private SettingsTabsSwitcher owner;
+    private string hintMessage;
+    private bool showOnPointerEnter;
+    private bool showOnSelect;
+
+    private bool pointerInside;
+    private bool selected;
+
+    public void Configure(
+        SettingsTabsSwitcher owner,
+        string hintMessage,
+        bool showOnPointerEnter,
+        bool showOnSelect)
+    {
+        if (this.owner == owner && this.hintMessage == hintMessage)
+        {
+            this.showOnPointerEnter |= showOnPointerEnter;
+            this.showOnSelect |= showOnSelect;
+            return;
+        }
+
+        this.owner = owner;
+        this.hintMessage = hintMessage;
+        this.showOnPointerEnter = showOnPointerEnter;
+        this.showOnSelect = showOnSelect;
+    }
+
+    private void OnDisable()
+    {
+        pointerInside = false;
+        selected = false;
+
+        if (owner != null)
+            owner.ClearSettingsHintFromRelay(this);
+    }
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        pointerInside = true;
+
+        if (showOnPointerEnter && owner != null)
+            owner.ShowSettingsHintFromRelay(this, hintMessage);
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        pointerInside = false;
+
+        if (!selected && owner != null)
+            owner.ClearSettingsHintFromRelay(this);
+    }
+
+    public void OnSelect(BaseEventData eventData)
+    {
+        selected = true;
+
+        if (showOnSelect && owner != null)
+            owner.ShowSettingsHintFromRelay(this, hintMessage);
+    }
+
+    public void OnDeselect(BaseEventData eventData)
+    {
+        selected = false;
+
+        if (!pointerInside && owner != null)
+            owner.ClearSettingsHintFromRelay(this);
     }
 }
