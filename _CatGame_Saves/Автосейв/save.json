@@ -3,18 +3,18 @@
     "slotId": "autosave",
     "buildVersion": "0.3",
     "platform": "WindowsEditor",
-    "savedUnixTime": 1782652517,
-    "savedLocalTimeText": "28.06.2026 18:15",
-    "playTimeSeconds": 93.64154815673828,
+    "savedUnixTime": 1783702193,
+    "savedLocalTimeText": "10.07.2026 19:49",
+    "playTimeSeconds": 68.45262908935547,
     "currentSceneName": "_Act_1_Garbage",
     "currentLocationId": "",
     "currentRoomId": "",
     "lastCheckpointId": "checkpoint_start",
-    "lastGlobalSavePointId": "",
+    "lastGlobalSavePointId": "bed_home_01",
     "player": {
         "position": {
-            "x": 51.00830841064453,
-            "y": 10.67684268951416,
+            "x": 39.356422424316409,
+            "y": 2.6768295764923097,
             "z": -0.007366896606981754
         },
         "facingRight": false,
@@ -24,7 +24,7 @@
         "canDoubleJump": false,
         "canDash": false
     },
-    "deathsCount": 8,
+    "deathsCount": 0,
     "passedCheckpointIds": [
         "checkpoint_start"
     ],
@@ -41,12 +41,12 @@
         {
             "saveId": "rat_act1_garbage_01",
             "type": "RatController",
-            "json": "{\"heldItemDropped\":true,\"heldItemState\":5,\"heldItemPosition\":{\"x\":37.50554656982422,\"y\":2.84930682182312,\"z\":0.0},\"heldItemRotationZ\":0.0,\"heldItemActive\":false}"
+            "json": "{\"heldItemDropped\":true,\"heldItemState\":2,\"heldItemPosition\":{\"x\":38.8845100402832,\"y\":2.0462589263916017,\"z\":0.0},\"heldItemRotationZ\":0.0,\"heldItemActive\":true}"
         },
         {
             "saveId": "door_act1_garbage_01",
             "type": "DoorLock",
-            "json": "{\"opened\":true}"
+            "json": "{\"opened\":false}"
         }
     ],
     "npcStates": [],
