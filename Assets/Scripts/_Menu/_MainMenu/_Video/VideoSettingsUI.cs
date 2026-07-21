@@ -13,16 +13,7 @@ public sealed class VideoSettingsUI : MonoBehaviour
         public int height;
         public int refreshRate;
 
-        public string Label
-        {
-            get
-            {
-                if (refreshRate > 0)
-                    return width + " X " + height + " @ " + refreshRate;
-
-                return width + " X " + height;
-            }
-        }
+        public string Label => width + " X " + height;
 
         public ResolutionOption(int width, int height, int refreshRate)
         {
@@ -42,6 +33,28 @@ public sealed class VideoSettingsUI : MonoBehaviour
     [SerializeField] private Dropdown screenModeDropdown;
     [SerializeField] private Dropdown vSyncDropdown;
 
+    [Header("Buttons - Cycle Values")]
+    [Tooltip("Кнопка значения Resolution. По нажатию переключает разрешение по кругу.")]
+    [SerializeField] private Button resolutionButton;
+
+    [Tooltip("Внутренний TMP_Text кнопки Resolution.")]
+    [SerializeField] private TMP_Text resolutionButtonText;
+
+    [Tooltip("Кнопка значения Screen Mode. По нажатию переключает режим по кругу.")]
+    [SerializeField] private Button screenModeButton;
+
+    [Tooltip("Внутренний TMP_Text кнопки Screen Mode.")]
+    [SerializeField] private TMP_Text screenModeButtonText;
+
+    [Tooltip("Кнопка значения Vertical Synchronization. По нажатию переключает ON/OFF.")]
+    [SerializeField] private Button vSyncButton;
+
+    [Tooltip("Внутренний TMP_Text кнопки Vertical Synchronization.")]
+    [SerializeField] private TMP_Text vSyncButtonText;
+
+    [Tooltip("Если текст кнопки не назначен, попытаться найти дочерний TMP_Text с именем Label.")]
+    [SerializeField] private bool autoFindButtonValueTexts = true;
+
     [Header("Sliders")]
     [SerializeField] private Slider brightnessSlider;
     [SerializeField] private Slider screenShakeSlider;
@@ -55,7 +68,7 @@ public sealed class VideoSettingsUI : MonoBehaviour
     [SerializeField] private Text screenShakePercentText;
 
     [Header("Brightness Overlay")]
-    [Tooltip("Черный fullscreen Image поверх экрана. Raycast Target лучше выключить.")]
+    [Tooltip("Необязательно. Если есть VideoSettingsRuntimeApplier, используется его fullscreen overlay.")]
     [SerializeField] private Image brightnessOverlay;
 
     [Range(0f, 1f)]
@@ -91,8 +104,30 @@ public sealed class VideoSettingsUI : MonoBehaviour
     [SerializeField] private bool warnAboutMissingReferences = true;
     [SerializeField] private bool logApply = false;
 
+    private static readonly Vector2Int[] RecommendedResolutions =
+    {
+        new Vector2Int(3840, 2160),
+        new Vector2Int(3440, 1440),
+        new Vector2Int(2560, 1440),
+        new Vector2Int(2560, 1080),
+        new Vector2Int(1920, 1200),
+        new Vector2Int(1920, 1080),
+        new Vector2Int(1680, 1050),
+        new Vector2Int(1600, 900),
+        new Vector2Int(1440, 900),
+        new Vector2Int(1366, 768),
+        new Vector2Int(1280, 800),
+        new Vector2Int(1280, 720)
+    };
+
+    private const int MinimumResolutionWidth = 1280;
+    private const int MinimumResolutionHeight = 720;
+    private const int MaximumResolutionOptions = 6;
+    private const float AspectRatioTolerance = 0.04f;
+
     private readonly List<ResolutionOption> resolutionOptions = new List<ResolutionOption>();
 
+    private int currentResolutionIndex;
     private bool initialized;
     private bool eventsWired;
     private bool suppressCallbacks;
@@ -107,7 +142,8 @@ public sealed class VideoSettingsUI : MonoBehaviour
     {
         InitializeOnce();
         WireEvents();
-        RefreshPercentTexts();
+        ApplyRuntimeOnlySettings();
+        RefreshAllDisplayedValues();
     }
 
     private void OnDisable()
@@ -157,6 +193,7 @@ public sealed class VideoSettingsUI : MonoBehaviour
             forceMigrateDefaultsWhenVersionChanges
         );
 
+        ResolveButtonValueTexts();
         BuildResolutionOptions();
         BuildDropdownOptions();
         ConfigureSliders();
@@ -199,11 +236,44 @@ public sealed class VideoSettingsUI : MonoBehaviour
         return data;
     }
 
+    private void ResolveButtonValueTexts()
+    {
+        if (!autoFindButtonValueTexts)
+            return;
+
+        if (resolutionButtonText == null)
+            resolutionButtonText = FindButtonValueText(resolutionButton);
+
+        if (screenModeButtonText == null)
+            screenModeButtonText = FindButtonValueText(screenModeButton);
+
+        if (vSyncButtonText == null)
+            vSyncButtonText = FindButtonValueText(vSyncButton);
+    }
+
+    private TMP_Text FindButtonValueText(Button button)
+    {
+        if (button == null)
+            return null;
+
+        TMP_Text[] texts = button.GetComponentsInChildren<TMP_Text>(true);
+
+        for (int i = 0; i < texts.Length; i++)
+        {
+            if (texts[i] != null && texts[i].gameObject.name == "Label")
+                return texts[i];
+        }
+
+        return texts.Length > 0 ? texts[0] : null;
+    }
+
     private void BuildResolutionOptions()
     {
         resolutionOptions.Clear();
 
-        Dictionary<string, ResolutionOption> unique = new Dictionary<string, ResolutionOption>();
+        Dictionary<string, ResolutionOption> available =
+            new Dictionary<string, ResolutionOption>();
+
         Resolution[] unityResolutions = Screen.resolutions;
 
         for (int i = 0; i < unityResolutions.Length; i++)
@@ -213,56 +283,151 @@ public sealed class VideoSettingsUI : MonoBehaviour
             if (resolution.width <= 0 || resolution.height <= 0)
                 continue;
 
-            string key = resolution.width + "x" + resolution.height;
-            int refreshRate = resolution.refreshRate;
-
+            string key = ResolutionKey(resolution.width, resolution.height);
             ResolutionOption option = new ResolutionOption(
                 resolution.width,
                 resolution.height,
-                refreshRate
+                resolution.refreshRate
             );
 
-            if (!unique.ContainsKey(key))
+            if (!available.ContainsKey(key) ||
+                option.refreshRate > available[key].refreshRate)
             {
-                unique.Add(key, option);
+                available[key] = option;
+            }
+        }
+
+        Resolution native = Screen.currentResolution;
+        float nativeAspect = native.height > 0
+            ? native.width / (float)native.height
+            : 16f / 9f;
+
+        for (int i = 0; i < RecommendedResolutions.Length; i++)
+        {
+            Vector2Int recommended = RecommendedResolutions[i];
+
+            if (!IsSuitableResolution(
+                    recommended.x,
+                    recommended.y,
+                    native.width,
+                    native.height,
+                    nativeAspect))
+            {
                 continue;
             }
 
-            if (refreshRate > unique[key].refreshRate)
-                unique[key] = option;
+            string key = ResolutionKey(recommended.x, recommended.y);
+
+            if (available.TryGetValue(key, out ResolutionOption option))
+                AddResolutionOptionIfMissing(option);
         }
 
-        AddResolutionIfMissing(unique, defaultWidth, defaultHeight, defaultRefreshRate);
+        AddNativeResolutionIfMissing(native);
 
-        Resolution current = Screen.currentResolution;
-        AddResolutionIfMissing(unique, current.width, current.height, current.refreshRate);
+        if (resolutionOptions.Count < 2)
+        {
+            foreach (KeyValuePair<string, ResolutionOption> pair in available)
+            {
+                ResolutionOption option = pair.Value;
 
-        foreach (KeyValuePair<string, ResolutionOption> pair in unique)
-            resolutionOptions.Add(pair.Value);
+                if (!IsSuitableResolution(
+                        option.width,
+                        option.height,
+                        native.width,
+                        native.height,
+                        nativeAspect))
+                {
+                    continue;
+                }
+
+                AddResolutionOptionIfMissing(option);
+            }
+        }
 
         resolutionOptions.Sort((a, b) =>
         {
-            int widthCompare = a.width.CompareTo(b.width);
-            if (widthCompare != 0)
-                return widthCompare;
+            long aPixels = (long)a.width * a.height;
+            long bPixels = (long)b.width * b.height;
 
-            int heightCompare = a.height.CompareTo(b.height);
-            if (heightCompare != 0)
-                return heightCompare;
+            int pixelsCompare = bPixels.CompareTo(aPixels);
 
-            return a.refreshRate.CompareTo(b.refreshRate);
+            if (pixelsCompare != 0)
+                return pixelsCompare;
+
+            return b.refreshRate.CompareTo(a.refreshRate);
         });
+
+        if (resolutionOptions.Count > MaximumResolutionOptions)
+        {
+            resolutionOptions.RemoveRange(
+                MaximumResolutionOptions,
+                resolutionOptions.Count - MaximumResolutionOptions
+            );
+        }
+
+        if (resolutionOptions.Count == 0)
+        {
+            resolutionOptions.Add(
+                new ResolutionOption(
+                    native.width > 0 ? native.width : defaultWidth,
+                    native.height > 0 ? native.height : defaultHeight,
+                    native.refreshRate
+                )
+            );
+        }
     }
 
-    private void AddResolutionIfMissing(Dictionary<string, ResolutionOption> unique, int width, int height, int refreshRate)
+    private bool IsSuitableResolution(
+        int width,
+        int height,
+        int nativeWidth,
+        int nativeHeight,
+        float nativeAspect)
     {
-        if (width <= 0 || height <= 0)
+        if (width < MinimumResolutionWidth || height < MinimumResolutionHeight)
+            return false;
+
+        if (nativeWidth > 0 && width > nativeWidth)
+            return false;
+
+        if (nativeHeight > 0 && height > nativeHeight)
+            return false;
+
+        float aspect = width / (float)height;
+        return Mathf.Abs(aspect - nativeAspect) <= AspectRatioTolerance;
+    }
+
+    private void AddNativeResolutionIfMissing(Resolution native)
+    {
+        if (native.width <= 0 || native.height <= 0)
             return;
 
-        string key = width + "x" + height;
+        AddResolutionOptionIfMissing(
+            new ResolutionOption(
+                native.width,
+                native.height,
+                native.refreshRate
+            )
+        );
+    }
 
-        if (!unique.ContainsKey(key))
-            unique.Add(key, new ResolutionOption(width, height, refreshRate));
+    private void AddResolutionOptionIfMissing(ResolutionOption option)
+    {
+        for (int i = 0; i < resolutionOptions.Count; i++)
+        {
+            if (resolutionOptions[i].width == option.width &&
+                resolutionOptions[i].height == option.height)
+            {
+                return;
+            }
+        }
+
+        resolutionOptions.Add(option);
+    }
+
+    private string ResolutionKey(int width, int height)
+    {
+        return width + "x" + height;
     }
 
     private void BuildDropdownOptions()
@@ -276,7 +441,7 @@ public sealed class VideoSettingsUI : MonoBehaviour
 
         SetDropdownOptions(screenModeTmpDropdown, screenModeDropdown, new List<string>
         {
-            "FULLSCREEN",
+            "FULL SCREEN",
             "WINDOWED",
             "BORDERLESS"
         });
@@ -317,6 +482,9 @@ public sealed class VideoSettingsUI : MonoBehaviour
         else if (resolutionDropdown != null)
             resolutionDropdown.onValueChanged.AddListener(OnResolutionChanged);
 
+        if (resolutionButton != null)
+            resolutionButton.onClick.AddListener(CycleResolutionFromButton);
+
         if (screenModeTmpDropdown != null)
             screenModeTmpDropdown.onValueChanged.AddListener(OnScreenModeChanged);
         else if (screenModeDropdown != null)
@@ -326,6 +494,12 @@ public sealed class VideoSettingsUI : MonoBehaviour
             vSyncTmpDropdown.onValueChanged.AddListener(OnVSyncChanged);
         else if (vSyncDropdown != null)
             vSyncDropdown.onValueChanged.AddListener(OnVSyncChanged);
+
+        if (screenModeButton != null)
+            screenModeButton.onClick.AddListener(CycleScreenModeFromButton);
+
+        if (vSyncButton != null)
+            vSyncButton.onClick.AddListener(ToggleVSyncFromButton);
 
         if (brightnessSlider != null)
             brightnessSlider.onValueChanged.AddListener(OnBrightnessChanged);
@@ -347,6 +521,9 @@ public sealed class VideoSettingsUI : MonoBehaviour
         if (resolutionDropdown != null)
             resolutionDropdown.onValueChanged.RemoveListener(OnResolutionChanged);
 
+        if (resolutionButton != null)
+            resolutionButton.onClick.RemoveListener(CycleResolutionFromButton);
+
         if (screenModeTmpDropdown != null)
             screenModeTmpDropdown.onValueChanged.RemoveListener(OnScreenModeChanged);
 
@@ -359,6 +536,12 @@ public sealed class VideoSettingsUI : MonoBehaviour
         if (vSyncDropdown != null)
             vSyncDropdown.onValueChanged.RemoveListener(OnVSyncChanged);
 
+        if (screenModeButton != null)
+            screenModeButton.onClick.RemoveListener(CycleScreenModeFromButton);
+
+        if (vSyncButton != null)
+            vSyncButton.onClick.RemoveListener(ToggleVSyncFromButton);
+
         if (brightnessSlider != null)
             brightnessSlider.onValueChanged.RemoveListener(OnBrightnessChanged);
 
@@ -370,13 +553,34 @@ public sealed class VideoSettingsUI : MonoBehaviour
     {
         suppressCallbacks = true;
 
-        int resolutionIndex = FindResolutionIndex(
+        currentResolutionIndex = FindResolutionIndex(
             pendingSettings.width,
             pendingSettings.height,
             pendingSettings.refreshRate
         );
 
-        SetDropdownValueWithoutNotify(resolutionTmpDropdown, resolutionDropdown, resolutionIndex);
+        if (currentResolutionIndex < 0)
+            currentResolutionIndex = 0;
+
+        if (resolutionOptions.Count > 0)
+        {
+            ResolutionOption selectedResolution =
+                resolutionOptions[Mathf.Clamp(
+                    currentResolutionIndex,
+                    0,
+                    resolutionOptions.Count - 1
+                )];
+
+            pendingSettings.width = selectedResolution.width;
+            pendingSettings.height = selectedResolution.height;
+            pendingSettings.refreshRate = selectedResolution.refreshRate;
+        }
+
+        SetDropdownValueWithoutNotify(
+            resolutionTmpDropdown,
+            resolutionDropdown,
+            currentResolutionIndex
+        );
         SetDropdownValueWithoutNotify(screenModeTmpDropdown, screenModeDropdown, (int)pendingSettings.screenMode);
         SetDropdownValueWithoutNotify(vSyncTmpDropdown, vSyncDropdown, pendingSettings.vSync ? 1 : 0);
 
@@ -384,33 +588,51 @@ public sealed class VideoSettingsUI : MonoBehaviour
             brightnessSlider.SetValueWithoutNotify(Mathf.Clamp01(pendingSettings.brightness));
 
         if (screenShakeSlider != null)
-            screenShakeSlider.SetValueWithoutNotify(Mathf.Clamp(pendingSettings.screenShake, 0f, screenShakeSlider.maxValue));
+        {
+            screenShakeSlider.SetValueWithoutNotify(
+                Mathf.Clamp(pendingSettings.screenShake, 0f, screenShakeSlider.maxValue)
+            );
+        }
 
         suppressCallbacks = false;
-        RefreshPercentTexts();
+        RefreshAllDisplayedValues();
     }
 
     private void ReadPendingSettingsFromUI()
     {
-        int resolutionIndex = GetDropdownValue(resolutionTmpDropdown, resolutionDropdown);
-        resolutionIndex = Mathf.Clamp(resolutionIndex, 0, Mathf.Max(0, resolutionOptions.Count - 1));
-
-        if (resolutionOptions.Count > 0)
+        if (resolutionButton == null && HasResolutionDropdown())
         {
-            ResolutionOption option = resolutionOptions[resolutionIndex];
+            int resolutionIndex =
+                GetDropdownValue(resolutionTmpDropdown, resolutionDropdown);
 
-            pendingSettings.width = option.width;
-            pendingSettings.height = option.height;
-            pendingSettings.refreshRate = option.refreshRate;
+            resolutionIndex = Mathf.Clamp(
+                resolutionIndex,
+                0,
+                Mathf.Max(0, resolutionOptions.Count - 1)
+            );
+
+            if (resolutionOptions.Count > 0)
+            {
+                currentResolutionIndex = resolutionIndex;
+                ResolutionOption option = resolutionOptions[resolutionIndex];
+
+                pendingSettings.width = option.width;
+                pendingSettings.height = option.height;
+                pendingSettings.refreshRate = option.refreshRate;
+            }
         }
 
-        pendingSettings.screenMode = (VideoScreenMode)Mathf.Clamp(
-            GetDropdownValue(screenModeTmpDropdown, screenModeDropdown),
-            0,
-            2
-        );
+        if (HasScreenModeDropdown())
+        {
+            pendingSettings.screenMode = (VideoScreenMode)Mathf.Clamp(
+                GetDropdownValue(screenModeTmpDropdown, screenModeDropdown),
+                0,
+                2
+            );
+        }
 
-        pendingSettings.vSync = GetDropdownValue(vSyncTmpDropdown, vSyncDropdown) == 1;
+        if (HasVSyncDropdown())
+            pendingSettings.vSync = GetDropdownValue(vSyncTmpDropdown, vSyncDropdown) == 1;
 
         if (brightnessSlider != null)
             pendingSettings.brightness = Mathf.Clamp01(brightnessSlider.value);
@@ -440,7 +662,7 @@ public sealed class VideoSettingsUI : MonoBehaviour
         if (sameSizeIndex >= 0)
             return sameSizeIndex;
 
-        return 0;
+        return -1;
     }
 
     private void OnResolutionChanged(int value)
@@ -449,7 +671,38 @@ public sealed class VideoSettingsUI : MonoBehaviour
             return;
 
         ReadPendingSettingsFromUI();
-        AutoApplyAndSaveIfEnabled();
+        ApplyDisplayPartAndSave(
+            applyResolutionAndScreenMode: true,
+            applyVSync: false
+        );
+    }
+
+    private void CycleResolutionFromButton()
+    {
+        if (resolutionOptions.Count == 0)
+            return;
+
+        currentResolutionIndex =
+            (currentResolutionIndex + 1) % resolutionOptions.Count;
+
+        ResolutionOption option = resolutionOptions[currentResolutionIndex];
+
+        pendingSettings.width = option.width;
+        pendingSettings.height = option.height;
+        pendingSettings.refreshRate = option.refreshRate;
+
+        SetDropdownValueWithoutNotify(
+            resolutionTmpDropdown,
+            resolutionDropdown,
+            currentResolutionIndex
+        );
+
+        RefreshResolutionText();
+
+        ApplyDisplayPartAndSave(
+            applyResolutionAndScreenMode: true,
+            applyVSync: false
+        );
     }
 
     private void OnScreenModeChanged(int value)
@@ -458,7 +711,12 @@ public sealed class VideoSettingsUI : MonoBehaviour
             return;
 
         ReadPendingSettingsFromUI();
-        AutoApplyAndSaveIfEnabled();
+        RefreshScreenModeText();
+
+        ApplyDisplayPartAndSave(
+            applyResolutionAndScreenMode: true,
+            applyVSync: false
+        );
     }
 
     private void OnVSyncChanged(int value)
@@ -467,7 +725,49 @@ public sealed class VideoSettingsUI : MonoBehaviour
             return;
 
         ReadPendingSettingsFromUI();
-        AutoApplyAndSaveIfEnabled();
+        RefreshVSyncText();
+
+        ApplyDisplayPartAndSave(
+            applyResolutionAndScreenMode: false,
+            applyVSync: true
+        );
+    }
+
+    private void CycleScreenModeFromButton()
+    {
+        int nextValue = ((int)pendingSettings.screenMode + 1) % 3;
+        pendingSettings.screenMode = (VideoScreenMode)nextValue;
+
+        SetDropdownValueWithoutNotify(
+            screenModeTmpDropdown,
+            screenModeDropdown,
+            nextValue
+        );
+
+        RefreshScreenModeText();
+
+        ApplyDisplayPartAndSave(
+            applyResolutionAndScreenMode: true,
+            applyVSync: false
+        );
+    }
+
+    private void ToggleVSyncFromButton()
+    {
+        pendingSettings.vSync = !pendingSettings.vSync;
+
+        SetDropdownValueWithoutNotify(
+            vSyncTmpDropdown,
+            vSyncDropdown,
+            pendingSettings.vSync ? 1 : 0
+        );
+
+        RefreshVSyncText();
+
+        ApplyDisplayPartAndSave(
+            applyResolutionAndScreenMode: false,
+            applyVSync: true
+        );
     }
 
     private void OnBrightnessChanged(float value)
@@ -476,9 +776,10 @@ public sealed class VideoSettingsUI : MonoBehaviour
             return;
 
         pendingSettings.brightness = Mathf.Clamp01(value);
+
         RefreshBrightnessPercent();
         ApplyBrightnessPreview(pendingSettings.brightness);
-        AutoApplyAndSaveIfEnabled();
+        SavePendingSettingsIfEnabled();
     }
 
     private void OnScreenShakeChanged(float value)
@@ -487,17 +788,43 @@ public sealed class VideoSettingsUI : MonoBehaviour
             return;
 
         pendingSettings.screenShake = Mathf.Max(0f, value);
+
         RefreshScreenShakePercent();
         VideoSettingsPrefs.SetRuntimeScreenShakeMultiplier(pendingSettings.screenShake);
-        AutoApplyAndSaveIfEnabled();
+        SavePendingSettingsIfEnabled();
     }
 
-    private void AutoApplyAndSaveIfEnabled()
+    private void ApplyDisplayPartAndSave(
+        bool applyResolutionAndScreenMode,
+        bool applyVSync)
     {
         if (!autoApplyAndSaveOnChange)
             return;
 
-        ApplyAndSavePendingSettings();
+        VideoSettingsPrefs.ApplyDisplaySettings(
+            pendingSettings,
+            applyResolutionAndScreenMode,
+            applyVSync
+        );
+
+        VideoSettingsPrefs.Save(pendingSettings, defaultSettingsVersion);
+
+        if (logApply)
+        {
+            Debug.Log(
+                $"{nameof(VideoSettingsUI)}: display setting changed. " +
+                $"Mode={pendingSettings.screenMode}, VSync={pendingSettings.vSync}",
+                this
+            );
+        }
+    }
+
+    private void SavePendingSettingsIfEnabled()
+    {
+        if (!autoApplyAndSaveOnChange)
+            return;
+
+        VideoSettingsPrefs.Save(pendingSettings, defaultSettingsVersion);
     }
 
     private void ApplyAndSavePendingSettings()
@@ -509,11 +836,10 @@ public sealed class VideoSettingsUI : MonoBehaviour
         );
 
         ApplyRuntimeOnlySettings();
-
         VideoSettingsPrefs.Save(pendingSettings, defaultSettingsVersion);
 
         if (logApply)
-            Debug.Log($"{nameof(VideoSettingsUI)}: video settings auto-applied and saved.", this);
+            Debug.Log($"{nameof(VideoSettingsUI)}: video settings applied and saved.", this);
     }
 
     private void ApplyRuntimeOnlySettings()
@@ -535,6 +861,7 @@ public sealed class VideoSettingsUI : MonoBehaviour
 
         if (VideoSettingsRuntimeApplier.Instance != null)
         {
+            brightnessOverlay = VideoSettingsRuntimeApplier.Instance.GetBrightnessOverlay();
             VideoSettingsRuntimeApplier.Instance.ApplyBrightnessOnly(brightness);
             return;
         }
@@ -552,6 +879,51 @@ public sealed class VideoSettingsUI : MonoBehaviour
         brightnessOverlay.raycastTarget = false;
     }
 
+    private void RefreshAllDisplayedValues()
+    {
+        RefreshResolutionText();
+        RefreshScreenModeText();
+        RefreshVSyncText();
+        RefreshPercentTexts();
+    }
+
+    private void RefreshResolutionText()
+    {
+        if (resolutionButtonText == null)
+            return;
+
+        resolutionButtonText.text =
+            pendingSettings.width + " X " + pendingSettings.height;
+    }
+
+    private void RefreshScreenModeText()
+    {
+        if (screenModeButtonText == null)
+            return;
+
+        switch (pendingSettings.screenMode)
+        {
+            case VideoScreenMode.Windowed:
+                screenModeButtonText.text = "WINDOWED";
+                break;
+
+            case VideoScreenMode.Borderless:
+                screenModeButtonText.text = "BORDERLESS";
+                break;
+
+            case VideoScreenMode.Fullscreen:
+            default:
+                screenModeButtonText.text = "FULL SCREEN";
+                break;
+        }
+    }
+
+    private void RefreshVSyncText()
+    {
+        if (vSyncButtonText != null)
+            vSyncButtonText.text = pendingSettings.vSync ? "ON" : "OFF";
+    }
+
     private void RefreshPercentTexts()
     {
         RefreshBrightnessPercent();
@@ -560,21 +932,48 @@ public sealed class VideoSettingsUI : MonoBehaviour
 
     private void RefreshBrightnessPercent()
     {
-        float value = brightnessSlider != null ? brightnessSlider.value : pendingSettings.brightness;
-        string text = Mathf.RoundToInt(Mathf.Clamp01(value) * 100f) + "%";
+        float value = brightnessSlider != null
+            ? brightnessSlider.value
+            : pendingSettings.brightness;
 
+        string text = Mathf.RoundToInt(Mathf.Clamp01(value) * 100f) + "%";
         SetText(brightnessPercentTmpText, brightnessPercentText, text);
     }
 
     private void RefreshScreenShakePercent()
     {
-        float value = screenShakeSlider != null ? screenShakeSlider.value : pendingSettings.screenShake;
-        string text = Mathf.RoundToInt(Mathf.Max(0f, value) * 100f) + "%";
+        float value = screenShakeSlider != null
+            ? screenShakeSlider.value
+            : pendingSettings.screenShake;
 
+        string text = Mathf.RoundToInt(Mathf.Max(0f, value) * 100f) + "%";
         SetText(screenShakePercentTmpText, screenShakePercentText, text);
     }
 
-    private void SetDropdownOptions(TMP_Dropdown tmpDropdown, Dropdown legacyDropdown, List<string> labels)
+    private bool HasResolutionDropdown()
+    {
+        return resolutionTmpDropdown != null || resolutionDropdown != null;
+    }
+
+    private bool HasResolutionControl()
+    {
+        return resolutionButton != null || HasResolutionDropdown();
+    }
+
+    private bool HasScreenModeDropdown()
+    {
+        return screenModeTmpDropdown != null || screenModeDropdown != null;
+    }
+
+    private bool HasVSyncDropdown()
+    {
+        return vSyncTmpDropdown != null || vSyncDropdown != null;
+    }
+
+    private void SetDropdownOptions(
+        TMP_Dropdown tmpDropdown,
+        Dropdown legacyDropdown,
+        List<string> labels)
     {
         if (tmpDropdown != null)
         {
@@ -590,23 +989,34 @@ public sealed class VideoSettingsUI : MonoBehaviour
         }
     }
 
-    private void SetDropdownValueWithoutNotify(TMP_Dropdown tmpDropdown, Dropdown legacyDropdown, int value)
+    private void SetDropdownValueWithoutNotify(
+        TMP_Dropdown tmpDropdown,
+        Dropdown legacyDropdown,
+        int value)
     {
         if (tmpDropdown != null)
         {
-            tmpDropdown.SetValueWithoutNotify(Mathf.Clamp(value, 0, Mathf.Max(0, tmpDropdown.options.Count - 1)));
+            tmpDropdown.SetValueWithoutNotify(
+                Mathf.Clamp(value, 0, Mathf.Max(0, tmpDropdown.options.Count - 1))
+            );
+
             tmpDropdown.RefreshShownValue();
             return;
         }
 
         if (legacyDropdown != null)
         {
-            legacyDropdown.SetValueWithoutNotify(Mathf.Clamp(value, 0, Mathf.Max(0, legacyDropdown.options.Count - 1)));
+            legacyDropdown.SetValueWithoutNotify(
+                Mathf.Clamp(value, 0, Mathf.Max(0, legacyDropdown.options.Count - 1))
+            );
+
             legacyDropdown.RefreshShownValue();
         }
     }
 
-    private int GetDropdownValue(TMP_Dropdown tmpDropdown, Dropdown legacyDropdown)
+    private int GetDropdownValue(
+        TMP_Dropdown tmpDropdown,
+        Dropdown legacyDropdown)
     {
         if (tmpDropdown != null)
             return tmpDropdown.value;
@@ -634,14 +1044,29 @@ public sealed class VideoSettingsUI : MonoBehaviour
         if (!warnAboutMissingReferences)
             return;
 
-        if (resolutionTmpDropdown == null && resolutionDropdown == null)
-            Debug.LogWarning($"{nameof(VideoSettingsUI)}: Resolution Dropdown не назначен.", this);
+        if (!HasResolutionControl())
+        {
+            Debug.LogWarning(
+                $"{nameof(VideoSettingsUI)}: Resolution Dropdown/Button не назначен.",
+                this
+            );
+        }
 
-        if (screenModeTmpDropdown == null && screenModeDropdown == null)
-            Debug.LogWarning($"{nameof(VideoSettingsUI)}: Screen Mode Dropdown не назначен.", this);
+        if (!HasScreenModeDropdown() && screenModeButton == null)
+        {
+            Debug.LogWarning(
+                $"{nameof(VideoSettingsUI)}: Screen Mode Dropdown/Button не назначен.",
+                this
+            );
+        }
 
-        if (vSyncTmpDropdown == null && vSyncDropdown == null)
-            Debug.LogWarning($"{nameof(VideoSettingsUI)}: VSync Dropdown не назначен.", this);
+        if (!HasVSyncDropdown() && vSyncButton == null)
+        {
+            Debug.LogWarning(
+                $"{nameof(VideoSettingsUI)}: VSync Dropdown/Button не назначен.",
+                this
+            );
+        }
 
         if (brightnessSlider == null)
             Debug.LogWarning($"{nameof(VideoSettingsUI)}: Brightness Slider не назначен.", this);
@@ -649,7 +1074,12 @@ public sealed class VideoSettingsUI : MonoBehaviour
         if (screenShakeSlider == null)
             Debug.LogWarning($"{nameof(VideoSettingsUI)}: Screen Shake Slider не назначен.", this);
 
-        if (brightnessOverlay == null)
-            Debug.LogWarning($"{nameof(VideoSettingsUI)}: Brightness Overlay не назначен. Яркость будет сохраняться, но визуально не затемнит экран.", this);
+        if (VideoSettingsRuntimeApplier.Instance == null && brightnessOverlay == null)
+        {
+            Debug.LogWarning(
+                $"{nameof(VideoSettingsUI)}: нет VideoSettingsRuntimeApplier и не назначен Brightness Overlay.",
+                this
+            );
+        }
     }
 }

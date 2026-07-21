@@ -94,6 +94,9 @@ public sealed class VideoSettingsRuntimeApplier : MonoBehaviour
         if (Instance == null)
             Instance = this;
 
+        if (applyBrightness)
+            EnsureBrightnessOverlay();
+
         if (applyOnSceneLoaded)
             SubscribeSceneLoaded();
 
@@ -130,7 +133,6 @@ public sealed class VideoSettingsRuntimeApplier : MonoBehaviour
         );
 
         VideoSettingsData data = VideoSettingsPrefs.ReadOrDefault(BuildDefaultSettings());
-
         ApplyVideoSettingsData(data);
     }
 
@@ -223,7 +225,9 @@ public sealed class VideoSettingsRuntimeApplier : MonoBehaviour
         color.r = 0f;
         color.g = 0f;
         color.b = 0f;
-        color.a = Mathf.Clamp01((1f - Mathf.Clamp01(brightness)) * maxDarkeningAtZeroBrightness);
+        color.a = Mathf.Clamp01(
+            (1f - Mathf.Clamp01(brightness)) * maxDarkeningAtZeroBrightness
+        );
 
         brightnessOverlay.color = color;
         brightnessOverlay.raycastTarget = false;
@@ -231,31 +235,96 @@ public sealed class VideoSettingsRuntimeApplier : MonoBehaviour
 
     private void EnsureBrightnessOverlay()
     {
+        Canvas canvas = null;
+
+        if (brightnessOverlay == null)
+            brightnessOverlay = FindExistingBrightnessOverlay();
+
         if (brightnessOverlay != null)
         {
-            brightnessOverlay.raycastTarget = false;
+            canvas = brightnessOverlay.GetComponentInParent<Canvas>(true);
+
+            if (canvas == null)
+            {
+                canvas = FindOrCreateRuntimeCanvas();
+                brightnessOverlay.transform.SetParent(canvas.transform, false);
+            }
+
+            ConfigureRuntimeCanvas(canvas);
+            ConfigureBrightnessOverlay(brightnessOverlay);
             return;
         }
 
         if (!autoCreateBrightnessOverlayIfMissing)
             return;
 
-        Transform existingCanvas = transform.Find(runtimeCanvasName);
-        Canvas canvas;
+        canvas = FindOrCreateRuntimeCanvas();
 
-        if (existingCanvas != null && existingCanvas.TryGetComponent(out canvas))
+        GameObject overlayObject = new GameObject(brightnessOverlayName);
+        overlayObject.transform.SetParent(canvas.transform, false);
+
+        brightnessOverlay = overlayObject.AddComponent<Image>();
+        brightnessOverlay.color = new Color(0f, 0f, 0f, 0f);
+
+        ConfigureRuntimeCanvas(canvas);
+        ConfigureBrightnessOverlay(brightnessOverlay);
+    }
+
+    private Image FindExistingBrightnessOverlay()
+    {
+        Transform exact = FindChildRecursive(transform, brightnessOverlayName);
+
+        if (exact == null)
+            exact = FindChildRecursive(transform, "_" + brightnessOverlayName);
+
+        if (exact != null && exact.TryGetComponent(out Image exactImage))
+            return exactImage;
+
+        Canvas existingCanvas = GetComponentInChildren<Canvas>(true);
+
+        if (existingCanvas != null)
         {
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = overlaySortingOrder;
+            Image[] images = existingCanvas.GetComponentsInChildren<Image>(true);
+
+            for (int i = 0; i < images.Length; i++)
+            {
+                Image candidate = images[i];
+
+                if (candidate == null)
+                    continue;
+
+                if (candidate.gameObject.name == brightnessOverlayName ||
+                    candidate.gameObject.name == "_" + brightnessOverlayName)
+                {
+                    return candidate;
+                }
+            }
         }
-        else
+
+        return null;
+    }
+
+    private Canvas FindOrCreateRuntimeCanvas()
+    {
+        Transform existingCanvasTransform = FindChildRecursive(transform, runtimeCanvasName);
+
+        if (existingCanvasTransform == null)
+            existingCanvasTransform = FindChildRecursive(transform, "_" + runtimeCanvasName);
+
+        Canvas canvas = null;
+
+        if (existingCanvasTransform != null)
+            existingCanvasTransform.TryGetComponent(out canvas);
+
+        if (canvas == null)
+            canvas = GetComponentInChildren<Canvas>(true);
+
+        if (canvas == null)
         {
             GameObject canvasObject = new GameObject(runtimeCanvasName);
             canvasObject.transform.SetParent(transform, false);
 
             canvas = canvasObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = overlaySortingOrder;
 
             CanvasScaler canvasScaler = canvasObject.AddComponent<CanvasScaler>();
             canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -264,23 +333,59 @@ public sealed class VideoSettingsRuntimeApplier : MonoBehaviour
             canvasScaler.matchWidthOrHeight = 0.5f;
         }
 
-        Transform existingOverlay = canvas.transform.Find(brightnessOverlayName);
+        ConfigureRuntimeCanvas(canvas);
+        return canvas;
+    }
 
-        if (existingOverlay != null && existingOverlay.TryGetComponent(out brightnessOverlay))
-        {
-            brightnessOverlay.raycastTarget = false;
-            StretchToFullscreen(brightnessOverlay.rectTransform);
+    private void ConfigureRuntimeCanvas(Canvas canvas)
+    {
+        if (canvas == null)
             return;
+
+        if (!canvas.gameObject.activeSelf)
+            canvas.gameObject.SetActive(true);
+
+        canvas.enabled = true;
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = overlaySortingOrder;
+        canvas.sortingLayerID = SortingLayer.NameToID("Default");
+    }
+
+    private void ConfigureBrightnessOverlay(Image overlay)
+    {
+        if (overlay == null)
+            return;
+
+        if (!overlay.gameObject.activeSelf)
+            overlay.gameObject.SetActive(true);
+
+        overlay.enabled = true;
+        overlay.raycastTarget = false;
+
+        StretchToFullscreen(overlay.rectTransform);
+        overlay.transform.SetAsLastSibling();
+    }
+
+    private Transform FindChildRecursive(Transform root, string objectName)
+    {
+        if (root == null || string.IsNullOrEmpty(objectName))
+            return null;
+
+        for (int i = 0; i < root.childCount; i++)
+        {
+            Transform child = root.GetChild(i);
+
+            if (child.name == objectName)
+                return child;
+
+            Transform nested = FindChildRecursive(child, objectName);
+
+            if (nested != null)
+                return nested;
         }
 
-        GameObject overlayObject = new GameObject(brightnessOverlayName);
-        overlayObject.transform.SetParent(canvas.transform, false);
-
-        brightnessOverlay = overlayObject.AddComponent<Image>();
-        brightnessOverlay.color = new Color(0f, 0f, 0f, 0f);
-        brightnessOverlay.raycastTarget = false;
-
-        StretchToFullscreen(brightnessOverlay.rectTransform);
+        return null;
     }
 
     private void StretchToFullscreen(RectTransform rectTransform)
