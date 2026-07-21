@@ -97,6 +97,7 @@ GameObject:
   - component: {fileID: 8526110560787381622}
   - component: {fileID: 3687009131520553832}
   - component: {fileID: 6878783515192149052}
+  - component: {fileID: 3686794390577819981}
   m_Layer: 0
   m_Name: _Rat
   m_TagString: Untagged
@@ -385,11 +386,31 @@ MonoBehaviour:
   resetOppositeBurrowTrigger: 1
   drawGizmos: 1
   drawDetectionGizmos: 1
+  saveableId: {fileID: 3686794390577819981}
+  saveRatState: 1
+  saveHeldItemState: 1
+  markDirtyWhenHeldItemDropped: 1
+  restoreFlyingItemAsDropped: 1
+  restoreFollowingItemToPlayer: 1
+  deactivateConsumedHeldItemOnRestore: 1
   enableOneTimeItemDrop: 1
   mainBodyCollider: {fileID: 8526110560787381622}
   pointDrop: {fileID: 6143628479063450375}
   dropItemPrefab: {fileID: 6719610803612849676, guid: 6b679b5147e116140ba4352a93d2ad24, type: 3}
   disableHeldItemLogicUntilDrop: 1
+--- !u!114 &3686794390577819981
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 239837952928923895}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0091c5ddde2cd4540b9cb1560703e3af, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  id: act_rat_001
 --- !u!1 &400549813628589535
 GameObject:
   m_ObjectHideFlags: 0
@@ -415,7 +436,7 @@ Transform:
   m_GameObject: {fileID: 400549813628589535}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -6.04, y: -3.39, z: 0}
+  m_LocalPosition: {x: -4.42, y: -3.39, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -446,7 +467,7 @@ Transform:
   m_GameObject: {fileID: 624427078442567033}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.81, y: -3.3, z: 0}
+  m_LocalPosition: {x: 4, y: -3.3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -562,7 +583,7 @@ Transform:
   m_GameObject: {fileID: 5913686172461869707}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 4.55, y: -3.43, z: 0}
+  m_LocalPosition: {x: -0.03, y: -3.43, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

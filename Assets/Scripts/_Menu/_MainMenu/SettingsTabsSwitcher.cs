@@ -132,13 +132,15 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField] private Button assistValueButton;
     [SerializeField] private Button vhsValueButton;
     [SerializeField] private Button gamepadVibrationValueButton;
+    [SerializeField] private Button fpsCounterValueButton;
 
     [SerializeField] private TMP_Text languageValueText;
     [SerializeField] private TMP_Text assistValueText;
     [SerializeField] private TMP_Text vhsValueText;
     [SerializeField] private TMP_Text gamepadVibrationValueText;
+    [SerializeField] private TMP_Text fpsCounterValueText;
 
-    [SerializeField, Tooltip("Если ссылки не назначены вручную, попробовать найти кнопки Language, Assist, VHS и GamepadVibration внутри Gameplay.")]
+    [SerializeField, Tooltip("Если ссылки не назначены вручную, попробовать найти кнопки Language, Assist, VHS, GamepadVibration и FpsCounter внутри Gameplay.")]
     private bool autoFindGameplayValueButtons = true;
 
     [SerializeField, Tooltip("Если тексты не назначены вручную, найти дочерний TMP_Text с именем Label внутри кнопки.")]
@@ -157,6 +159,13 @@ public class SettingsTabsSwitcher : MonoBehaviour
     };
 
     private int _currentLanguageIndex;
+
+    [Header("Gameplay: счетчик FPS")]
+    [SerializeField, Tooltip("Значение по умолчанию, если настройка ещё не сохранялась.")]
+    private bool defaultFpsCounterVisible = false;
+
+    [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда счетчик FPS включается или выключается.")]
+    private bool debugFpsCounterToggle = false;
 
     [Header("Gameplay: траектория прыжка")]
     [SerializeField, Tooltip("Toggle из Gameplay-вкладки.")]
@@ -319,6 +328,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         SetupJumpTrajectoryToggle();
         SetupPostFxToggle();
         SetupGamepadRumbleToggle();
+        SyncFpsCounterWithSavedValue();
 
         ResetSettingsHint();
         CloseAllTabs();
@@ -345,6 +355,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         SyncJumpTrajectoryToggleWithSavedValue();
         SyncPostFxToggleWithSavedValue();
         SyncGamepadRumbleToggleWithSavedValue();
+        SyncFpsCounterWithSavedValue();
         RefreshGameplayValueTexts();
 
         RefreshActiveSettingsButtonHighlight();
@@ -1067,6 +1078,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         BindGameplayValueButton(assistValueButton, OnAssistValueButtonClicked);
         BindGameplayValueButton(vhsValueButton, OnVhsValueButtonClicked);
         BindGameplayValueButton(gamepadVibrationValueButton, OnGamepadVibrationValueButtonClicked);
+        BindGameplayValueButton(fpsCounterValueButton, OnFpsCounterValueButtonClicked);
 
         _currentLanguageIndex = ReadSavedLanguageIndex();
         RefreshGameplayValueTexts();
@@ -1078,6 +1090,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         UnbindGameplayValueButton(assistValueButton, OnAssistValueButtonClicked);
         UnbindGameplayValueButton(vhsValueButton, OnVhsValueButtonClicked);
         UnbindGameplayValueButton(gamepadVibrationValueButton, OnGamepadVibrationValueButtonClicked);
+        UnbindGameplayValueButton(fpsCounterValueButton, OnFpsCounterValueButtonClicked);
     }
 
     private static void BindGameplayValueButton(Button button, UnityEngine.Events.UnityAction action)
@@ -1112,6 +1125,9 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
             if (gamepadVibrationValueButton == null)
                 gamepadVibrationValueButton = FindButtonByName(tabGameplay, "GamepadVibration");
+
+            if (fpsCounterValueButton == null)
+                fpsCounterValueButton = FindButtonByName(tabGameplay, "FpsCounter");
         }
 
         if (!autoFindGameplayValueTexts)
@@ -1128,6 +1144,9 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         if (gamepadVibrationValueText == null)
             gamepadVibrationValueText = FindButtonValueText(gamepadVibrationValueButton);
+
+        if (fpsCounterValueText == null)
+            fpsCounterValueText = FindButtonValueText(fpsCounterValueButton);
     }
 
     private static Button FindButtonByName(GameObject root, string buttonName)
@@ -1207,6 +1226,12 @@ public class SettingsTabsSwitcher : MonoBehaviour
         ApplyGamepadRumbleEnabled(newValue, true, true);
     }
 
+    private void OnFpsCounterValueButtonClicked()
+    {
+        bool newValue = !ReadSavedFpsCounterVisible();
+        ApplyFpsCounterVisible(newValue, true, true);
+    }
+
     private int ReadSavedLanguageIndex()
     {
         int fallback = Mathf.Clamp(defaultLanguageIndex, 0, LanguageDisplayNames.Length - 1);
@@ -1228,6 +1253,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         SetBooleanValueText(assistValueText, ReadSavedJumpTrajectoryVisible());
         SetBooleanValueText(vhsValueText, ReadSavedPostFxVisible());
         SetBooleanValueText(gamepadVibrationValueText, ReadSavedGamepadRumbleEnabled());
+        SetBooleanValueText(fpsCounterValueText, ReadSavedFpsCounterVisible());
     }
 
     private void RefreshLanguageValueText()
@@ -1250,6 +1276,33 @@ public class SettingsTabsSwitcher : MonoBehaviour
             return;
 
         target.text = value ? enabledValueText : disabledValueText;
+    }
+
+    // =========================================================
+    // FPS Counter
+    // =========================================================
+
+    private void SyncFpsCounterWithSavedValue()
+    {
+        bool visible = ReadSavedFpsCounterVisible();
+        ApplyFpsCounterVisible(visible, false, false);
+    }
+
+    private void ApplyFpsCounterVisible(bool visible, bool save, bool log)
+    {
+        FpsCounterRuntime.SetCounterEnabled(visible, save);
+        SetBooleanValueText(fpsCounterValueText, visible);
+
+        if (debugFpsCounterToggle && log)
+            Debug.Log("[SettingsTabsSwitcher] FPS counter visible = " + visible);
+    }
+
+    private bool ReadSavedFpsCounterVisible()
+    {
+        return PlayerPrefs.GetInt(
+            FpsCounterRuntime.PrefsKey,
+            defaultFpsCounterVisible ? 1 : 0
+        ) != 0;
     }
 
     // =========================================================

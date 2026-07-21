@@ -2074,18 +2074,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 269107769}
     m_Modifications:
-    - target: {fileID: 671880899439119627, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -0.03
-      objectReference: {fileID: 0}
-    - target: {fileID: 4793413792202016911, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 4
-      objectReference: {fileID: 0}
-    - target: {fileID: 5743051389082787371, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -4.42
-      objectReference: {fileID: 0}
     - target: {fileID: 7407454708214576276, guid: c10779bef726653418aac65308a1f5fa, type: 3}
       propertyPath: m_Name
       value: _RatObject
@@ -2133,10 +2121,7 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 239837952928923895, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 386027146}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: c10779bef726653418aac65308a1f5fa, type: 3}
 --- !u!1 &186733553
 GameObject:
@@ -7378,24 +7363,6 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!1 &386027138 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 239837952928923895, guid: c10779bef726653418aac65308a1f5fa, type: 3}
-  m_PrefabInstance: {fileID: 182076926}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &386027146
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 386027138}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0091c5ddde2cd4540b9cb1560703e3af, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  id: act1_rat_001
 --- !u!1001 &392020284
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -24375,16 +24342,20 @@ MonoBehaviour:
   assistValueButton: {fileID: 0}
   vhsValueButton: {fileID: 0}
   gamepadVibrationValueButton: {fileID: 0}
+  fpsCounterValueButton: {fileID: 0}
   languageValueText: {fileID: 0}
   assistValueText: {fileID: 0}
   vhsValueText: {fileID: 0}
   gamepadVibrationValueText: {fileID: 0}
+  fpsCounterValueText: {fileID: 0}
   autoFindGameplayValueButtons: 1
   autoFindGameplayValueTexts: 1
   languagePrefsKey: Settings.Language
   defaultLanguageIndex: 1
   enabledValueText: "\u0414\u0410"
   disabledValueText: "\u041D\u0415\u0422"
+  defaultFpsCounterVisible: 0
+  debugFpsCounterToggle: 0
   jumpTrajectoryToggle: {fileID: 0}
   jumpTrajectoryBackgroundButton: {fileID: 0}
   jumpTrajectory: {fileID: 0}
