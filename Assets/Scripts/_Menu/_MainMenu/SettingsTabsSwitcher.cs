@@ -1,4 +1,4 @@
-using System;
+п»їusing System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -28,19 +28,26 @@ public class SettingsTabsSwitcher : MonoBehaviour
         Gamepad
     }
 
-    [Header("Кнопки вкладок")]
+    private enum LanguageOption
+    {
+        Russian = 0,
+        English = 1,
+        Deutsch = 2
+    }
+
+    [Header("РљРЅРѕРїРєРё РІРєР»Р°РґРѕРє")]
     [SerializeField] private Button audioBtn;
     [SerializeField] private Button controlsBtn;
     [SerializeField] private Button gameplayBtn;
     [SerializeField] private Button videoBtn;
 
-    [Header("Панели вкладок")]
+    [Header("РџР°РЅРµР»Рё РІРєР»Р°РґРѕРє")]
     [SerializeField] private GameObject tabAudio;
     [SerializeField] private GameObject tabControls;
     [SerializeField] private GameObject tabGameplay;
     [SerializeField] private GameObject tabVideo;
 
-    [Header("Controls: подпункты")]
+    [Header("Controls: РїРѕРґРїСѓРЅРєС‚С‹")]
     [SerializeField] private Button keyboardBtn;
     [SerializeField] private Button gamepadBtn;
     [SerializeField] private GameObject keyboardPanel;
@@ -48,45 +55,45 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField] private bool closeControlsSubPanelsOnControlsTabOpen = false;
     [SerializeField] private bool closeControlsSubPanelsWhenLeaveControlsTab = true;
 
-    [Header("Подсветка текущей вкладки")]
-    [SerializeField, Tooltip("Если ВКЛ — активная вкладка держит визуал Selected/Highlighted даже когда фокус ушёл на Toggle/Slider/Dropdown.")]
+    [Header("РџРѕРґСЃРІРµС‚РєР° С‚РµРєСѓС‰РµР№ РІРєР»Р°РґРєРё")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” Р°РєС‚РёРІРЅР°СЏ РІРєР»Р°РґРєР° РґРµСЂР¶РёС‚ РІРёР·СѓР°Р» Selected/Highlighted РґР°Р¶Рµ РєРѕРіРґР° С„РѕРєСѓСЃ СѓС€С‘Р» РЅР° Toggle/Slider/Dropdown.")]
     private bool keepActiveSettingsButtonHighlighted = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — активная кнопка берёт Selected Color из Button. Если ВЫКЛ — Highlighted Color.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” Р°РєС‚РёРІРЅР°СЏ РєРЅРѕРїРєР° Р±РµСЂС‘С‚ Selected Color РёР· Button. Р•СЃР»Рё Р’Р«РљР› вЂ” Highlighted Color.")]
     private bool useSelectedColorForActiveSettingsButton = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — у активной кнопки Normal/Highlighted/Selected временно становятся одним активным цветом, чтобы подсветка не сбрасывалась.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” Сѓ Р°РєС‚РёРІРЅРѕР№ РєРЅРѕРїРєРё Normal/Highlighted/Selected РІСЂРµРјРµРЅРЅРѕ СЃС‚Р°РЅРѕРІСЏС‚СЃСЏ РѕРґРЅРёРј Р°РєС‚РёРІРЅС‹Рј С†РІРµС‚РѕРј, С‡С‚РѕР±С‹ РїРѕРґСЃРІРµС‚РєР° РЅРµ СЃР±СЂР°СЃС‹РІР°Р»Р°СЃСЊ.")]
     private bool forceActiveColorForAllButtonStates = true;
 
     [Header("Settings Hint Universal")]
-    [SerializeField, Tooltip("Один общий TMP_Text снизу меню настроек. В него выводятся все подсказки.")]
+    [SerializeField, Tooltip("РћРґРёРЅ РѕР±С‰РёР№ TMP_Text СЃРЅРёР·Сѓ РјРµРЅСЋ РЅР°СЃС‚СЂРѕРµРє. Р’ РЅРµРіРѕ РІС‹РІРѕРґСЏС‚СЃСЏ РІСЃРµ РїРѕРґСЃРєР°Р·РєРё.")]
     private TMP_Text settingsHintText;
 
-    [SerializeField, TextArea(1, 4), Tooltip("Текст по умолчанию, когда ничего не выбрано и мышь ни на что не наведена.")]
+    [SerializeField, TextArea(1, 4), Tooltip("РўРµРєСЃС‚ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ, РєРѕРіРґР° РЅРёС‡РµРіРѕ РЅРµ РІС‹Р±СЂР°РЅРѕ Рё РјС‹С€СЊ РЅРё РЅР° С‡С‚Рѕ РЅРµ РЅР°РІРµРґРµРЅР°.")]
     private string settingsHintDefaultText = "\\:";
 
-    [SerializeField, Tooltip("Если ВКЛ — Settings Hint Default Text считается постоянным префиксом консоли. Например: \\: + подсказка.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” Settings Hint Default Text СЃС‡РёС‚Р°РµС‚СЃСЏ РїРѕСЃС‚РѕСЏРЅРЅС‹Рј РїСЂРµС„РёРєСЃРѕРј РєРѕРЅСЃРѕР»Рё. РќР°РїСЂРёРјРµСЂ: \\: + РїРѕРґСЃРєР°Р·РєР°.")]
     private bool useDefaultTextAsPersistentPrefix = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — текст подсказки выводится постепенно, будто печатается на клавиатуре.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” С‚РµРєСЃС‚ РїРѕРґСЃРєР°Р·РєРё РІС‹РІРѕРґРёС‚СЃСЏ РїРѕСЃС‚РµРїРµРЅРЅРѕ, Р±СѓРґС‚Рѕ РїРµС‡Р°С‚Р°РµС‚СЃСЏ РЅР° РєР»Р°РІРёР°С‚СѓСЂРµ.")]
     private bool useHintTypewriterEffect = true;
 
-    [SerializeField, Min(1f), Tooltip("Скорость печати подсказки в символах в секунду.")]
+    [SerializeField, Min(1f), Tooltip("РЎРєРѕСЂРѕСЃС‚СЊ РїРµС‡Р°С‚Рё РїРѕРґСЃРєР°Р·РєРё РІ СЃРёРјРІРѕР»Р°С… РІ СЃРµРєСѓРЅРґСѓ.")]
     private float settingsHintTypingCharsPerSecond = 45f;
 
-    [SerializeField, Tooltip("Если ВКЛ — печать подсказки работает даже при Time.timeScale = 0, что полезно для меню/паузы.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїРµС‡Р°С‚СЊ РїРѕРґСЃРєР°Р·РєРё СЂР°Р±РѕС‚Р°РµС‚ РґР°Р¶Рµ РїСЂРё Time.timeScale = 0, С‡С‚Рѕ РїРѕР»РµР·РЅРѕ РґР»СЏ РјРµРЅСЋ/РїР°СѓР·С‹.")]
     private bool useUnscaledTimeForHintTyping = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — подсказка сбрасывается при смене вкладки настроек.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїРѕРґСЃРєР°Р·РєР° СЃР±СЂР°СЃС‹РІР°РµС‚СЃСЏ РїСЂРё СЃРјРµРЅРµ РІРєР»Р°РґРєРё РЅР°СЃС‚СЂРѕРµРє.")]
     private bool clearSettingsHintOnTabChange = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — подсказка сбрасывается при закрытии/отключении меню настроек.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїРѕРґСЃРєР°Р·РєР° СЃР±СЂР°СЃС‹РІР°РµС‚СЃСЏ РїСЂРё Р·Р°РєСЂС‹С‚РёРё/РѕС‚РєР»СЋС‡РµРЅРёРё РјРµРЅСЋ РЅР°СЃС‚СЂРѕРµРє.")]
     private bool clearSettingsHintOnDisable = true;
 
-    [SerializeField, Tooltip("Список строк/элементов настроек, для которых нужно показывать подсказки.")]
+    [SerializeField, Tooltip("РЎРїРёСЃРѕРє СЃС‚СЂРѕРє/СЌР»РµРјРµРЅС‚РѕРІ РЅР°СЃС‚СЂРѕРµРє, РґР»СЏ РєРѕС‚РѕСЂС‹С… РЅСѓР¶РЅРѕ РїРѕРєР°Р·С‹РІР°С‚СЊ РїРѕРґСЃРєР°Р·РєРё.")]
     private List<SettingsHintBinding> settingsHintBindings = new List<SettingsHintBinding>();
 
-    [SerializeField, Tooltip("Если ВКЛ — пишет предупреждение, если не назначен общий TMP_Text.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїРёС€РµС‚ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ, РµСЃР»Рё РЅРµ РЅР°Р·РЅР°С‡РµРЅ РѕР±С‰РёР№ TMP_Text.")]
     private bool debugSettingsHintWarnings = true;
 
     private UnityEngine.Object _currentSettingsHintSource;
@@ -98,120 +105,151 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [Serializable]
     private sealed class SettingsHintBinding
     {
-        [Tooltip("Имя для удобства в Inspector. На логику не влияет.")]
+        [Tooltip("РРјСЏ РґР»СЏ СѓРґРѕР±СЃС‚РІР° РІ Inspector. РќР° Р»РѕРіРёРєСѓ РЅРµ РІР»РёСЏРµС‚.")]
         public string name;
 
-        [Tooltip("Объект всей строки настройки: Row_ScreenResolution, Row_Brightness и т.д. Нужен для наведения мышкой по всей строке.")]
+        [Tooltip("РћР±СЉРµРєС‚ РІСЃРµР№ СЃС‚СЂРѕРєРё РЅР°СЃС‚СЂРѕР№РєРё: Row_ScreenResolution, Row_Brightness Рё С‚.Рґ. РќСѓР¶РµРЅ РґР»СЏ РЅР°РІРµРґРµРЅРёСЏ РјС‹С€РєРѕР№ РїРѕ РІСЃРµР№ СЃС‚СЂРѕРєРµ.")]
         public GameObject pointerTarget;
 
-        [Tooltip("Интерактивный UI-элемент внутри строки: Button, Slider, Toggle, TMP_Dropdown. Нужен для клавиатуры/геймпада через EventSystem.")]
+        [Tooltip("РРЅС‚РµСЂР°РєС‚РёРІРЅС‹Р№ UI-СЌР»РµРјРµРЅС‚ РІРЅСѓС‚СЂРё СЃС‚СЂРѕРєРё: Button, Slider, Toggle, TMP_Dropdown. РќСѓР¶РµРЅ РґР»СЏ РєР»Р°РІРёР°С‚СѓСЂС‹/РіРµР№РјРїР°РґР° С‡РµСЂРµР· EventSystem.")]
         public Selectable selectableTarget;
 
-        [TextArea(2, 6), Tooltip("Текст подсказки, который будет выведен в общий TMP_Text.")]
+        [TextArea(2, 6), Tooltip("РўРµРєСЃС‚ РїРѕРґСЃРєР°Р·РєРё, РєРѕС‚РѕСЂС‹Р№ Р±СѓРґРµС‚ РІС‹РІРµРґРµРЅ РІ РѕР±С‰РёР№ TMP_Text.")]
         public string hintMessage;
 
-        [Tooltip("Показывать подсказку при наведении мышкой.")]
+        [Tooltip("РџРѕРєР°Р·С‹РІР°С‚СЊ РїРѕРґСЃРєР°Р·РєСѓ РїСЂРё РЅР°РІРµРґРµРЅРёРё РјС‹С€РєРѕР№.")]
         public bool showOnPointerEnter = true;
 
-        [Tooltip("Показывать подсказку при выборе через клавиатуру/геймпад.")]
+        [Tooltip("РџРѕРєР°Р·С‹РІР°С‚СЊ РїРѕРґСЃРєР°Р·РєСѓ РїСЂРё РІС‹Р±РѕСЂРµ С‡РµСЂРµР· РєР»Р°РІРёР°С‚СѓСЂСѓ/РіРµР№РјРїР°Рґ.")]
         public bool showOnSelect = true;
 
-        [Tooltip("Автоматически включить Raycast Target у Image/Graphic на pointerTarget, чтобы вся строка ловила наведение.")]
+        [Tooltip("РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРё РІРєР»СЋС‡РёС‚СЊ Raycast Target Сѓ Image/Graphic РЅР° pointerTarget, С‡С‚РѕР±С‹ РІСЃСЏ СЃС‚СЂРѕРєР° Р»РѕРІРёР»Р° РЅР°РІРµРґРµРЅРёРµ.")]
         public bool forcePointerRaycastTarget = true;
     }
 
-    [Header("Gameplay: траектория прыжка")]
-    [SerializeField, Tooltip("Toggle из Gameplay-вкладки.")]
+    [Header("Gameplay: РєРЅРѕРїРєРё Р·РЅР°С‡РµРЅРёР№")]
+    [SerializeField] private Button languageValueButton;
+    [SerializeField] private Button assistValueButton;
+    [SerializeField] private Button vhsValueButton;
+    [SerializeField] private Button gamepadVibrationValueButton;
+
+    [SerializeField] private TMP_Text languageValueText;
+    [SerializeField] private TMP_Text assistValueText;
+    [SerializeField] private TMP_Text vhsValueText;
+    [SerializeField] private TMP_Text gamepadVibrationValueText;
+
+    [SerializeField, Tooltip("Р•СЃР»Рё СЃСЃС‹Р»РєРё РЅРµ РЅР°Р·РЅР°С‡РµРЅС‹ РІСЂСѓС‡РЅСѓСЋ, РїРѕРїСЂРѕР±РѕРІР°С‚СЊ РЅР°Р№С‚Рё РєРЅРѕРїРєРё Language, Assist, VHS Рё GamepadVibration РІРЅСѓС‚СЂРё Gameplay.")]
+    private bool autoFindGameplayValueButtons = true;
+
+    [SerializeField, Tooltip("Р•СЃР»Рё С‚РµРєСЃС‚С‹ РЅРµ РЅР°Р·РЅР°С‡РµРЅС‹ РІСЂСѓС‡РЅСѓСЋ, РЅР°Р№С‚Рё РґРѕС‡РµСЂРЅРёР№ TMP_Text СЃ РёРјРµРЅРµРј Label РІРЅСѓС‚СЂРё РєРЅРѕРїРєРё.")]
+    private bool autoFindGameplayValueTexts = true;
+
+    [SerializeField] private string languagePrefsKey = "Settings.Language";
+    [SerializeField, Range(0, 2)] private int defaultLanguageIndex = 1;
+    [SerializeField] private string enabledValueText = "Р”Рђ";
+    [SerializeField] private string disabledValueText = "РќР•Рў";
+
+    private static readonly string[] LanguageDisplayNames =
+    {
+        "Р СѓСЃСЃРєРёР№",
+        "English",
+        "Deutsch"
+    };
+
+    private int _currentLanguageIndex;
+
+    [Header("Gameplay: С‚СЂР°РµРєС‚РѕСЂРёСЏ РїСЂС‹Р¶РєР°")]
+    [SerializeField, Tooltip("Toggle РёР· Gameplay-РІРєР»Р°РґРєРё.")]
     private Toggle jumpTrajectoryToggle;
 
-    [SerializeField, Tooltip("Обычно оставь None. Используется только если Background сделан отдельной Button-кнопкой.")]
+    [SerializeField, Tooltip("РћР±С‹С‡РЅРѕ РѕСЃС‚Р°РІСЊ None. РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ С‚РѕР»СЊРєРѕ РµСЃР»Рё Background СЃРґРµР»Р°РЅ РѕС‚РґРµР»СЊРЅРѕР№ Button-РєРЅРѕРїРєРѕР№.")]
     private Button jumpTrajectoryBackgroundButton;
 
-    [SerializeField, Tooltip("Ссылка на JumpTrajectory2D на игроке. Можно оставить пустым, если включён Auto Find.")]
+    [SerializeField, Tooltip("РЎСЃС‹Р»РєР° РЅР° JumpTrajectory2D РЅР° РёРіСЂРѕРєРµ. РњРѕР¶РЅРѕ РѕСЃС‚Р°РІРёС‚СЊ РїСѓСЃС‚С‹Рј, РµСЃР»Рё РІРєР»СЋС‡С‘РЅ Auto Find.")]
     private JumpTrajectory2D jumpTrajectory;
 
-    [SerializeField, Tooltip("Если ВКЛ — SettingsTabsSwitcher сам попробует найти JumpTrajectory2D в сцене.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” SettingsTabsSwitcher СЃР°Рј РїРѕРїСЂРѕР±СѓРµС‚ РЅР°Р№С‚Рё JumpTrajectory2D РІ СЃС†РµРЅРµ.")]
     private bool autoFindJumpTrajectoryInScene = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — состояние галочки сохраняется в PlayerPrefs.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” СЃРѕСЃС‚РѕСЏРЅРёРµ РіР°Р»РѕС‡РєРё СЃРѕС…СЂР°РЅСЏРµС‚СЃСЏ РІ PlayerPrefs.")]
     private bool saveJumpTrajectorySetting = true;
 
-    [SerializeField, Tooltip("Ключ сохранения. Такой же ключ должен быть в JumpTrajectory2D.")]
+    [SerializeField, Tooltip("РљР»СЋС‡ СЃРѕС…СЂР°РЅРµРЅРёСЏ. РўР°РєРѕР№ Р¶Рµ РєР»СЋС‡ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ JumpTrajectory2D.")]
     private string jumpTrajectoryPrefsKey = "Settings.ShowJumpTrajectory";
 
-    [SerializeField, Tooltip("Значение по умолчанию, если сохранения ещё нет.")]
+    [SerializeField, Tooltip("Р—РЅР°С‡РµРЅРёРµ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ, РµСЃР»Рё СЃРѕС…СЂР°РЅРµРЅРёСЏ РµС‰С‘ РЅРµС‚.")]
     private bool defaultJumpTrajectoryVisible = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда настройка меняется.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїРёС€РµС‚ РІ Console, РєРѕРіРґР° РЅР°СЃС‚СЂРѕР№РєР° РјРµРЅСЏРµС‚СЃСЏ.")]
     private bool debugJumpTrajectoryToggle = false;
 
     [Header("Gameplay: VHS / CRT / Post Processing")]
-    [SerializeField, Tooltip("Toggle, который включает/выключает VHS/CRT/PostFX эффект.")]
+    [SerializeField, Tooltip("Toggle, РєРѕС‚РѕСЂС‹Р№ РІРєР»СЋС‡Р°РµС‚/РІС‹РєР»СЋС‡Р°РµС‚ VHS/CRT/PostFX СЌС„С„РµРєС‚.")]
     private Toggle postFxToggle;
 
-    [SerializeField, Tooltip("Обычно оставь None. Используется только если Background сделан отдельной Button-кнопкой.")]
+    [SerializeField, Tooltip("РћР±С‹С‡РЅРѕ РѕСЃС‚Р°РІСЊ None. РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ С‚РѕР»СЊРєРѕ РµСЃР»Рё Background СЃРґРµР»Р°РЅ РѕС‚РґРµР»СЊРЅРѕР№ Button-РєРЅРѕРїРєРѕР№.")]
     private Button postFxBackgroundButton;
 
-    [SerializeField, Tooltip("Global Volume из сцены. Лучше перетащить вручную.")]
+    [SerializeField, Tooltip("Global Volume РёР· СЃС†РµРЅС‹. Р›СѓС‡С€Рµ РїРµСЂРµС‚Р°С‰РёС‚СЊ РІСЂСѓС‡РЅСѓСЋ.")]
     private Volume postFxVolume;
 
-    [SerializeField, Tooltip("Если ВКЛ — скрипт сам попробует найти Global Volume в сцене.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” СЃРєСЂРёРїС‚ СЃР°Рј РїРѕРїСЂРѕР±СѓРµС‚ РЅР°Р№С‚Рё Global Volume РІ СЃС†РµРЅРµ.")]
     private bool autoFindPostFxInScene = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — эффект выключается через Volume.weight = 0. Если ВЫКЛ — выключается сам компонент Volume.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” СЌС„С„РµРєС‚ РІС‹РєР»СЋС‡Р°РµС‚СЃСЏ С‡РµСЂРµР· Volume.weight = 0. Р•СЃР»Рё Р’Р«РљР› вЂ” РІС‹РєР»СЋС‡Р°РµС‚СЃСЏ СЃР°Рј РєРѕРјРїРѕРЅРµРЅС‚ Volume.")]
     private bool controlPostFxByWeight = true;
 
-    [SerializeField, Range(0f, 1f), Tooltip("Какой Weight ставить, когда эффект включён.")]
+    [SerializeField, Range(0f, 1f), Tooltip("РљР°РєРѕР№ Weight СЃС‚Р°РІРёС‚СЊ, РєРѕРіРґР° СЌС„С„РµРєС‚ РІРєР»СЋС‡С‘РЅ.")]
     private float postFxEnabledWeight = 1f;
 
-    [SerializeField, Tooltip("Если ВКЛ — состояние сохраняется в PlayerPrefs.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” СЃРѕСЃС‚РѕСЏРЅРёРµ СЃРѕС…СЂР°РЅСЏРµС‚СЃСЏ РІ PlayerPrefs.")]
     private bool savePostFxSetting = true;
 
-    [SerializeField, Tooltip("Ключ сохранения VHS/PostFX.")]
+    [SerializeField, Tooltip("РљР»СЋС‡ СЃРѕС…СЂР°РЅРµРЅРёСЏ VHS/PostFX.")]
     private string postFxPrefsKey = "Settings.CRTPostFx";
 
-    [SerializeField, Tooltip("Значение по умолчанию, если сохранения ещё нет.")]
+    [SerializeField, Tooltip("Р—РЅР°С‡РµРЅРёРµ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ, РµСЃР»Рё СЃРѕС…СЂР°РЅРµРЅРёСЏ РµС‰С‘ РЅРµС‚.")]
     private bool defaultPostFxVisible = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда настройка меняется.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїРёС€РµС‚ РІ Console, РєРѕРіРґР° РЅР°СЃС‚СЂРѕР№РєР° РјРµРЅСЏРµС‚СЃСЏ.")]
     private bool debugPostFxToggle = false;
 
-    [Header("Gameplay: вибрация геймпада")]
-    [SerializeField, Tooltip("Toggle, который включает/выключает вибрацию геймпада при жёстком приземлении.")]
+    [Header("Gameplay: РІРёР±СЂР°С†РёСЏ РіРµР№РјРїР°РґР°")]
+    [SerializeField, Tooltip("Toggle, РєРѕС‚РѕСЂС‹Р№ РІРєР»СЋС‡Р°РµС‚/РІС‹РєР»СЋС‡Р°РµС‚ РІРёР±СЂР°С†РёСЋ РіРµР№РјРїР°РґР° РїСЂРё Р¶С‘СЃС‚РєРѕРј РїСЂРёР·РµРјР»РµРЅРёРё.")]
     private Toggle gamepadRumbleToggle;
 
-    [SerializeField, Tooltip("Обычно оставь None. Используется только если Background сделан отдельной Button-кнопкой.")]
+    [SerializeField, Tooltip("РћР±С‹С‡РЅРѕ РѕСЃС‚Р°РІСЊ None. РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ С‚РѕР»СЊРєРѕ РµСЃР»Рё Background СЃРґРµР»Р°РЅ РѕС‚РґРµР»СЊРЅРѕР№ Button-РєРЅРѕРїРєРѕР№.")]
     private Button gamepadRumbleBackgroundButton;
 
-    [SerializeField, Tooltip("PlayerController из игровой сцены. Можно оставить пустым, если включён Auto Find.")]
+    [SerializeField, Tooltip("PlayerController РёР· РёРіСЂРѕРІРѕР№ СЃС†РµРЅС‹. РњРѕР¶РЅРѕ РѕСЃС‚Р°РІРёС‚СЊ РїСѓСЃС‚С‹Рј, РµСЃР»Рё РІРєР»СЋС‡С‘РЅ Auto Find.")]
     private PlayerController playerController;
 
-    [SerializeField, Tooltip("Если ВКЛ — скрипт сам попробует найти PlayerController в сцене.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” СЃРєСЂРёРїС‚ СЃР°Рј РїРѕРїСЂРѕР±СѓРµС‚ РЅР°Р№С‚Рё PlayerController РІ СЃС†РµРЅРµ.")]
     private bool autoFindPlayerControllerInScene = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — состояние сохраняется в PlayerPrefs.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” СЃРѕСЃС‚РѕСЏРЅРёРµ СЃРѕС…СЂР°РЅСЏРµС‚СЃСЏ РІ PlayerPrefs.")]
     private bool saveGamepadRumbleSetting = true;
 
-    [SerializeField, Tooltip("Ключ сохранения вибрации. Такой же ключ должен быть в PlayerController.")]
+    [SerializeField, Tooltip("РљР»СЋС‡ СЃРѕС…СЂР°РЅРµРЅРёСЏ РІРёР±СЂР°С†РёРё. РўР°РєРѕР№ Р¶Рµ РєР»СЋС‡ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ PlayerController.")]
     private string gamepadRumblePrefsKey = "Settings.GamepadRumble";
 
-    [SerializeField, Tooltip("Значение по умолчанию, если сохранения ещё нет.")]
+    [SerializeField, Tooltip("Р—РЅР°С‡РµРЅРёРµ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ, РµСЃР»Рё СЃРѕС…СЂР°РЅРµРЅРёСЏ РµС‰С‘ РЅРµС‚.")]
     private bool defaultGamepadRumbleEnabled = true;
 
-    [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда настройка меняется.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїРёС€РµС‚ РІ Console, РєРѕРіРґР° РЅР°СЃС‚СЂРѕР№РєР° РјРµРЅСЏРµС‚СЃСЏ.")]
     private bool debugGamepadRumbleToggle = false;
 
-    [Header("Стартовое поведение")]
+    [Header("РЎС‚Р°СЂС‚РѕРІРѕРµ РїРѕРІРµРґРµРЅРёРµ")]
     [SerializeField] private bool closeAllTabsOnEnable = true;
 
-    [Header("Запоминание последней вкладки")]
-    [SerializeField, Tooltip("Если ВКЛ — при открытии настроек будет открываться последняя вкладка, на которой игрок вышел.")]
+    [Header("Р—Р°РїРѕРјРёРЅР°РЅРёРµ РїРѕСЃР»РµРґРЅРµР№ РІРєР»Р°РґРєРё")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїСЂРё РѕС‚РєСЂС‹С‚РёРё РЅР°СЃС‚СЂРѕРµРє Р±СѓРґРµС‚ РѕС‚РєСЂС‹РІР°С‚СЊСЃСЏ РїРѕСЃР»РµРґРЅСЏСЏ РІРєР»Р°РґРєР°, РЅР° РєРѕС‚РѕСЂРѕР№ РёРіСЂРѕРє РІС‹С€РµР».")]
     private bool reopenLastTabOnEnable = true;
 
-    [SerializeField, Tooltip("Какая вкладка откроется в первый раз, если игрок ещё никуда не заходил.")]
+    [SerializeField, Tooltip("РљР°РєР°СЏ РІРєР»Р°РґРєР° РѕС‚РєСЂРѕРµС‚СЃСЏ РІ РїРµСЂРІС‹Р№ СЂР°Р·, РµСЃР»Рё РёРіСЂРѕРє РµС‰С‘ РЅРёРєСѓРґР° РЅРµ Р·Р°С…РѕРґРёР».")]
     private SettingsTabId defaultTabOnFirstOpen = SettingsTabId.Audio;
 
-    [SerializeField, Tooltip("Если ВКЛ — после восстановления вкладки выделяется её верхняя кнопка.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” РїРѕСЃР»Рµ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РІРєР»Р°РґРєРё РІС‹РґРµР»СЏРµС‚СЃСЏ РµС‘ РІРµСЂС…РЅСЏСЏ РєРЅРѕРїРєР°.")]
     private bool selectRestoredTabButton = true;
 
     [Header("UI selection defaults")]
@@ -277,6 +315,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         }
 
         SetupSettingsHints();
+        SetupGameplayValueButtons();
         SetupJumpTrajectoryToggle();
         SetupPostFxToggle();
         SetupGamepadRumbleToggle();
@@ -306,6 +345,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         SyncJumpTrajectoryToggleWithSavedValue();
         SyncPostFxToggleWithSavedValue();
         SyncGamepadRumbleToggleWithSavedValue();
+        RefreshGameplayValueTexts();
 
         RefreshActiveSettingsButtonHighlight();
     }
@@ -317,6 +357,29 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         if (clearSettingsHintOnDisable)
             ResetSettingsHint();
+    }
+
+    private void OnDestroy()
+    {
+        UnbindGameplayValueButtons();
+
+        if (jumpTrajectoryToggle != null)
+            jumpTrajectoryToggle.onValueChanged.RemoveListener(OnJumpTrajectoryToggleChanged);
+
+        if (postFxToggle != null)
+            postFxToggle.onValueChanged.RemoveListener(OnPostFxToggleChanged);
+
+        if (gamepadRumbleToggle != null)
+            gamepadRumbleToggle.onValueChanged.RemoveListener(OnGamepadRumbleToggleChanged);
+
+        if (jumpTrajectoryBackgroundButton != null)
+            jumpTrajectoryBackgroundButton.onClick.RemoveListener(ToggleJumpTrajectoryFromBackgroundButton);
+
+        if (postFxBackgroundButton != null)
+            postFxBackgroundButton.onClick.RemoveListener(TogglePostFxFromBackgroundButton);
+
+        if (gamepadRumbleBackgroundButton != null)
+            gamepadRumbleBackgroundButton.onClick.RemoveListener(ToggleGamepadRumbleFromBackgroundButton);
     }
 
     public void OpenAudioTab()
@@ -989,7 +1052,204 @@ public class SettingsTabsSwitcher : MonoBehaviour
             return;
 
         _settingsHintMissingTextWarningShown = true;
-        Debug.LogWarning("[SettingsTabsSwitcher] Settings Hint Text не назначен. Перетащи общий Text (TMP) в поле Settings Hint Text.", this);
+        Debug.LogWarning("[SettingsTabsSwitcher] Settings Hint Text РЅРµ РЅР°Р·РЅР°С‡РµРЅ. РџРµСЂРµС‚Р°С‰Рё РѕР±С‰РёР№ Text (TMP) РІ РїРѕР»Рµ Settings Hint Text.", this);
+    }
+
+    // =========================================================
+    // Gameplay Value Buttons
+    // =========================================================
+
+    private void SetupGameplayValueButtons()
+    {
+        ResolveGameplayValueReferences();
+
+        BindGameplayValueButton(languageValueButton, OnLanguageValueButtonClicked);
+        BindGameplayValueButton(assistValueButton, OnAssistValueButtonClicked);
+        BindGameplayValueButton(vhsValueButton, OnVhsValueButtonClicked);
+        BindGameplayValueButton(gamepadVibrationValueButton, OnGamepadVibrationValueButtonClicked);
+
+        _currentLanguageIndex = ReadSavedLanguageIndex();
+        RefreshGameplayValueTexts();
+    }
+
+    private void UnbindGameplayValueButtons()
+    {
+        UnbindGameplayValueButton(languageValueButton, OnLanguageValueButtonClicked);
+        UnbindGameplayValueButton(assistValueButton, OnAssistValueButtonClicked);
+        UnbindGameplayValueButton(vhsValueButton, OnVhsValueButtonClicked);
+        UnbindGameplayValueButton(gamepadVibrationValueButton, OnGamepadVibrationValueButtonClicked);
+    }
+
+    private static void BindGameplayValueButton(Button button, UnityEngine.Events.UnityAction action)
+    {
+        if (button == null)
+            return;
+
+        button.onClick.RemoveListener(action);
+        button.onClick.AddListener(action);
+    }
+
+    private static void UnbindGameplayValueButton(Button button, UnityEngine.Events.UnityAction action)
+    {
+        if (button == null)
+            return;
+
+        button.onClick.RemoveListener(action);
+    }
+
+    private void ResolveGameplayValueReferences()
+    {
+        if (autoFindGameplayValueButtons && tabGameplay != null)
+        {
+            if (languageValueButton == null)
+                languageValueButton = FindButtonByName(tabGameplay, "Language");
+
+            if (assistValueButton == null)
+                assistValueButton = FindButtonByName(tabGameplay, "Assist");
+
+            if (vhsValueButton == null)
+                vhsValueButton = FindButtonByName(tabGameplay, "VHS");
+
+            if (gamepadVibrationValueButton == null)
+                gamepadVibrationValueButton = FindButtonByName(tabGameplay, "GamepadVibration");
+        }
+
+        if (!autoFindGameplayValueTexts)
+            return;
+
+        if (languageValueText == null)
+            languageValueText = FindButtonValueText(languageValueButton);
+
+        if (assistValueText == null)
+            assistValueText = FindButtonValueText(assistValueButton);
+
+        if (vhsValueText == null)
+            vhsValueText = FindButtonValueText(vhsValueButton);
+
+        if (gamepadVibrationValueText == null)
+            gamepadVibrationValueText = FindButtonValueText(gamepadVibrationValueButton);
+    }
+
+    private static Button FindButtonByName(GameObject root, string buttonName)
+    {
+        if (root == null || string.IsNullOrEmpty(buttonName))
+            return null;
+
+        Button[] buttons = root.GetComponentsInChildren<Button>(true);
+
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            Button button = buttons[i];
+
+            if (button != null && string.Equals(button.name, buttonName, StringComparison.Ordinal))
+                return button;
+        }
+
+        return null;
+    }
+
+    private static TMP_Text FindButtonValueText(Button button)
+    {
+        if (button == null)
+            return null;
+
+        Transform directLabel = button.transform.Find("Label");
+
+        if (directLabel != null)
+        {
+            TMP_Text directText = directLabel.GetComponent<TMP_Text>();
+
+            if (directText != null)
+                return directText;
+        }
+
+        TMP_Text[] texts = button.GetComponentsInChildren<TMP_Text>(true);
+
+        for (int i = 0; i < texts.Length; i++)
+        {
+            TMP_Text text = texts[i];
+
+            if (text != null && text.transform.parent == button.transform)
+                return text;
+        }
+
+        return texts.Length > 0 ? texts[0] : null;
+    }
+
+    private void OnLanguageValueButtonClicked()
+    {
+        _currentLanguageIndex = (_currentLanguageIndex + 1) % LanguageDisplayNames.Length;
+
+        if (!string.IsNullOrEmpty(languagePrefsKey))
+        {
+            PlayerPrefs.SetInt(languagePrefsKey, _currentLanguageIndex);
+            PlayerPrefs.Save();
+        }
+
+        RefreshLanguageValueText();
+    }
+
+    private void OnAssistValueButtonClicked()
+    {
+        bool newValue = !ReadSavedJumpTrajectoryVisible();
+        ApplyJumpTrajectoryVisible(newValue, true, true);
+    }
+
+    private void OnVhsValueButtonClicked()
+    {
+        bool newValue = !ReadSavedPostFxVisible();
+        ApplyPostFxVisible(newValue, true, true);
+    }
+
+    private void OnGamepadVibrationValueButtonClicked()
+    {
+        bool newValue = !ReadSavedGamepadRumbleEnabled();
+        ApplyGamepadRumbleEnabled(newValue, true, true);
+    }
+
+    private int ReadSavedLanguageIndex()
+    {
+        int fallback = Mathf.Clamp(defaultLanguageIndex, 0, LanguageDisplayNames.Length - 1);
+
+        if (string.IsNullOrEmpty(languagePrefsKey))
+            return fallback;
+
+        int savedIndex = PlayerPrefs.GetInt(languagePrefsKey, fallback);
+        return Mathf.Clamp(savedIndex, 0, LanguageDisplayNames.Length - 1);
+    }
+
+    private void RefreshGameplayValueTexts()
+    {
+        ResolveGameplayValueReferences();
+
+        _currentLanguageIndex = ReadSavedLanguageIndex();
+
+        RefreshLanguageValueText();
+        SetBooleanValueText(assistValueText, ReadSavedJumpTrajectoryVisible());
+        SetBooleanValueText(vhsValueText, ReadSavedPostFxVisible());
+        SetBooleanValueText(gamepadVibrationValueText, ReadSavedGamepadRumbleEnabled());
+    }
+
+    private void RefreshLanguageValueText()
+    {
+        if (languageValueText == null)
+            return;
+
+        _currentLanguageIndex = Mathf.Clamp(
+            _currentLanguageIndex,
+            0,
+            LanguageDisplayNames.Length - 1
+        );
+
+        languageValueText.text = LanguageDisplayNames[_currentLanguageIndex];
+    }
+
+    private void SetBooleanValueText(TMP_Text target, bool value)
+    {
+        if (target == null)
+            return;
+
+        target.text = value ? enabledValueText : disabledValueText;
     }
 
     // =========================================================
@@ -1006,7 +1266,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             jumpTrajectoryToggle.onValueChanged.AddListener(OnJumpTrajectoryToggleChanged);
         }
 
-        if (jumpTrajectoryBackgroundButton != null)
+        if (jumpTrajectoryBackgroundButton != null &&
+            jumpTrajectoryBackgroundButton != assistValueButton)
         {
             jumpTrajectoryBackgroundButton.onClick.RemoveListener(ToggleJumpTrajectoryFromBackgroundButton);
             jumpTrajectoryBackgroundButton.onClick.AddListener(ToggleJumpTrajectoryFromBackgroundButton);
@@ -1072,6 +1333,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             _ignoreJumpTrajectoryToggleCallback = false;
         }
 
+        SetBooleanValueText(assistValueText, visible);
+
         if (debugJumpTrajectoryToggle && log)
             Debug.Log("[SettingsTabsSwitcher] Jump trajectory visible = " + visible);
     }
@@ -1127,7 +1390,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             postFxToggle.onValueChanged.AddListener(OnPostFxToggleChanged);
         }
 
-        if (postFxBackgroundButton != null)
+        if (postFxBackgroundButton != null &&
+            postFxBackgroundButton != vhsValueButton)
         {
             postFxBackgroundButton.onClick.RemoveListener(TogglePostFxFromBackgroundButton);
             postFxBackgroundButton.onClick.AddListener(TogglePostFxFromBackgroundButton);
@@ -1192,6 +1456,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             postFxToggle.SetIsOnWithoutNotify(visible);
             _ignorePostFxToggleCallback = false;
         }
+
+        SetBooleanValueText(vhsValueText, visible);
 
         if (debugPostFxToggle && log)
             Debug.Log("[SettingsTabsSwitcher] VHS/PostFX visible = " + visible);
@@ -1267,7 +1533,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             gamepadRumbleToggle.onValueChanged.AddListener(OnGamepadRumbleToggleChanged);
         }
 
-        if (gamepadRumbleBackgroundButton != null)
+        if (gamepadRumbleBackgroundButton != null &&
+            gamepadRumbleBackgroundButton != gamepadVibrationValueButton)
         {
             gamepadRumbleBackgroundButton.onClick.RemoveListener(ToggleGamepadRumbleFromBackgroundButton);
             gamepadRumbleBackgroundButton.onClick.AddListener(ToggleGamepadRumbleFromBackgroundButton);
@@ -1332,6 +1599,8 @@ public class SettingsTabsSwitcher : MonoBehaviour
             gamepadRumbleToggle.SetIsOnWithoutNotify(enabled);
             _ignoreGamepadRumbleToggleCallback = false;
         }
+
+        SetBooleanValueText(gamepadVibrationValueText, enabled);
 
         if (debugGamepadRumbleToggle && log)
             Debug.Log("[SettingsTabsSwitcher] Gamepad rumble enabled = " + enabled);
