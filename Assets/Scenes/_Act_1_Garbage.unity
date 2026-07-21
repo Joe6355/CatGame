@@ -7395,7 +7395,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0091c5ddde2cd4540b9cb1560703e3af, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  id: rat_act1_garbage_01
+  id: act1_rat_001
 --- !u!1001 &392020284
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -24371,6 +24371,20 @@ MonoBehaviour:
   clearSettingsHintOnDisable: 1
   settingsHintBindings: []
   debugSettingsHintWarnings: 1
+  languageValueButton: {fileID: 0}
+  assistValueButton: {fileID: 0}
+  vhsValueButton: {fileID: 0}
+  gamepadVibrationValueButton: {fileID: 0}
+  languageValueText: {fileID: 0}
+  assistValueText: {fileID: 0}
+  vhsValueText: {fileID: 0}
+  gamepadVibrationValueText: {fileID: 0}
+  autoFindGameplayValueButtons: 1
+  autoFindGameplayValueTexts: 1
+  languagePrefsKey: Settings.Language
+  defaultLanguageIndex: 1
+  enabledValueText: "\u0414\u0410"
+  disabledValueText: "\u041D\u0415\u0422"
   jumpTrajectoryToggle: {fileID: 0}
   jumpTrajectoryBackgroundButton: {fileID: 0}
   jumpTrajectory: {fileID: 0}

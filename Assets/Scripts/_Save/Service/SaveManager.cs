@@ -12,25 +12,35 @@ namespace CatGame.SaveSystem
         public static SaveManager Instance { get; private set; }
 
         [Header("Storage")]
-        [SerializeField, Tooltip("Количество ручных слотов, которые будут показаны в меню. Рекомендация на старт: 2, как в текущей заготовке меню. Позже можно увеличить без переписывания сохранений.")]
+        [SerializeField, Tooltip("Количество ручных слотов, которые будут показаны в меню.")]
         private int manualSlotsCount = SaveConstants.DefaultManualSlotsCount;
 
         [Header("New Game")]
-        [SerializeField, Tooltip("Имя стартовой сцены для новой игры. Рекомендация: указать первую игровую сцену с котом, не Main Menu.")]
+        [SerializeField, Tooltip("Имя стартовой игровой сцены.")]
         private string defaultStartSceneName = "SampleScene";
 
-        [SerializeField, Tooltip("ID стартового SpawnPoint для новой игры. Рекомендация: start. На стартовом объекте SpawnPoint укажи такой же spawnId.")]
+        [SerializeField, Tooltip("ID стартового SpawnPoint.")]
         private string defaultStartSpawnId = "start";
 
         [Header("Autosave")]
-        [SerializeField, Tooltip("Минимальная пауза между автосейвами в секундах. Рекомендация: 5-10 секунд, чтобы не дергать диск при каждом триггере.")]
+        [SerializeField, Tooltip("Минимальная пауза между автосейвами в секундах.")]
         private float autosaveCooldownSeconds = 5f;
 
-        [SerializeField, Tooltip("Писать автосейв сразу при значимом изменении. Рекомендация: включено. Cooldown все равно защищает от частой записи.")]
+        [SerializeField, Tooltip("Писать автосейв сразу при значимом изменении.")]
         private bool saveAutosaveAfterDirtyState = true;
 
+        [Header("Save Preview")]
+        [SerializeField, Tooltip("Создавать изображение игрового кадра для автосейва и ручных слотов.")]
+        private bool captureSavePreviews = true;
+
+        [SerializeField, Min(64), Tooltip("Ширина preview.png. Рекомендация: 320.")]
+        private int savePreviewWidth = 320;
+
+        [SerializeField, Min(36), Tooltip("Высота preview.png. Рекомендация: 180.")]
+        private int savePreviewHeight = 180;
+
         [Header("Debug")]
-        [SerializeField, Tooltip("Писать подробные сообщения в Console. Рекомендация: включить на этапе подключения, выключить перед билдом.")]
+        [SerializeField, Tooltip("Писать подробные сообщения в Console.")]
         private bool verboseLogs = true;
 
         private ISaveStorage storage;
@@ -81,6 +91,31 @@ namespace CatGame.SaveSystem
             return storage.GetSlotsMetaAsync();
         }
 
+        public async Task<byte[]> LoadSlotPreviewAsync(string slotId)
+        {
+            ISavePreviewStorage previewStorage = storage as ISavePreviewStorage;
+
+            if (previewStorage == null || string.IsNullOrWhiteSpace(slotId))
+                return null;
+
+            try
+            {
+                return await previewStorage.LoadPreviewAsync(slotId);
+            }
+            catch (Exception exception)
+            {
+                if (verboseLogs)
+                {
+                    Debug.LogWarning(
+                        "Could not load preview for slot " +
+                        slotId + ". " + exception
+                    );
+                }
+
+                return null;
+            }
+        }
+
         public async void NewGameFromInspectorButton()
         {
             await NewGameAsync(defaultStartSceneName, defaultStartSpawnId);
@@ -112,6 +147,7 @@ namespace CatGame.SaveSystem
             for (int i = 0; i < metas.Count; i++)
             {
                 SaveSlotMeta meta = metas[i];
+
                 if (meta == null || !meta.exists)
                     continue;
 
@@ -140,7 +176,30 @@ namespace CatGame.SaveSystem
             {
                 CaptureSceneState(currentData);
                 StampSave(currentData, slotId);
+
+                byte[] previewPng = CapturePreviewSafely();
+
                 await storage.SaveAsync(slotId, currentData);
+
+                ISavePreviewStorage previewStorage = storage as ISavePreviewStorage;
+
+                if (previewStorage != null &&
+                    previewPng != null &&
+                    previewPng.Length > 0)
+                {
+                    try
+                    {
+                        await previewStorage.SavePreviewAsync(slotId, previewPng);
+                    }
+                    catch (Exception previewException)
+                    {
+                        Debug.LogWarning(
+                            "Save succeeded, but preview write failed for slot " +
+                            slotId + ". " + previewException
+                        );
+                    }
+                }
+
                 hasDirtyState = false;
 
                 if (verboseLogs)
@@ -167,8 +226,11 @@ namespace CatGame.SaveSystem
             if (!force && !hasDirtyState)
                 return;
 
-            if (!force && Time.unscaledTime - lastAutosaveRealtime < autosaveCooldownSeconds)
+            if (!force &&
+                Time.unscaledTime - lastAutosaveRealtime < autosaveCooldownSeconds)
+            {
                 return;
+            }
 
             lastAutosaveRealtime = Time.unscaledTime;
             await SaveToSlotAsync(SaveConstants.AutoSaveSlotId, force);
@@ -180,7 +242,9 @@ namespace CatGame.SaveSystem
             {
                 SaveData loaded = await storage.LoadAsync(slotId);
                 currentData = loaded;
+
                 await LoadSceneAsync(loaded.currentSceneName);
+
                 RestoreSceneState(loaded);
                 SaveEvents.RaiseLoaded(loaded);
             }
@@ -209,7 +273,10 @@ namespace CatGame.SaveSystem
             await SaveAutoAsync(false);
         }
 
-        public async void SetCheckpoint(string checkpointId, Vector3 position, bool facingRight)
+        public async void SetCheckpoint(
+            string checkpointId,
+            Vector3 position,
+            bool facingRight)
         {
             if (currentData == null)
                 currentData = SaveDataFactory.CreateNew(SceneManager.GetActiveScene().name);
@@ -242,8 +309,33 @@ namespace CatGame.SaveSystem
                 return;
 
             PlayerSaveAdapter player = FindObjectOfType<PlayerSaveAdapter>();
+
             if (player != null)
                 player.RestoreFromData(currentData.player);
+        }
+
+        private byte[] CapturePreviewSafely()
+        {
+            if (!captureSavePreviews)
+                return null;
+
+            try
+            {
+                return SavePreviewCapture.CaptureMainCameraPng(
+                    savePreviewWidth,
+                    savePreviewHeight,
+                    verboseLogs
+                );
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning(
+                    "Save preview capture failed. Save data will still be written. " +
+                    exception
+                );
+
+                return null;
+            }
         }
 
         private void CaptureSceneState(SaveData data)
@@ -255,6 +347,7 @@ namespace CatGame.SaveSystem
             data.currentSceneName = SceneManager.GetActiveScene().name;
 
             SceneSaveRegistry sceneRegistry = FindObjectOfType<SceneSaveRegistry>();
+
             if (sceneRegistry != null)
             {
                 data.currentLocationId = sceneRegistry.locationId;
@@ -262,6 +355,7 @@ namespace CatGame.SaveSystem
             }
 
             PlayerSaveAdapter player = FindObjectOfType<PlayerSaveAdapter>();
+
             if (player != null)
                 player.CaptureTo(data.player);
 
@@ -287,16 +381,19 @@ namespace CatGame.SaveSystem
             SaveRegistry.RefreshSceneRegistry(verboseLogs);
 
             PlayerSaveAdapter player = FindObjectOfType<PlayerSaveAdapter>();
+
             if (player != null)
                 player.RestoreFromData(data.player);
 
             for (int i = 0; i < data.sceneObjects.Count; i++)
             {
                 SaveObjectState state = data.sceneObjects[i];
+
                 if (state == null || string.IsNullOrWhiteSpace(state.saveId))
                     continue;
 
                 ISaveable saveable;
+
                 if (SaveRegistry.TryGet(state.saveId, out saveable))
                     saveable.RestoreStateJson(state.json);
                 else if (verboseLogs)
@@ -312,6 +409,7 @@ namespace CatGame.SaveSystem
         private static async Task LoadSceneAsync(string sceneName)
         {
             AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName);
+
             while (operation != null && !operation.isDone)
                 await Task.Yield();
         }

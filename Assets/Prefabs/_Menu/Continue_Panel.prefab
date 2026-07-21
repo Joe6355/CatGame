@@ -5029,6 +5029,9 @@ MonoBehaviour:
   dateTimeText: {fileID: 6276177501491864422}
   locationText: {fileID: 7290690593352780036}
   playTimeText: {fileID: 6385883106068727801}
+  previewImage: {fileID: 6353069567703862243}
+  fallbackPreviewSprite: {fileID: 21300000, guid: e31ff51f73edcad4ca0c68c7f0bc4176, type: 3}
+  preservePreviewAspect: 1
   loadButton: {fileID: 7409927745517556113}
   deleteButton: {fileID: 3477984900359133846}
   overwriteButton: {fileID: 4427697513060677202}
@@ -5183,6 +5186,9 @@ MonoBehaviour:
   dateTimeText: {fileID: 8222799639543000141}
   locationText: {fileID: 1413345501641774763}
   playTimeText: {fileID: 2611774817629874947}
+  previewImage: {fileID: 1255713089397087260}
+  fallbackPreviewSprite: {fileID: 21300000, guid: e31ff51f73edcad4ca0c68c7f0bc4176, type: 3}
+  preservePreviewAspect: 1
   loadButton: {fileID: 2804310373004286274}
   deleteButton: {fileID: 794684555096549866}
   overwriteButton: {fileID: 7905030437550961180}
@@ -5337,6 +5343,9 @@ MonoBehaviour:
   dateTimeText: {fileID: 1110874176858104765}
   locationText: {fileID: 6236035444725372081}
   playTimeText: {fileID: 9084243119496874713}
+  previewImage: {fileID: 1858472457464742927}
+  fallbackPreviewSprite: {fileID: 21300000, guid: e31ff51f73edcad4ca0c68c7f0bc4176, type: 3}
+  preservePreviewAspect: 1
   loadButton: {fileID: 7971582344026792359}
   deleteButton: {fileID: 5059665481169718046}
   overwriteButton: {fileID: 6726559919966486734}
@@ -6914,6 +6923,9 @@ MonoBehaviour:
   dateTimeText: {fileID: 6746593908468581641}
   locationText: {fileID: 2263405988800227783}
   playTimeText: {fileID: 5075604304447009834}
+  previewImage: {fileID: 97757481022773591}
+  fallbackPreviewSprite: {fileID: 21300000, guid: e31ff51f73edcad4ca0c68c7f0bc4176, type: 3}
+  preservePreviewAspect: 1
   loadButton: {fileID: 6368664347659529536}
   deleteButton: {fileID: 4482786768386705642}
   overwriteButton: {fileID: 4371415001724891321}
@@ -7735,7 +7747,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.1499, y: -53.24579}
+  m_AnchoredPosition: {x: 0.14990234, y: -53.24579}
   m_SizeDelta: {x: -151.7, y: -186.4935}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &825914470589304003
@@ -9789,6 +9801,9 @@ MonoBehaviour:
   dateTimeText: {fileID: 7286328825256031721}
   locationText: {fileID: 3886873303227051671}
   playTimeText: {fileID: 5503169895531264049}
+  previewImage: {fileID: 4010891272592076589}
+  fallbackPreviewSprite: {fileID: 21300000, guid: e31ff51f73edcad4ca0c68c7f0bc4176, type: 3}
+  preservePreviewAspect: 1
   loadButton: {fileID: 5584395206871152462}
   deleteButton: {fileID: 3168041315339966638}
   overwriteButton: {fileID: 5046755135556829095}
@@ -10965,6 +10980,9 @@ MonoBehaviour:
   dateTimeText: {fileID: 4917533986834832489}
   locationText: {fileID: 8207043851664559432}
   playTimeText: {fileID: 6421526999629175714}
+  previewImage: {fileID: 3214753984317494734}
+  fallbackPreviewSprite: {fileID: 21300000, guid: e31ff51f73edcad4ca0c68c7f0bc4176, type: 3}
+  preservePreviewAspect: 1
   loadButton: {fileID: 866959425854915272}
   deleteButton: {fileID: 8466847293281934898}
   overwriteButton: {fileID: 8964377676968456469}
@@ -12022,6 +12040,9 @@ MonoBehaviour:
   dateTimeText: {fileID: 422683001941195007}
   locationText: {fileID: 4584527497826419978}
   playTimeText: {fileID: 6201689971808633343}
+  previewImage: {fileID: 892061801746265002}
+  fallbackPreviewSprite: {fileID: 21300000, guid: e31ff51f73edcad4ca0c68c7f0bc4176, type: 3}
+  preservePreviewAspect: 1
   loadButton: {fileID: 4916249861530709185}
   deleteButton: {fileID: 6171922962588864578}
   overwriteButton: {fileID: 8493390632529299269}
@@ -12416,6 +12437,9 @@ MonoBehaviour:
   dateTimeText: {fileID: 5040775150288747571}
   locationText: {fileID: 4354823802863030214}
   playTimeText: {fileID: 2009563215665151060}
+  previewImage: {fileID: 7149433435823794160}
+  fallbackPreviewSprite: {fileID: 21300000, guid: e31ff51f73edcad4ca0c68c7f0bc4176, type: 3}
+  preservePreviewAspect: 1
   loadButton: {fileID: 7671931203635883316}
   deleteButton: {fileID: 5413709795191081328}
   overwriteButton: {fileID: 2442835340522208031}
@@ -13095,6 +13119,9 @@ MonoBehaviour:
   dateTimeText: {fileID: 1172215784503997424}
   locationText: {fileID: 8422703419347422343}
   playTimeText: {fileID: 7980672333528902328}
+  previewImage: {fileID: 2543005571715002509}
+  fallbackPreviewSprite: {fileID: 21300000, guid: e31ff51f73edcad4ca0c68c7f0bc4176, type: 3}
+  preservePreviewAspect: 1
   loadButton: {fileID: 1050448590792177341}
   deleteButton: {fileID: 1040640510759474859}
   overwriteButton: {fileID: 7195891305829263129}
@@ -15201,7 +15228,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -221.95691, y: -45}
+  m_AnchoredPosition: {x: -221.95697, y: -45}
   m_SizeDelta: {x: -595.9136, y: 62.5}
   m_Pivot: {x: 0.5, y: 1}
 --- !u!222 &2345216078673243818

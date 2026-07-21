@@ -3,8 +3,8 @@
     "slotId": "slot_1",
     "buildVersion": "0.3",
     "platform": "WindowsEditor",
-    "savedUnixTime": 1781808956,
-    "savedLocalTimeText": "18.06.2026 21:55",
+    "savedUnixTime": 1784638461,
+    "savedLocalTimeText": "21.07.2026 15:54",
     "playTimeSeconds": 0.0,
     "currentSceneName": "_Act_1_Garbage",
     "currentLocationId": "",
@@ -13,8 +13,8 @@
     "lastGlobalSavePointId": "",
     "player": {
         "position": {
-            "x": 13.129996299743653,
-            "y": -3.3231360912323,
+            "x": 12.329997062683106,
+            "y": -3.3231351375579836,
             "z": -0.007366896606981754
         },
         "facingRight": true,
@@ -37,7 +37,7 @@
     "quests": [],
     "sceneObjects": [
         {
-            "saveId": "rat_act1_garbage_01",
+            "saveId": "act1_rat_001",
             "type": "RatController",
             "json": "{\"heldItemDropped\":false,\"heldItemState\":1,\"heldItemPosition\":{\"x\":37.50554656982422,\"y\":2.84930682182312,\"z\":0.0},\"heldItemRotationZ\":0.0,\"heldItemActive\":false}"
         },

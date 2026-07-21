@@ -3,28 +3,28 @@
     "slotId": "autosave",
     "buildVersion": "0.3",
     "platform": "WindowsEditor",
-    "savedUnixTime": 1783702193,
-    "savedLocalTimeText": "10.07.2026 19:49",
-    "playTimeSeconds": 68.45262908935547,
+    "savedUnixTime": 1784638520,
+    "savedLocalTimeText": "21.07.2026 15:55",
+    "playTimeSeconds": 47.540367126464847,
     "currentSceneName": "_Act_1_Garbage",
     "currentLocationId": "",
     "currentRoomId": "",
     "lastCheckpointId": "checkpoint_start",
-    "lastGlobalSavePointId": "bed_home_01",
+    "lastGlobalSavePointId": "",
     "player": {
         "position": {
-            "x": 39.356422424316409,
-            "y": 2.6768295764923097,
-            "z": -0.007366896606981754
+            "x": 51.11412811279297,
+            "y": 11.50350284576416,
+            "z": 65.596923828125
         },
-        "facingRight": false,
+        "facingRight": true,
         "canWallJump": false,
         "canLedgeClimb": false,
         "canFenceClimb": false,
         "canDoubleJump": false,
         "canDash": false
     },
-    "deathsCount": 0,
+    "deathsCount": 9,
     "passedCheckpointIds": [
         "checkpoint_start"
     ],
@@ -39,14 +39,14 @@
     "quests": [],
     "sceneObjects": [
         {
-            "saveId": "rat_act1_garbage_01",
+            "saveId": "act1_rat_001",
             "type": "RatController",
-            "json": "{\"heldItemDropped\":true,\"heldItemState\":2,\"heldItemPosition\":{\"x\":38.8845100402832,\"y\":2.0462589263916017,\"z\":0.0},\"heldItemRotationZ\":0.0,\"heldItemActive\":true}"
+            "json": "{\"heldItemDropped\":true,\"heldItemState\":5,\"heldItemPosition\":{\"x\":53.777992248535159,\"y\":10.99898624420166,\"z\":0.0},\"heldItemRotationZ\":0.0,\"heldItemActive\":false}"
         },
         {
             "saveId": "door_act1_garbage_01",
             "type": "DoorLock",
-            "json": "{\"opened\":false}"
+            "json": "{\"opened\":true}"
         }
     ],
     "npcStates": [],
