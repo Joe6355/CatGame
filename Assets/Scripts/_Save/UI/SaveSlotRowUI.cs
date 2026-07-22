@@ -9,7 +9,7 @@ namespace CatGame.SaveSystem
     public sealed class SaveSlotRowUI : MonoBehaviour
     {
         [Header("Texts")]
-        [SerializeField, Tooltip("Название строки: Автосейв, Сохранение 1, Сохранение 2.")]
+        [SerializeField, Tooltip("Название строки: Автосейв, Файл 01, Файл 02.")]
         private TextMeshProUGUI titleText;
 
         [SerializeField, Tooltip("Дата и реальное время сохранения.")]
@@ -43,10 +43,6 @@ namespace CatGame.SaveSystem
 
         [SerializeField, Tooltip("Текст кнопки перезаписи.")]
         private TextMeshProUGUI overwriteButtonText;
-
-        [Header("Empty Slot")]
-        [SerializeField, Tooltip("Текст для пустого слота.")]
-        private string emptySlotText = "Пустой слот";
 
         [Header("Navigation")]
         [SerializeField, Tooltip("Автоматически включать Navigation = Automatic у кнопок строки.")]
@@ -107,14 +103,17 @@ namespace CatGame.SaveSystem
             if (titleText != null)
                 titleText.text = title;
 
+            // Верхний текст
             if (dateTimeText != null)
-                dateTimeText.text = exists ? meta.savedLocalTimeText : emptySlotText;
+                dateTimeText.text = exists ? meta.savedLocalTimeText : "";
 
+            // Центральный текст
             if (locationText != null)
-                locationText.text = exists ? BuildLocationText(meta) : "—";
+                locationText.text = exists ? BuildLocationText(meta) : "НЕТ ДАННЫХ";
 
+            // Нижний текст
             if (playTimeText != null)
-                playTimeText.text = exists ? FormatPlayTime(meta.playTimeSeconds) : "—";
+                playTimeText.text = exists ? FormatPlayTime(meta.playTimeSeconds) : "";
 
             SetButton(loadButton, exists && allowLoad, OnLoadButtonClicked);
             SetButton(deleteButton, exists && allowDelete, OnDeleteButtonClicked);
@@ -169,9 +168,7 @@ namespace CatGame.SaveSystem
             return false;
         }
 
-        private async void RefreshPreviewAsync(
-            string requestedSlotId,
-            bool slotExists)
+        private async void RefreshPreviewAsync(string requestedSlotId, bool slotExists)
         {
             int requestVersion = ++previewRequestVersion;
 
@@ -301,20 +298,17 @@ namespace CatGame.SaveSystem
 
         private void OnLoadButtonClicked()
         {
-            if (onLoad != null)
-                onLoad(slotId);
+            onLoad?.Invoke(slotId);
         }
 
         private void OnDeleteButtonClicked()
         {
-            if (onDelete != null)
-                onDelete(slotId);
+            onDelete?.Invoke(slotId);
         }
 
         private void OnOverwriteButtonClicked()
         {
-            if (onOverwrite != null)
-                onOverwrite(slotId);
+            onOverwrite?.Invoke(slotId);
         }
 
         private static string BuildLocationText(SaveSlotMeta meta)

@@ -233,7 +233,7 @@ namespace CatGame.SaveSystem
 
                     manualRows[i].Bind(
                         slotId,
-                        "Сохранение " + (i + 1),
+                        "Файл " + (i + 1).ToString("00"),
                         meta,
                         allowLoadDelete,
                         allowLoadDelete,
