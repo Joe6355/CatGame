@@ -7380,6 +7380,7 @@ MonoBehaviour:
   rendererFeatureName: FullScreenPassRendererFeature
   rendererFeatureActive: 1
   prefsKey: Settings.MenuCRTPostFx
+  legacyPrefsKey: Settings.CRTPostFx
   defaultEnabled: 1
   applyOnAwake: 1
   applyOnEnable: 1
