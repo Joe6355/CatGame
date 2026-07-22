@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 public class SettingsTabsSwitcher : MonoBehaviour
@@ -131,16 +130,18 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField] private Button languageValueButton;
     [SerializeField] private Button assistValueButton;
     [SerializeField] private Button vhsValueButton;
+    [SerializeField] private Button gameplayVhsValueButton;
     [SerializeField] private Button gamepadVibrationValueButton;
     [SerializeField] private Button fpsCounterValueButton;
 
     [SerializeField] private TMP_Text languageValueText;
     [SerializeField] private TMP_Text assistValueText;
     [SerializeField] private TMP_Text vhsValueText;
+    [SerializeField] private TMP_Text gameplayVhsValueText;
     [SerializeField] private TMP_Text gamepadVibrationValueText;
     [SerializeField] private TMP_Text fpsCounterValueText;
 
-    [SerializeField, Tooltip("Если ссылки не назначены вручную, попробовать найти кнопки Language, Assist, VHS, GamepadVibration и FpsCounter внутри Gameplay.")]
+    [SerializeField, Tooltip("Если ссылки не назначены вручную, попробовать найти кнопки Language, Assist, VHS, GameplayVHS, GamepadVibration и FpsCounter внутри Gameplay.")]
     private bool autoFindGameplayValueButtons = true;
 
     [SerializeField, Tooltip("Если тексты не назначены вручную, найти дочерний TMP_Text с именем Label внутри кнопки.")]
@@ -192,30 +193,24 @@ public class SettingsTabsSwitcher : MonoBehaviour
     [SerializeField, Tooltip("Если ВКЛ — пишет в Console, когда настройка меняется.")]
     private bool debugJumpTrajectoryToggle = false;
 
-    [Header("Gameplay: VHS / CRT / Post Processing")]
+    [Header("Gameplay: VHS меню / CRT / Post Processing")]
     [SerializeField, Tooltip("Toggle, который включает/выключает VHS/CRT/PostFX эффект.")]
     private Toggle postFxToggle;
 
     [SerializeField, Tooltip("Обычно оставь None. Используется только если Background сделан отдельной Button-кнопкой.")]
     private Button postFxBackgroundButton;
 
-    [SerializeField, Tooltip("Global Volume из сцены. Лучше перетащить вручную.")]
-    private Volume postFxVolume;
-
-    [SerializeField, Tooltip("Если ВКЛ — скрипт сам попробует найти Global Volume в сцене.")]
-    private bool autoFindPostFxInScene = true;
-
-    [SerializeField, Tooltip("Если ВКЛ — эффект выключается через Volume.weight = 0. Если ВЫКЛ — выключается сам компонент Volume.")]
-    private bool controlPostFxByWeight = true;
-
-    [SerializeField, Range(0f, 1f), Tooltip("Какой Weight ставить, когда эффект включён.")]
-    private float postFxEnabledWeight = 1f;
-
     [SerializeField, Tooltip("Если ВКЛ — состояние сохраняется в PlayerPrefs.")]
     private bool savePostFxSetting = true;
 
-    [SerializeField, Tooltip("Ключ сохранения VHS/PostFX.")]
-    private string postFxPrefsKey = "Settings.CRTPostFx";
+    [SerializeField, Tooltip("Ключ сохранения VHS главного меню.")]
+    private string postFxPrefsKey = "Settings.MenuCRTPostFx";
+
+    [SerializeField, Tooltip("Ключ сохранения VHS игровой сцены.")]
+    private string gameplayPostFxPrefsKey = "Settings.GameplayCRTPostFx";
+
+    [SerializeField, Tooltip("Старый общий ключ. Используется только как начальное значение для старых сохранений.")]
+    private string legacyPostFxPrefsKey = "Settings.CRTPostFx";
 
     [SerializeField, Tooltip("Значение по умолчанию, если сохранения ещё нет.")]
     private bool defaultPostFxVisible = true;
@@ -354,6 +349,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         SyncJumpTrajectoryToggleWithSavedValue();
         SyncPostFxToggleWithSavedValue();
+        SyncGameplayPostFxWithSavedValue();
         SyncGamepadRumbleToggleWithSavedValue();
         SyncFpsCounterWithSavedValue();
         RefreshGameplayValueTexts();
@@ -1077,6 +1073,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         BindGameplayValueButton(languageValueButton, OnLanguageValueButtonClicked);
         BindGameplayValueButton(assistValueButton, OnAssistValueButtonClicked);
         BindGameplayValueButton(vhsValueButton, OnVhsValueButtonClicked);
+        BindGameplayValueButton(gameplayVhsValueButton, OnGameplayVhsValueButtonClicked);
         BindGameplayValueButton(gamepadVibrationValueButton, OnGamepadVibrationValueButtonClicked);
         BindGameplayValueButton(fpsCounterValueButton, OnFpsCounterValueButtonClicked);
 
@@ -1089,6 +1086,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         UnbindGameplayValueButton(languageValueButton, OnLanguageValueButtonClicked);
         UnbindGameplayValueButton(assistValueButton, OnAssistValueButtonClicked);
         UnbindGameplayValueButton(vhsValueButton, OnVhsValueButtonClicked);
+        UnbindGameplayValueButton(gameplayVhsValueButton, OnGameplayVhsValueButtonClicked);
         UnbindGameplayValueButton(gamepadVibrationValueButton, OnGamepadVibrationValueButtonClicked);
         UnbindGameplayValueButton(fpsCounterValueButton, OnFpsCounterValueButtonClicked);
     }
@@ -1123,11 +1121,17 @@ public class SettingsTabsSwitcher : MonoBehaviour
             if (vhsValueButton == null)
                 vhsValueButton = FindButtonByName(tabGameplay, "VHS");
 
+            if (gameplayVhsValueButton == null)
+                gameplayVhsValueButton = FindButtonByName(tabGameplay, "GameplayVHS");
+
             if (gamepadVibrationValueButton == null)
                 gamepadVibrationValueButton = FindButtonByName(tabGameplay, "GamepadVibration");
 
             if (fpsCounterValueButton == null)
                 fpsCounterValueButton = FindButtonByName(tabGameplay, "FpsCounter");
+
+            if (gameplayVhsValueButton == null && vhsValueButton != null)
+                CreateGameplayVhsRow();
         }
 
         if (!autoFindGameplayValueTexts)
@@ -1141,6 +1145,9 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         if (vhsValueText == null)
             vhsValueText = FindButtonValueText(vhsValueButton);
+
+        if (gameplayVhsValueText == null)
+            gameplayVhsValueText = FindButtonValueText(gameplayVhsValueButton);
 
         if (gamepadVibrationValueText == null)
             gamepadVibrationValueText = FindButtonValueText(gamepadVibrationValueButton);
@@ -1165,6 +1172,79 @@ public class SettingsTabsSwitcher : MonoBehaviour
         }
 
         return null;
+    }
+
+    private void CreateGameplayVhsRow()
+    {
+        Transform sourceRow = vhsValueButton.transform.parent;
+
+        if (sourceRow == null || sourceRow.parent == null)
+            return;
+
+        GameObject row = Instantiate(sourceRow.gameObject, sourceRow.parent);
+        row.name = "Tgl_GameplayVHS";
+        row.transform.SetSiblingIndex(sourceRow.GetSiblingIndex() + 1);
+
+        gameplayVhsValueButton = FindButtonByName(row, "VHS");
+
+        if (gameplayVhsValueButton == null)
+        {
+            Destroy(row);
+            return;
+        }
+
+        gameplayVhsValueButton.name = "GameplayVHS";
+        gameplayVhsValueText = FindButtonValueText(gameplayVhsValueButton);
+
+        TMP_Text[] texts = row.GetComponentsInChildren<TMP_Text>(true);
+
+        for (int i = 0; i < texts.Length; i++)
+        {
+            TMP_Text text = texts[i];
+
+            if (text != null && text != gameplayVhsValueText && text.transform.IsChildOf(gameplayVhsValueButton.transform) == false)
+            {
+                text.text = "VHS В ИГРЕ";
+                break;
+            }
+        }
+
+        RectTransform newRow = row.transform as RectTransform;
+        RectTransform gamepadRow = gamepadVibrationValueButton != null ? gamepadVibrationValueButton.transform.parent as RectTransform : null;
+        RectTransform fpsRow = fpsCounterValueButton != null ? fpsCounterValueButton.transform.parent as RectTransform : null;
+
+        if (newRow != null)
+            newRow.anchoredPosition = sourceRow.GetComponent<RectTransform>().anchoredPosition + new Vector2(0f, -144f);
+
+        if (gamepadRow != null)
+            gamepadRow.anchoredPosition += new Vector2(0f, -144f);
+
+        if (fpsRow != null)
+            fpsRow.anchoredPosition += new Vector2(0f, -144f);
+
+        ConfigureGameplayVhsNavigation();
+    }
+
+    private void ConfigureGameplayVhsNavigation()
+    {
+        if (vhsValueButton == null || gameplayVhsValueButton == null)
+            return;
+
+        Navigation menuVhsNavigation = vhsValueButton.navigation;
+        menuVhsNavigation.selectOnDown = gameplayVhsValueButton;
+        vhsValueButton.navigation = menuVhsNavigation;
+
+        Navigation gameplayVhsNavigation = gameplayVhsValueButton.navigation;
+        gameplayVhsNavigation.selectOnUp = vhsValueButton;
+        gameplayVhsNavigation.selectOnDown = gamepadVibrationValueButton;
+        gameplayVhsValueButton.navigation = gameplayVhsNavigation;
+
+        if (gamepadVibrationValueButton != null)
+        {
+            Navigation gamepadNavigation = gamepadVibrationValueButton.navigation;
+            gamepadNavigation.selectOnUp = gameplayVhsValueButton;
+            gamepadVibrationValueButton.navigation = gamepadNavigation;
+        }
     }
 
     private static TMP_Text FindButtonValueText(Button button)
@@ -1220,6 +1300,12 @@ public class SettingsTabsSwitcher : MonoBehaviour
         ApplyPostFxVisible(newValue, true, true);
     }
 
+    private void OnGameplayVhsValueButtonClicked()
+    {
+        bool newValue = !ReadSavedGameplayPostFxVisible();
+        ApplyGameplayPostFxVisible(newValue, true, true);
+    }
+
     private void OnGamepadVibrationValueButtonClicked()
     {
         bool newValue = !ReadSavedGamepadRumbleEnabled();
@@ -1252,6 +1338,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
         RefreshLanguageValueText();
         SetBooleanValueText(assistValueText, ReadSavedJumpTrajectoryVisible());
         SetBooleanValueText(vhsValueText, ReadSavedPostFxVisible());
+        SetBooleanValueText(gameplayVhsValueText, ReadSavedGameplayPostFxVisible());
         SetBooleanValueText(gamepadVibrationValueText, ReadSavedGamepadRumbleEnabled());
         SetBooleanValueText(fpsCounterValueText, ReadSavedFpsCounterVisible());
     }
@@ -1435,8 +1522,6 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     private void SetupPostFxToggle()
     {
-        ResolvePostFxReference();
-
         if (postFxToggle != null)
         {
             postFxToggle.onValueChanged.RemoveListener(OnPostFxToggleChanged);
@@ -1457,6 +1542,12 @@ public class SettingsTabsSwitcher : MonoBehaviour
     {
         bool visible = ReadSavedPostFxVisible();
         ApplyPostFxVisible(visible, false, false);
+    }
+
+    private void SyncGameplayPostFxWithSavedValue()
+    {
+        bool visible = ReadSavedGameplayPostFxVisible();
+        ApplyGameplayPostFxVisible(visible, false, false);
     }
 
     private void OnPostFxToggleChanged(bool isOn)
@@ -1490,18 +1581,25 @@ public class SettingsTabsSwitcher : MonoBehaviour
         ApplyPostFxVisible(!current, true, true);
     }
 
+    public void SetGameplayPostFxVisibleFromUI(bool visible)
+    {
+        ApplyGameplayPostFxVisible(visible, true, true);
+    }
+
+    public void ToggleGameplayPostFxVisibleFromUI()
+    {
+        bool current = ReadSavedGameplayPostFxVisible();
+        ApplyGameplayPostFxVisible(!current, true, true);
+    }
+
     private void ApplyPostFxVisible(bool visible, bool save, bool log)
     {
-        ResolvePostFxReference();
-
-        if (postFxVolume != null)
-            ApplyPostFxToVolume(postFxVolume, visible);
-
-        if (save && savePostFxSetting && !string.IsNullOrEmpty(postFxPrefsKey))
-        {
-            PlayerPrefs.SetInt(postFxPrefsKey, visible ? 1 : 0);
-            PlayerPrefs.Save();
-        }
+        if (!string.IsNullOrEmpty(postFxPrefsKey))
+            GlobalVolumePrefsApplier.SetValueAndNotify(
+                postFxPrefsKey,
+                visible,
+                save && savePostFxSetting
+            );
 
         if (postFxToggle != null && postFxToggle.isOn != visible)
         {
@@ -1516,60 +1614,43 @@ public class SettingsTabsSwitcher : MonoBehaviour
             Debug.Log("[SettingsTabsSwitcher] VHS/PostFX visible = " + visible);
     }
 
-    private void ApplyPostFxToVolume(Volume volume, bool visible)
-    {
-        if (volume == null)
-            return;
-
-        if (controlPostFxByWeight)
-        {
-            volume.enabled = true;
-            volume.weight = visible ? postFxEnabledWeight : 0f;
-        }
-        else
-        {
-            volume.enabled = visible;
-        }
-    }
-
     private bool ReadSavedPostFxVisible()
     {
-        if (savePostFxSetting &&
-            !string.IsNullOrEmpty(postFxPrefsKey) &&
-            PlayerPrefs.HasKey(postFxPrefsKey))
-        {
-            return PlayerPrefs.GetInt(postFxPrefsKey, defaultPostFxVisible ? 1 : 0) != 0;
-        }
-
-        return defaultPostFxVisible;
+        return ReadSavedPostFxValue(postFxPrefsKey);
     }
 
-    private void ResolvePostFxReference()
+    private void ApplyGameplayPostFxVisible(bool visible, bool save, bool log)
     {
-        if (postFxVolume != null)
-            return;
+        if (!string.IsNullOrEmpty(gameplayPostFxPrefsKey))
+            GlobalVolumePrefsApplier.SetValueAndNotify(
+                gameplayPostFxPrefsKey,
+                visible,
+                save && savePostFxSetting
+            );
 
-        if (!autoFindPostFxInScene)
-            return;
+        SetBooleanValueText(gameplayVhsValueText, visible);
 
-        Volume[] found = Resources.FindObjectsOfTypeAll<Volume>();
+        if (debugPostFxToggle && log)
+            Debug.Log("[SettingsTabsSwitcher] Gameplay VHS/PostFX visible = " + visible);
+    }
 
-        for (int i = 0; i < found.Length; i++)
-        {
-            Volume candidate = found[i];
+    private bool ReadSavedGameplayPostFxVisible()
+    {
+        return ReadSavedPostFxValue(gameplayPostFxPrefsKey);
+    }
 
-            if (candidate == null)
-                continue;
+    private bool ReadSavedPostFxValue(string key)
+    {
+        if (!savePostFxSetting)
+            return defaultPostFxVisible;
 
-            if (!candidate.gameObject.scene.IsValid())
-                continue;
+        if (!string.IsNullOrEmpty(key) && PlayerPrefs.HasKey(key))
+            return PlayerPrefs.GetInt(key, defaultPostFxVisible ? 1 : 0) != 0;
 
-            if (!candidate.isGlobal)
-                continue;
+        if (!string.IsNullOrEmpty(legacyPostFxPrefsKey) && PlayerPrefs.HasKey(legacyPostFxPrefsKey))
+            return PlayerPrefs.GetInt(legacyPostFxPrefsKey, defaultPostFxVisible ? 1 : 0) != 0;
 
-            postFxVolume = candidate;
-            return;
-        }
+        return defaultPostFxVisible;
     }
 
     // =========================================================

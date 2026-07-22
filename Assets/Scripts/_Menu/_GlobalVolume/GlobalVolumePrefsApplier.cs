@@ -1,21 +1,34 @@
-using UnityEngine;
+п»їusing UnityEngine;
+using System;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Volume))]
 public class GlobalVolumePrefsApplier : MonoBehaviour
 {
+    public static event Action<string, bool> SavedValueChanged;
+
     [Header("Volume")]
     [SerializeField] private Volume targetVolume;
 
-    [SerializeField, Tooltip("Если ВКЛ — скрипт управляет эффектом через Weight. Это безопаснее, чем выключать сам Volume.")]
+    [SerializeField, Tooltip("Р•СЃР»Рё Р’РљР› вЂ” СЃРєСЂРёРїС‚ СѓРїСЂР°РІР»СЏРµС‚ СЌС„С„РµРєС‚РѕРј С‡РµСЂРµР· Weight. Р­С‚Рѕ Р±РµР·РѕРїР°СЃРЅРµРµ, С‡РµРј РІС‹РєР»СЋС‡Р°С‚СЊ СЃР°Рј Volume.")]
     private bool controlByWeight = true;
 
-    [SerializeField, Range(0f, 1f), Tooltip("Какой Weight ставить, когда эффект включён.")]
+    [SerializeField, Range(0f, 1f), Tooltip("РљР°РєРѕР№ Weight СЃС‚Р°РІРёС‚СЊ, РєРѕРіРґР° СЌС„С„РµРєС‚ РІРєР»СЋС‡С‘РЅ.")]
     private float enabledWeight = 1f;
 
-    [Header("Сохранение")]
-    [SerializeField] private string prefsKey = "Settings.CRTPostFx";
+    [Header("Р¤РёРєСЃРёСЂРѕРІР°РЅРЅРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ renderer feature РґР»СЏ СЃС†РµРЅС‹")]
+    [SerializeField] private ScriptableRendererData rendererData;
+    [SerializeField] private bool enforceRendererFeatureState;
+    [SerializeField] private string rendererFeatureName = "FullScreenPassRendererFeature";
+    [SerializeField] private bool rendererFeatureActive;
+
+    private ScriptableRendererFeature rendererFeature;
+
+    [Header("РЎРѕС…СЂР°РЅРµРЅРёРµ")]
+    [SerializeField] private string prefsKey = "Settings.MenuCRTPostFx";
+    [SerializeField] private string legacyPrefsKey = "Settings.CRTPostFx";
     [SerializeField] private bool defaultEnabled = true;
     [SerializeField] private bool applyOnAwake = true;
     [SerializeField] private bool applyOnEnable = true;
@@ -40,6 +53,7 @@ public class GlobalVolumePrefsApplier : MonoBehaviour
     private void Awake()
     {
         ResolveVolume();
+        ApplyRendererFeatureState();
 
         if (applyOnAwake)
             ApplySavedValue();
@@ -47,10 +61,19 @@ public class GlobalVolumePrefsApplier : MonoBehaviour
 
     private void OnEnable()
     {
+        SavedValueChanged -= OnSavedValueChanged;
+        SavedValueChanged += OnSavedValueChanged;
+
         ResolveVolume();
+        ApplyRendererFeatureState();
 
         if (applyOnEnable)
             ApplySavedValue();
+    }
+
+    private void OnDisable()
+    {
+        SavedValueChanged -= OnSavedValueChanged;
     }
 
     private void OnValidate()
@@ -59,6 +82,10 @@ public class GlobalVolumePrefsApplier : MonoBehaviour
 
         if (targetVolume == null)
             targetVolume = GetComponent<Volume>();
+
+        rendererFeature = null;
+        ApplyRendererFeatureState();
+
     }
 
     public void ApplySavedValue()
@@ -69,8 +96,7 @@ public class GlobalVolumePrefsApplier : MonoBehaviour
 
     public void SetEnabledAndSave(bool enabled)
     {
-        SaveValue(enabled);
-        ApplyValue(enabled, true);
+        SetSavedValueAndNotify(prefsKey, enabled);
     }
 
     public void SetEnabledWithoutSave(bool enabled)
@@ -83,6 +109,13 @@ public class GlobalVolumePrefsApplier : MonoBehaviour
         if (string.IsNullOrEmpty(prefsKey))
             return defaultEnabled;
 
+        if (!PlayerPrefs.HasKey(prefsKey) &&
+            !string.IsNullOrEmpty(legacyPrefsKey) &&
+            PlayerPrefs.HasKey(legacyPrefsKey))
+        {
+            return PlayerPrefs.GetInt(legacyPrefsKey, defaultEnabled ? 1 : 0) != 0;
+        }
+
         return PlayerPrefs.GetInt(prefsKey, defaultEnabled ? 1 : 0) != 0;
     }
 
@@ -93,6 +126,25 @@ public class GlobalVolumePrefsApplier : MonoBehaviour
 
         PlayerPrefs.SetInt(prefsKey, enabled ? 1 : 0);
         PlayerPrefs.Save();
+    }
+
+    public static void SetSavedValueAndNotify(string key, bool enabled)
+    {
+        SetValueAndNotify(key, enabled, true);
+    }
+
+    public static void SetValueAndNotify(string key, bool enabled, bool save)
+    {
+        if (string.IsNullOrEmpty(key))
+            return;
+
+        if (save)
+        {
+            PlayerPrefs.SetInt(key, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        SavedValueChanged?.Invoke(key, enabled);
     }
 
     private void ApplyValue(bool enabled, bool fromRuntime)
@@ -116,9 +168,43 @@ public class GlobalVolumePrefsApplier : MonoBehaviour
             Debug.Log("[GlobalVolumePrefsApplier] CRT/PostFX enabled = " + enabled);
     }
 
+    private void OnSavedValueChanged(string changedKey, bool enabled)
+    {
+        if (!string.Equals(prefsKey, changedKey, StringComparison.Ordinal))
+            return;
+
+        ApplyValue(enabled, true);
+    }
+
     private void ResolveVolume()
     {
         if (targetVolume == null)
             targetVolume = GetComponent<Volume>();
     }
+
+    private void ApplyRendererFeatureState()
+    {
+        if (!enforceRendererFeatureState || rendererData == null || string.IsNullOrEmpty(rendererFeatureName))
+            return;
+
+        if (rendererFeature == null)
+        {
+            for (int i = 0; i < rendererData.rendererFeatures.Count; i++)
+            {
+                ScriptableRendererFeature candidate = rendererData.rendererFeatures[i];
+
+                if (candidate != null && string.Equals(candidate.name, rendererFeatureName, StringComparison.Ordinal))
+                {
+                    rendererFeature = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (rendererFeature != null)
+            rendererFeature.SetActive(rendererFeatureActive);
+        else if (debugLog)
+            Debug.LogWarning("[GlobalVolumePrefsApplier] Renderer feature not found: " + rendererFeatureName, this);
+    }
+
 }

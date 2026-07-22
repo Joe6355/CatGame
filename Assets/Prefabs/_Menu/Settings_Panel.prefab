@@ -30560,12 +30560,10 @@ MonoBehaviour:
   debugJumpTrajectoryToggle: 0
   postFxToggle: {fileID: 5555770386508515034}
   postFxBackgroundButton: {fileID: 0}
-  postFxVolume: {fileID: 0}
-  autoFindPostFxInScene: 1
-  controlPostFxByWeight: 1
-  postFxEnabledWeight: 1
   savePostFxSetting: 1
-  postFxPrefsKey: Settings.CRTPostFx
+  postFxPrefsKey: Settings.MenuCRTPostFx
+  gameplayPostFxPrefsKey: Settings.GameplayCRTPostFx
+  legacyPostFxPrefsKey: Settings.CRTPostFx
   defaultPostFxVisible: 1
   debugPostFxToggle: 0
   gamepadRumbleToggle: {fileID: 3414923291915140402}

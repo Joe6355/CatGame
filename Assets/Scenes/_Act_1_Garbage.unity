@@ -226,8 +226,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
@@ -670,8 +670,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 29a8029555a2e2140ad26d60b0c440e7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   cullingPoint: {fileID: 0}
   alwaysActive: 0
   allowStartDisabled: 1
@@ -15413,6 +15413,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 1681320553}
   - {fileID: 1384799369}
   - {fileID: 1011144436}
   - {fileID: 350399544}
@@ -23708,7 +23709,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1384799365}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c88f5cead0c0b2a4eb05b5900433f8d1, type: 3}
   m_Name: 
@@ -23718,7 +23719,7 @@ MonoBehaviour:
   m_RefResolutionX: 320
   m_RefResolutionY: 180
   m_CropFrame: 0
-  m_GridSnapping: 2
+  m_GridSnapping: 1
   m_FilterMode: 0
   m_UpscaleRT: 0
   m_PixelSnapping: 0
@@ -24366,12 +24367,10 @@ MonoBehaviour:
   debugJumpTrajectoryToggle: 0
   postFxToggle: {fileID: 0}
   postFxBackgroundButton: {fileID: 0}
-  postFxVolume: {fileID: 0}
-  autoFindPostFxInScene: 1
-  controlPostFxByWeight: 1
-  postFxEnabledWeight: 1
   savePostFxSetting: 1
-  postFxPrefsKey: Settings.CRTPostFx
+  postFxPrefsKey: Settings.MenuCRTPostFx
+  gameplayPostFxPrefsKey: Settings.GameplayCRTPostFx
+  legacyPostFxPrefsKey: Settings.CRTPostFx
   defaultPostFxVisible: 1
   debugPostFxToggle: 0
   gamepadRumbleToggle: {fileID: 0}
@@ -53225,6 +53224,80 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}
   m_PrefabInstance: {fileID: 609226262}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1681320552
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1681320553}
+  - component: {fileID: 1681320555}
+  - component: {fileID: 1681320554}
+  m_Layer: 0
+  m_Name: Global Volume
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1681320553
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1681320552}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -21.053547, y: -2.5389209, z: 0.0073668966}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 810194011}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1681320554
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1681320552}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0f32da198312d544996ac408f41697e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  targetVolume: {fileID: 1681320555}
+  controlByWeight: 1
+  enabledWeight: 1
+  rendererData: {fileID: 11400000, guid: 99378b2ad9351594eae3a654f15e3c5d, type: 2}
+  enforceRendererFeatureState: 1
+  rendererFeatureName: FullScreenPassRendererFeature
+  rendererFeatureActive: 0
+  prefsKey: Settings.GameplayCRTPostFx
+  defaultEnabled: 1
+  applyOnAwake: 1
+  applyOnEnable: 1
+  debugLog: 1
+--- !u!114 &1681320555
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1681320552}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 172515602e62fb746b5d573b38a5fe58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_IsGlobal: 1
+  priority: 10
+  blendDistance: 0
+  weight: 1
+  sharedProfile: {fileID: 11400000, guid: 6ff8ac242481bcd409836b8079188c13, type: 2}
 --- !u!4 &1690993638 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8567092776927336571, guid: 46180fb20017c8d47acc8837a6acee23, type: 3}

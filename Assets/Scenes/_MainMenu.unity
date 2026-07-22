@@ -7375,7 +7375,11 @@ MonoBehaviour:
   targetVolume: {fileID: 1915840497}
   controlByWeight: 1
   enabledWeight: 1
-  prefsKey: Settings.CRTPostFx
+  rendererData: {fileID: 11400000, guid: 8b9400437abc77c4faa845a3ec282c89, type: 2}
+  enforceRendererFeatureState: 1
+  rendererFeatureName: FullScreenPassRendererFeature
+  rendererFeatureActive: 1
+  prefsKey: Settings.MenuCRTPostFx
   defaultEnabled: 1
   applyOnAwake: 1
   applyOnEnable: 1
@@ -10392,10 +10396,6 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: -64
       objectReference: {fileID: 0}
-    - target: {fileID: 1447129768425771963, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
-      propertyPath: postFxVolume
-      value: 
-      objectReference: {fileID: 1915840497}
     - target: {fileID: 2849924963850611860, guid: 429a9e4ef02ed7947877edbbabd5ab17, type: 3}
       propertyPath: m_AnchorMax.y
       value: 1
