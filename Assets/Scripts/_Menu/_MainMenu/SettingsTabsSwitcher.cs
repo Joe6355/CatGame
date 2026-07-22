@@ -281,42 +281,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
     private void Awake()
     {
         CacheOriginalSettingsButtonColors();
-
-        if (audioBtn != null)
-        {
-            audioBtn.onClick.RemoveAllListeners();
-            audioBtn.onClick.AddListener(OpenAudioTab);
-        }
-
-        if (controlsBtn != null)
-        {
-            controlsBtn.onClick.RemoveAllListeners();
-            controlsBtn.onClick.AddListener(OnControlsTabClicked);
-        }
-
-        if (gameplayBtn != null)
-        {
-            gameplayBtn.onClick.RemoveAllListeners();
-            gameplayBtn.onClick.AddListener(OpenGameplayTab);
-        }
-
-        if (videoBtn != null)
-        {
-            videoBtn.onClick.RemoveAllListeners();
-            videoBtn.onClick.AddListener(OpenVideoTab);
-        }
-
-        if (keyboardBtn != null)
-        {
-            keyboardBtn.onClick.RemoveAllListeners();
-            keyboardBtn.onClick.AddListener(OpenKeyboardPanel);
-        }
-
-        if (gamepadBtn != null)
-        {
-            gamepadBtn.onClick.RemoveAllListeners();
-            gamepadBtn.onClick.AddListener(OpenGamepadPanel);
-        }
+        BindNavigationButtons();
 
         SetupSettingsHints();
         SetupGameplayValueButtons();
@@ -327,6 +292,66 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
         ResetSettingsHint();
         CloseAllTabs();
+    }
+
+    private void BindNavigationButtons()
+    {
+        if (audioBtn != null)
+        {
+            audioBtn.onClick.RemoveListener(OpenAudioTab);
+            audioBtn.onClick.AddListener(OpenAudioTab);
+        }
+
+        if (controlsBtn != null)
+        {
+            controlsBtn.onClick.RemoveListener(OnControlsTabClicked);
+            controlsBtn.onClick.AddListener(OnControlsTabClicked);
+        }
+
+        if (gameplayBtn != null)
+        {
+            gameplayBtn.onClick.RemoveListener(OpenGameplayTab);
+            gameplayBtn.onClick.AddListener(OpenGameplayTab);
+        }
+
+        if (videoBtn != null)
+        {
+            videoBtn.onClick.RemoveListener(OpenVideoTab);
+            videoBtn.onClick.AddListener(OpenVideoTab);
+        }
+
+        if (keyboardBtn != null)
+        {
+            keyboardBtn.onClick.RemoveListener(OpenKeyboardPanel);
+            keyboardBtn.onClick.AddListener(OpenKeyboardPanel);
+        }
+
+        if (gamepadBtn != null)
+        {
+            gamepadBtn.onClick.RemoveListener(OpenGamepadPanel);
+            gamepadBtn.onClick.AddListener(OpenGamepadPanel);
+        }
+    }
+
+    private void UnbindNavigationButtons()
+    {
+        if (audioBtn != null)
+            audioBtn.onClick.RemoveListener(OpenAudioTab);
+
+        if (controlsBtn != null)
+            controlsBtn.onClick.RemoveListener(OnControlsTabClicked);
+
+        if (gameplayBtn != null)
+            gameplayBtn.onClick.RemoveListener(OpenGameplayTab);
+
+        if (videoBtn != null)
+            videoBtn.onClick.RemoveListener(OpenVideoTab);
+
+        if (keyboardBtn != null)
+            keyboardBtn.onClick.RemoveListener(OpenKeyboardPanel);
+
+        if (gamepadBtn != null)
+            gamepadBtn.onClick.RemoveListener(OpenGamepadPanel);
     }
 
     private void OnEnable()
@@ -368,6 +393,7 @@ public class SettingsTabsSwitcher : MonoBehaviour
 
     private void OnDestroy()
     {
+        UnbindNavigationButtons();
         UnbindGameplayValueButtons();
 
         if (jumpTrajectoryToggle != null)
