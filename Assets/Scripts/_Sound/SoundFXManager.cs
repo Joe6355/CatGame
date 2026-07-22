@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class SoundFXManager : MonoBehaviour
@@ -22,35 +21,39 @@ public class SoundFXManager : MonoBehaviour
 
     public void PlaySoundFXClip(AudioClip audioClip, Transform spawntransform, float volume)
     {
-        //spawn gammeObject
-        AudioSource audioSource = Instantiate(soundFXObject, spawntransform.position, Quaternion.identity);
-
-        audioSource.clip = audioClip;
-
-        audioSource.volume  = volume;
-
-        audioSource.Play();
-
-        float clipLength = audioSource.clip.length;
-
-        Destroy(audioSource.gameObject, clipLength);
+        PlayClip(audioClip, spawntransform, volume);
     }
 
     public void PlayRandomSoundFXClip(AudioClip[] audioClip, Transform spawntransform, float volume)
     {
-        //assign a random index
-        int rand = Random.Range(0, audioClip.Length);
-        //spawn gammeObject
-        AudioSource audioSource = Instantiate(soundFXObject, spawntransform.position, Quaternion.identity);
+        if (audioClip == null || audioClip.Length == 0)
+            return;
 
-        audioSource.clip = audioClip[rand];
+        PlayClip(audioClip[Random.Range(0, audioClip.Length)], spawntransform, volume);
+    }
 
-        audioSource.volume = volume;
+    private void PlayClip(AudioClip audioClip, Transform spawnTransform, float volume)
+    {
+        if (audioClip == null || soundFXObject == null)
+            return;
 
+        Vector3 position = spawnTransform != null ? spawnTransform.position : transform.position;
+
+        // A child of the DontDestroyOnLoad manager survives scene changes.
+        AudioSource audioSource = Instantiate(soundFXObject, position, Quaternion.identity, transform);
+        audioSource.clip = audioClip;
+        audioSource.volume = Mathf.Clamp01(volume);
         audioSource.Play();
 
-        float clipLength = audioSource.clip.length;
+        float pitch = Mathf.Max(Mathf.Abs(audioSource.pitch), 0.01f);
+        StartCoroutine(DestroyAfterDelay(audioSource.gameObject, audioClip.length / pitch + 0.1f));
+    }
 
-        Destroy(audioSource.gameObject, clipLength);
+    private static IEnumerator DestroyAfterDelay(GameObject target, float delay)
+    {
+        yield return new WaitForSecondsRealtime(delay);
+
+        if (target != null)
+            Destroy(target);
     }
 }

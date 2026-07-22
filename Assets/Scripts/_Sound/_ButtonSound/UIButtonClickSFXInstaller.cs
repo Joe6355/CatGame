@@ -1,7 +1,6 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -41,8 +40,6 @@ public class UIButtonClickSFXInstaller : MonoBehaviour
     [SerializeField, Tooltip("Если включено — в консоль будет выводиться, сколько кнопок подключено.")]
     private bool debugLogs = false;
 
-    private readonly Dictionary<Button, UnityAction> wiredButtons = new Dictionary<Button, UnityAction>();
-
     private Coroutine rescanRoutine;
 
     private void OnEnable()
@@ -65,7 +62,6 @@ public class UIButtonClickSFXInstaller : MonoBehaviour
             rescanRoutine = null;
         }
 
-        UninstallFromButtons();
     }
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -75,7 +71,7 @@ public class UIButtonClickSFXInstaller : MonoBehaviour
 
     private IEnumerator RescanRoutine()
     {
-        WaitForSeconds wait = new WaitForSeconds(rescanInterval);
+        WaitForSecondsRealtime wait = new WaitForSecondsRealtime(rescanInterval);
 
         while (true)
         {
@@ -97,21 +93,47 @@ public class UIButtonClickSFXInstaller : MonoBehaviour
             if (button == null)
                 continue;
 
-            if (wiredButtons.ContainsKey(button))
+            ConfigureTarget(button.gameObject, button, true, ref added);
+            ConfigureChildEventHandlers(button, ref added);
+        }
+
+        if (debugLogs && added > 0)
+            Debug.Log($"UIButtonClickSFXInstaller: подключено новых кнопок: {added}.", this);
+    }
+
+    private void ConfigureChildEventHandlers(Button button, ref int added)
+    {
+        MonoBehaviour[] behaviours = button.GetComponentsInChildren<MonoBehaviour>(includeInactiveButtons);
+
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            MonoBehaviour behaviour = behaviours[i];
+
+            if (behaviour == null || behaviour.gameObject == button.gameObject)
                 continue;
 
-            UnityAction action = () => PlayClick(button);
+            if (behaviour is UIButtonClickSFXTarget || !(behaviour is IPointerDownHandler))
+                continue;
 
-            button.onClick.AddListener(action);
-            wiredButtons.Add(button, action);
+            // Не подключаем обработчики вложенной кнопки к родительской кнопке.
+            if (behaviour.GetComponentInParent<Button>() != button)
+                continue;
 
+            ConfigureTarget(behaviour.gameObject, button, false, ref added);
+        }
+    }
+
+    private void ConfigureTarget(GameObject targetObject, Button button, bool listenToButtonClick, ref int added)
+    {
+        UIButtonClickSFXTarget target = targetObject.GetComponent<UIButtonClickSFXTarget>();
+
+        if (target == null)
+        {
+            target = targetObject.AddComponent<UIButtonClickSFXTarget>();
             added++;
         }
 
-        CleanupDestroyedButtons();
-
-        if (debugLogs && added > 0)
-            Debug.Log($"UIButtonClickSFXInstaller: подключено новых кнопок: {added}. Всего: {wiredButtons.Count}", this);
+        target.Configure(this, button, listenToButtonClick);
     }
 
     private Button[] FindButtons()
@@ -129,15 +151,19 @@ public class UIButtonClickSFXInstaller : MonoBehaviour
 #endif
     }
 
-    private void PlayClick(Button button)
+    internal void PlayClick(Button button, bool validateButtonState)
     {
+        if (!isActiveAndEnabled)
+            return;
+
         if (buttonClickClip == null)
             return;
 
         if (button == null)
             return;
 
-        if (ignoreNotInteractableButtons && !button.interactable)
+        if (validateButtonState && ignoreNotInteractableButtons &&
+            (!button.IsActive() || !button.IsInteractable()))
             return;
 
         if (SoundFXManager.instance != null)
@@ -149,39 +175,92 @@ public class UIButtonClickSFXInstaller : MonoBehaviour
         Debug.LogWarning("UIButtonClickSFXInstaller: SoundFXManager.instance не найден. Звук кнопки не проигран.", this);
     }
 
-    private void CleanupDestroyedButtons()
+}
+
+// EventSystem-обработчик не удаляется чужими Button.onClick.RemoveAllListeners().
+[DisallowMultipleComponent]
+public sealed class UIButtonClickSFXTarget : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, ISubmitHandler
+{
+    private UIButtonClickSFXInstaller installer;
+    private Button button;
+    private bool listenToButtonClick;
+    private bool suppressNextButtonClick;
+    private int lastPlayedFrame = -1;
+    private Coroutine clearSuppressionRoutine;
+
+    internal void Configure(UIButtonClickSFXInstaller owner, Button targetButton, bool shouldListenToButtonClick)
     {
-        if (wiredButtons.Count == 0)
-            return;
+        if (button != null && listenToButtonClick)
+            button.onClick.RemoveListener(OnButtonClick);
 
-        List<Button> destroyedButtons = null;
+        installer = owner;
+        button = targetButton;
+        listenToButtonClick = shouldListenToButtonClick;
 
-        foreach (KeyValuePair<Button, UnityAction> pair in wiredButtons)
+        if (button != null && listenToButtonClick)
         {
-            if (pair.Key == null)
-            {
-                destroyedButtons ??= new List<Button>();
-                destroyedButtons.Add(pair.Key);
-            }
+            // Переустанавливаем при каждом сканировании: чужой RemoveAllListeners мог удалить обработчик.
+            button.onClick.RemoveListener(OnButtonClick);
+            button.onClick.AddListener(OnButtonClick);
         }
-
-        if (destroyedButtons == null)
-            return;
-
-        for (int i = 0; i < destroyedButtons.Count; i++)
-            wiredButtons.Remove(destroyedButtons[i]);
     }
 
-    private void UninstallFromButtons()
+    public void OnPointerDown(PointerEventData eventData)
     {
-        foreach (KeyValuePair<Button, UnityAction> pair in wiredButtons)
-        {
-            if (pair.Key == null)
-                continue;
+        PlayFromManualPointerDown();
+    }
 
-            pair.Key.onClick.RemoveListener(pair.Value);
+    internal void PlayFromManualPointerDown()
+    {
+        suppressNextButtonClick = true;
+        TryPlay(true);
+    }
+
+    public void OnPointerUp(PointerEventData eventData)
+    {
+        if (clearSuppressionRoutine != null)
+            StopCoroutine(clearSuppressionRoutine);
+
+        clearSuppressionRoutine = StartCoroutine(ClearSuppressionNextFrame());
+    }
+
+    public void OnSubmit(BaseEventData eventData)
+    {
+        TryPlay(true);
+    }
+
+    private void OnButtonClick()
+    {
+        if (suppressNextButtonClick)
+        {
+            suppressNextButtonClick = false;
+            return;
         }
 
-        wiredButtons.Clear();
+        // Сам onClick уже подтверждает, что нажатие состоялось. К этому моменту
+        // обработчик меню мог успеть выключить панель или загрузить другую сцену.
+        TryPlay(false);
+    }
+
+    private void TryPlay(bool validateButtonState)
+    {
+        if (lastPlayedFrame == Time.frameCount)
+            return;
+
+        lastPlayedFrame = Time.frameCount;
+        installer?.PlayClick(button, validateButtonState);
+    }
+
+    private IEnumerator ClearSuppressionNextFrame()
+    {
+        yield return null;
+        suppressNextButtonClick = false;
+        clearSuppressionRoutine = null;
+    }
+
+    private void OnDestroy()
+    {
+        if (button != null && listenToButtonClick)
+            button.onClick.RemoveListener(OnButtonClick);
     }
 }

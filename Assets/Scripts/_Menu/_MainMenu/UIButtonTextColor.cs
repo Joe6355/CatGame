@@ -274,6 +274,12 @@ public class UIButtonTextColor : MonoBehaviour,
             {
                 isPointerPressed = true;
 
+                UIButtonClickSFXTarget clickSfxTarget =
+                    ownerButton.GetComponent<UIButtonClickSFXTarget>();
+
+                if (clickSfxTarget != null)
+                    clickSfxTarget.PlayFromManualPointerDown();
+
                 if (selectButtonOnMouseHover)
                     SelectOwnerButton();
 
