@@ -6313,7 +6313,7 @@ MonoBehaviour:
     m_Mode: 4
     m_WrapAround: 0
     m_SelectOnUp: {fileID: 8389069657469778630}
-    m_SelectOnDown: {fileID: 0}
+    m_SelectOnDown: {fileID: 4618902730153783830}
     m_SelectOnLeft: {fileID: 0}
     m_SelectOnRight: {fileID: 0}
   m_Transition: 1
@@ -30535,11 +30535,13 @@ MonoBehaviour:
   languageValueButton: {fileID: 4550527255277324199}
   assistValueButton: {fileID: 5047332551169552489}
   vhsValueButton: {fileID: 1746720413259219863}
+  gameplayVhsValueButton: {fileID: 0}
   gamepadVibrationValueButton: {fileID: 7639453924007968795}
   fpsCounterValueButton: {fileID: 1327351093001331004}
   languageValueText: {fileID: 3926592739055067655}
   assistValueText: {fileID: 5284949900392168137}
   vhsValueText: {fileID: 6828623440685723665}
+  gameplayVhsValueText: {fileID: 0}
   gamepadVibrationValueText: {fileID: 4349076614872940505}
   fpsCounterValueText: {fileID: 5645135953082346638}
   autoFindGameplayValueButtons: 1

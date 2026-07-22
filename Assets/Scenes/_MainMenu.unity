@@ -343,7 +343,7 @@ MonoBehaviour:
   mainFirstSelected: {fileID: 1769274179}
   continueFirstSelected: {fileID: 1435067928}
   controlFirstSelected: {fileID: 559719641}
-  settingsFirstSelected: {fileID: 1027838938421218613}
+  settingsFirstSelected: {fileID: 0}
   exitConfirmFirstSelected: {fileID: 1462304795}
   keyboardResetConfirmFirstSelected: {fileID: 7733339991456848004}
   gamepadResetConfirmFirstSelected: {fileID: 7724383056728013936}

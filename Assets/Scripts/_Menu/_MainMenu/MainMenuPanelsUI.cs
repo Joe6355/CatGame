@@ -437,7 +437,7 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (settingsPanel != null)
             settingsPanel.SetActive(true);
 
-        SelectButtonDeferred(settingsFirstSelected ? settingsFirstSelected : settingsBackButton);
+        SelectButtonDeferred(GetSettingsDefaultButton());
     }
 
     private void WireButtons()
@@ -493,7 +493,7 @@ public class MainMenuPanelsUI : MonoBehaviour
     public void OpenSettings()
     {
         ShowOnlySubPanel(settingsPanel);
-        SelectButtonDeferred(settingsFirstSelected ? settingsFirstSelected : settingsBackButton);
+        SelectButtonDeferred(GetSettingsDefaultButton());
     }
 
     public void BackToMain()
@@ -778,7 +778,7 @@ public class MainMenuPanelsUI : MonoBehaviour
 
         if (settingsPanel != null && settingsPanel.activeSelf)
         {
-            SelectButtonDeferred(settingsFirstSelected ? settingsFirstSelected : settingsBackButton);
+            SelectButtonDeferred(GetSettingsDefaultButton());
             return;
         }
 
@@ -798,6 +798,29 @@ public class MainMenuPanelsUI : MonoBehaviour
         if (openSettingsButton != null && openSettingsButton.isActiveAndEnabled && openSettingsButton.interactable) return openSettingsButton;
         if (openControlButton != null && openControlButton.isActiveAndEnabled && openControlButton.interactable) return openControlButton;
         if (quitButton != null && quitButton.isActiveAndEnabled && quitButton.interactable) return quitButton;
+
+        return null;
+    }
+
+    private Button GetSettingsDefaultButton()
+    {
+        CacheSettingsTabsIfNeeded();
+
+        if (settingsTabsSwitcher != null)
+        {
+            Button preferred = settingsTabsSwitcher.GetPreferredSelectedButton();
+
+            if (preferred != null && preferred.isActiveAndEnabled && preferred.interactable)
+                return preferred;
+        }
+
+        if (settingsFirstSelected != null &&
+            settingsFirstSelected != settingsBackButton &&
+            settingsFirstSelected.isActiveAndEnabled &&
+            settingsFirstSelected.interactable)
+        {
+            return settingsFirstSelected;
+        }
 
         return null;
     }
@@ -1053,14 +1076,7 @@ public class MainMenuPanelsUI : MonoBehaviour
             return keyboardResetReturnButton;
         }
 
-        if (settingsFirstSelected != null &&
-            settingsFirstSelected.isActiveAndEnabled &&
-            settingsFirstSelected.interactable)
-        {
-            return settingsFirstSelected;
-        }
-
-        return settingsBackButton;
+        return GetSettingsDefaultButton();
     }
 
     private Button GetGamepadResetReturnButton()
@@ -1072,14 +1088,7 @@ public class MainMenuPanelsUI : MonoBehaviour
             return gamepadResetReturnButton;
         }
 
-        if (settingsFirstSelected != null &&
-            settingsFirstSelected.isActiveAndEnabled &&
-            settingsFirstSelected.interactable)
-        {
-            return settingsFirstSelected;
-        }
-
-        return settingsBackButton;
+        return GetSettingsDefaultButton();
     }
 
     private static void InvokeButton(Button btn)
